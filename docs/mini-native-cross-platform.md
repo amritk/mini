@@ -137,13 +137,17 @@ A closed, small role set, each with a real mapping on both sides:
 | `button`   | `<button type=button>`    | `accessibilityRole=button`  |
 | `link`     | `<a href>`                | `accessibilityRole=link`    |
 | `heading`  | `<h1>`…`<h6>` by level    | heading + level             |
-| `list`     | `<ul>`                    | `accessibilityRole=list`    |
-| `listitem` | `<li>`                    | list item                   |
+| `list`     | `<div role=list>`         | `accessibilityRole=list`    |
+| `listitem` | `<div role=listitem>`     | list item                   |
 | `header`   | `<header>`                | landmark                    |
 | `nav`      | `<nav>`                   | landmark                    |
 | `main`     | `<main>`                  | landmark                    |
 | `footer`   | `<footer>`                | landmark                    |
 | `none`     | unchanged + `aria-hidden` | excluded from the a11y tree |
+
+`list` and `listitem` are the two that deliberately do **not** get their real
+HTML element, and the reason is §5.4 — it is a genuine constraint rather than
+a preference, and it is the sharpest thing this exercise turned up.
 
 Three things make this the right shape for *this* codebase:
 
@@ -252,6 +256,59 @@ this section is trying to remove. The alternative — `x?: number` — pushes a
 narrowing onto every ripple effect in the app. Neither is free; the optional
 form is probably right, and this is the sort of thing to decide with a real call
 site in front of you.
+
+### 5.4 The flow wrapper becomes an accessibility hazard the moment roles exist
+
+Every control-flow component builds its subtree inside a wrapper from
+`createFlowHost`, which the DOM host makes a `display: contents` div. That is
+invisible to layout and, today, harmless — because nothing in the tree has a
+role for it to interpose in.
+
+Add roles and it stops being harmless, on the most ordinary code anyone would
+write:
+
+```tsx
+<view role="list">
+  <For each={items}>{(item) => <view role="listitem">…</view>}</For>
+</view>
+```
+
+`For` with no `as` builds a flow wrapper, so the DOM output is:
+
+```html
+<ul><div style="display: contents"><li>…</li></div></ul>
+```
+
+Two separate failures. `<ul>` may only contain `<li>` — that is a *parse-level*
+content model, so the browser's own error recovery reshapes the tree and no
+attribute can rescue it. And an interposed generic element breaks the
+list-owns-listitem relationship that assistive technology walks. The same shape
+would break every other required parent/child pairing a richer role set brings
+(`tablist`/`tab`, `radiogroup`/`radio`, `menu`/`menuitem`).
+
+It generalises, so it is worth stating as a rule rather than a fix:
+
+> **A wrapper the framework inserted must never be visible to accessibility, and
+> must never be a node whose parent has a restrictive content model.**
+
+Which forces two decisions:
+
+**The flow wrapper carries `role="presentation"`.** Cheap, one line per host, and
+it keeps `Show`, `Switch`, `Dynamic`, `For`, and `Index` from interposing
+anywhere. `display: contents` alone is *not* sufficient — its accessibility-tree
+treatment has been inconsistent across browsers and is not something to bet a
+semantics layer on.
+
+**`role="list"` builds a `<div role="list">`, not a `<ul>`.** ARIA roles carry no
+content-model restriction, so a presentational wrapper between the list and its
+items is survivable; a real `<ul>` is not. This is also what React Native Web
+concluded, for the same reason.
+
+Note what this does *not* change: `<a>`, `<h1>`–`<h6>`, `<nav>`, `<main>`,
+`<header>`, and `<footer>` all take flow content, so a wrapper inside them is
+legal and they keep their real elements — and with them the browser affordances
+that were the point. `<button>` is the interesting middle case, and §15 is
+honest about it.
 
 ---
 
@@ -366,6 +423,25 @@ type HeadingProps = { as?: 'heading' | 'none'; … }
 ```
 
 Polymorphism that cannot break the invariant it is overriding.
+
+**And the package already does this.** `For` and `Index` take an `as` today,
+through `ContainerProps`:
+
+```ts
+/** Render rows into a real element of this tag instead of the default flow wrapper. */
+as?: ElementTag
+```
+
+Same word, same meaning — *override what this component builds* — with the
+accepted type narrowed to what is coherent there. That is precedent rather than
+collision, and it settles the naming question. It is also already compliant with
+the rule above, since it accepts a tag from the **vocabulary**, not from HTML.
+
+Worth folding in while touching it: `buildContainer` applies `class`, `style`,
+and `ref` to the container it builds but has no path for `role`, so
+`<For as="view" role="list">` cannot be written. Given §5.4 that is the *correct*
+way to build an accessible list, so the container needs to forward the
+accessibility props too.
 
 **There is no need for `asChild`.** Radix-style slot cloning exists to work
 around React cloning elements to merge props onto a child. Nothing here clones
@@ -747,12 +823,110 @@ is a documented lie — and the audit found four of them at once:
 That was found by hand. It is checkable by machine, and a vocabulary this small
 is exactly the size where that is worth doing.
 
-## 14. Order of work
+## 14. Prior art, and the one bet this package cannot copy
+
+Nothing above is novel, and a design note that does not say what it is
+downstream of is hiding something.
+
+**React Native Web** is the existence proof. It established most of what §5 and
+§6 propose — role-driven element selection, a reset stylesheet to make CSS
+behave like Yoga, a component layer over primitives — and it works at
+Twitter-scale. Its two lasting complaints are worth pre-empting: the bundle is
+large because it carries RN's whole surface whether you use it or not, and it is
+perpetually chasing an upstream API it does not own. Neither applies here — the
+vocabulary is five tags and this repo owns all of it.
+
+**React Strict DOM** is the serious counter-bet, and the note is weaker for not
+having engaged with it. It inverts the inversion: write standard HTML tags and a
+CSS subset, compile *down* to native. The argument is strong. The web
+vocabulary is vastly better specified than any invented native one, every
+accessibility tool already understands it, every developer already knows it, and
+"the lowest common denominator of native toolkits" is a set somebody has to
+invent and then defend — which is exactly what §5 through §7 spend their length
+doing.
+
+There is one decisive reason not to follow it here, and it is not taste: **React
+Strict DOM needs a compiler.** Mapping CSS onto Yoga statically is what makes the
+approach viable, and this package's charter is compilerless — no build-step
+transform beyond the standard JSX one. Take the compiler and you have a
+different project. So the inversion stays, and the honest framing is that it is
+a consequence of the compilerless constraint rather than an independent
+conviction about vocabularies.
+
+**Tamagui** is the other end of that trade: an optimising compiler plus its own
+token and component system, buying a lot of performance and ergonomics for a
+build step. Its useful lesson for §6 is that the design-system layer is where
+users actually feel the value, and that shipping tokens is a much larger
+commitment than shipping components.
+
+**Dominative and the Solid-native experiments** are the closest architectural
+siblings — fine-grained reactivity, no virtual tree, a pluggable host — and they
+confirm the cheap part of this note: the runtime really does port for almost
+nothing. Everything expensive here is vocabulary and semantics, not rendering.
+
+The pattern across all of them: everyone who attempted write-once ended up
+needing a layout reset, role-based semantics, and a token system. Most also
+ended up needing a compiler. This package can have the first three and must not
+have the fourth, which is the constraint the style note in (11) has to design
+against.
+
+## 15. What this design costs
+
+Every proposal above has a bill, and they are worth writing down next to the
+benefits rather than being discovered later.
+
+**Static `role` means conditional semantics rebuild.** `role` cannot be a getter,
+so `<view role={isLink() ? 'link' : 'button'}>` is unsayable and the honest
+answer is `Dynamic`, which rebuilds the subtree and loses focus and scroll
+position inside it. Rare in practice — a thing does not usually change what it
+*is* — but when it happens the workaround is visibly worse than a reactive prop
+would have been.
+
+**`<button>` cannot be statically constrained.** §5.4 rescues lists by dropping
+to `div role="list"`, but `<button>` is a genuine trade rather than a clean win.
+It buys real focus order, real Enter and Space activation, and real form
+submission. It costs a content model — no interactive descendants — that
+TypeScript cannot enforce on `children`, so `<Button><Link/></Button>` typechecks
+and produces broken HTML. React Native Web resolves this by using `div` +
+`role="button"` everywhere and re-synthesising activation, accepting a permanent
+tax on keyboard correctness in exchange for never being invalid. The
+recommendation here goes the other way — take the real element, catch the
+violation in the validation suite (§13) — but it is a judgement call, not an
+obvious one, and it is the single place this note most deserves an argument.
+
+**Normalised events lose information.** A framework-defined `TapEvent` of
+`{ x, y }` is portable precisely because it discards everything target-specific.
+An app that needs modifier keys on the web, or force on a device, has to reach
+past it, and there is currently no seam for that. `NativeEventMap` still exists
+for events the vocabulary does not name, but the named ones would need a
+deliberate escape — a `raw` field, most likely, which immediately becomes the
+non-portable hole the whole idea was avoiding.
+
+**`/ui` version-couples the design system to the framework.** Shipping semantic
+components means a design system built on them upgrades on this package's
+schedule. That is the price of centralising the correctness knowledge, and it is
+the reason §6.1 draws the line where it does: the smaller `/ui` stays, the less
+that coupling costs.
+
+**The parity suite proves meaning, not appearance.** It can assert that a button
+has the right role and name on all three hosts. It cannot assert that the button
+looks like a button, and the divergences in §12 are exactly the ones it will not
+catch. Screenshot testing on two targets is the only thing that would, and that
+is a much larger commitment than this note is proposing.
+
+**Pre-alpha corrections are cheap now and never again.** `axis`, `secure`,
+`selectable`, `alt` → `label`, and the `role`-forwarding in `buildContainer` are
+all trivial today and all breaking. They are listed at (5) in the order of work
+for that reason alone.
+
+## 16. Order of work
 
 1. **The semantics layer** — `role`, `level`, `label`, `hint`, `focusable`,
    state props; role-driven element construction in the DOM host; the native
    mapping in the Lynx host; `alt` folded into `label`. Closes the audit's number
-   one native gap and the number one web gap together.
+   one native gap and the number one web gap together. Ships with the two things
+   §5.4 forces: `role="presentation"` on every flow wrapper, and accessibility
+   props forwarded through `buildContainer`.
 2. **Normalised event payloads** (§5.3). Independent of (1), similar size, and
    the thing that blocks write-once soonest in practice.
 3. **Operable tappables.** Falls out of (1) almost entirely.
