@@ -18,8 +18,15 @@ You write TypeScript code that is clear, predictable, and easy to maintain. The 
 - Always use `const` instead of `let`.
 - Use `satisfies` instead of `as`.
 - Always use arrow functions when possible.
-- Import using package.json `imports` (subpath imports), e.g. `import x from "#markdown/generate-markdown"`.
-- Use bun for packages.
+- Import with relative specifiers inside a package (`./bind`, `../signals`).
+  Neither package declares a package.json `imports` map, and neither may import
+  the other: `mini` and `mini-native` are siblings, not layers.
+- The only bare specifier allowed in shipped sources is `alien-signals`, plus
+  the optional peers already confined to their subpaths (`/forms`, `/query`,
+  `/vite`). `packages/mini/src/import-boundary.test.ts` enforces that for the
+  `.` entry.
+- Use Bun for repo tooling only — see `.claude/bun.md`. Package sources compile
+  for browsers and native hosts, so they carry no Bun or Node API.
 - Use one function per file.
 - Do not use classes, use functional programming paradigms.
 

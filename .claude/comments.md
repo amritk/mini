@@ -61,15 +61,18 @@ export type AtLeastOne<T> = {
 
 ```typescript
 /**
- * useUser composable for loading and managing user data.
- * Fetches the user from the API and exposes reactive state.
+ * Loads a user and exposes the result as signals.
  *
  * Returns:
- * - user: Ref<User | null>
- * - isLoading: Ref<boolean>
- * - loadUser: Function to manually trigger user loading
+ * - user: ReadonlySignal<User | null>
+ * - isLoading: ReadonlySignal<boolean>
+ * - loadUser: manually triggers a reload
+ *
+ * The returned signals are read by calling them (`user()`), and a binding stays
+ * live only if you pass the signal itself — `bindText(el, user)`, never
+ * `bindText(el, user())`.
  */
-export function useUser() {
+export const createUser = () => {
   /* ... */
 }
 ```

@@ -1,31 +1,16 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-
-/**
- * Strips the `development` condition from every workspace package's `exports`.
- *
- * Locally we resolve packages to their TypeScript source via the `development`
- * export condition (see the `dev` scripts and `--conditions development`). That
- * condition points at `./src/*.ts` — for @amritk/helpers, whose `files` ships
- * `src`, a consumer or bundler resolving `development` would load raw,
- * uncompiled TypeScript instead of the built JS in `dist`; for every other
- * package (`files: ["dist"]`) the condition would dangle at paths that do not
- * exist in the tarball at all.
- *
- * Removing the condition from the published manifests closes both holes. Like
- * resolve-workspace-protocol, this runs in the ephemeral publish job and is
- * never committed.
- */
-
-const ROOT = join(import.meta.dir, '..')
+import { pathToFileURL } from 'node:url'
 
 type Exports = Record<string, unknown>
 type PackageJson = { name?: string; exports?: Exports }
 
-const readJson = async (path: string): Promise<PackageJson> => JSON.parse(await readFile(path, 'utf-8'))
-
-/** Recursively delete every `development` condition within an exports subtree. */
-const stripDevelopment = (node: unknown): boolean => {
+/**
+ * Recursively deletes every `development` condition within an exports subtree.
+ * Returns true when something was removed, so a manifest that is already clean
+ * is left untouched on disk.
+ */
+export const stripDevelopment = (node: unknown): boolean => {
   if (node === null || typeof node !== 'object') return false
   let changed = false
   const conditions = node as Record<string, unknown>
@@ -39,24 +24,48 @@ const stripDevelopment = (node: unknown): boolean => {
   return changed
 }
 
-const run = async (): Promise<void> => {
-  const packagesDir = join(ROOT, 'packages')
-  const entries = await readdir(packagesDir, { withFileTypes: true })
+/**
+ * Strips the `development` condition from every workspace package's `exports`.
+ *
+ * Locally we resolve packages to their TypeScript source via the `development`
+ * export condition (see `--conditions development` and the src aliases in
+ * vitest.config.ts). That condition points at `./src/*.ts`, and both packages
+ * deliberately ship `src` in their `files` list — so a consumer or bundler
+ * resolving `development` against a published tarball finds real files and
+ * pulls in raw, untranspiled TypeScript instead of the built JS in `dist`.
+ *
+ * Removing the condition from the published manifests closes that hole. Like
+ * resolve-workspace-protocol and copy-license, this runs in the ephemeral
+ * publish job and is never committed.
+ *
+ * Returns the names of the packages whose manifests were rewritten.
+ */
+export const stripDevelopmentExports = async (root: string): Promise<string[]> => {
+  const packagesDir = join(root, 'packages')
+  const stripped: string[] = []
 
-  for (const entry of entries) {
+  for (const entry of await readdir(packagesDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const path = join(packagesDir, entry.name, 'package.json')
-    const pkg = await readJson(path)
+    const pkg = JSON.parse(await readFile(path, 'utf-8')) as PackageJson
     if (!pkg.exports) continue
 
     if (stripDevelopment(pkg.exports)) {
       await writeFile(path, `${JSON.stringify(pkg, null, 2)}\n`, 'utf-8')
-      console.log(`Stripped development exports in ${pkg.name ?? path}`)
+      stripped.push(pkg.name ?? entry.name)
     }
   }
+
+  return stripped
 }
 
-run().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error)
-  process.exit(1)
-})
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  stripDevelopmentExports(join(import.meta.dir, '..'))
+    .then((stripped) => {
+      for (const name of stripped) console.log(`Stripped development exports in ${name}`)
+    })
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : error)
+      process.exit(1)
+    })
+}

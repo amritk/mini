@@ -71,5 +71,10 @@ not "fix".
   done.
 - Both packages **ship their `src/`**, so source comments reach consumers — keep
   them accurate.
+- **Shared runtime dependencies go through the root `catalog`.** Both packages
+  declare `alien-signals` as `"catalog:"`; change the version once, in the root
+  `package.json`, never in a package manifest. `catalog:`/`workspace:` are
+  resolved at publish time by `scripts/resolve-workspace-protocol.ts` because
+  npm understands neither — see `.claude/bun.md`.
 - Pre-alpha: breaking changes are allowed but must ride a **minor** version bump
   via a changeset.

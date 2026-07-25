@@ -51,9 +51,10 @@ jobs:
         run: bun run build
 
       # Last line of defense before publish: load every compiled module under
-      # plain Node and drive the built runtime end-to-end, so a build or pack
-      # step that corrupts the output can never ship to npm.
-      - name: Smoke test built artifacts
+      # plain Node, drive the built runtime end-to-end, and install packed
+      # tarballs like an npm consumer, so a build, pack or manifest step that
+      # corrupts the output can never ship to npm.
+      - name: Smoke and e2e test built artifacts
         run: bun run test:dist
 
       - name: Create Release PR or Publish

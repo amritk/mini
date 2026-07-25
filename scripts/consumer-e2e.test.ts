@@ -1,0 +1,303 @@
+import { existsSync } from 'node:fs'
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import { ROOT, runCommand, runNode } from './e2e-helpers'
+import { stripDevelopment } from './strip-development-exports'
+import { type PackageJson, resolveProtocols } from './workspace-protocol'
+
+/**
+ * The npm consumer's path, end to end: pack both packages exactly the way
+ * `release:publish` does — `catalog:`/`workspace:` specifiers resolved, the
+ * `development` condition stripped — install the tarballs into scratch
+ * projects, and drive them under plain Node.
+ *
+ * Nothing else in the pipeline sees this. The unit tests alias both packages
+ * to their `src/`, and dist-smoke loads `dist/` by absolute path — so a broken
+ * `files` list, an exports map that points at a file the tarball does not
+ * carry, or a `catalog:` specifier that never got resolved all look perfectly
+ * healthy right up until the first `npm install` of the published package.
+ *
+ * Requires a prior `bun run build`; run via `bun run test:dist`.
+ */
+
+type Manifest = PackageJson & { exports?: Record<string, unknown>; files?: string[] }
+
+/**
+ * Subpaths whose module graph statically reaches an optional peer, so they only
+ * resolve once that peer is installed. Everything else must import with nothing
+ * but the package itself — that is the promise `.` makes to the widget bundle.
+ */
+const PEER_BACKED_SUBPATHS: Record<string, string> = {
+  '@amritk/mini/forms': '@amritk/runtime-validators',
+  '@amritk/mini/query': '@tanstack/query-core',
+  '@amritk/mini/vite': 'typescript',
+}
+
+/** The one subpath that exists purely to publish types — its compiled module is empty by design. */
+const TYPES_ONLY_SUBPATH = '@amritk/mini-native/host'
+
+/** The optional peers a consumer installs to use the subpaths above. */
+const OPTIONAL_PEERS: Record<string, string> = {
+  '@amritk/runtime-validators': '^0.9.0',
+  '@tanstack/query-core': '^5.101.2',
+  typescript: '^5',
+}
+
+const PACKAGES_DIR = join(ROOT, 'packages')
+
+const readManifest = async (path: string): Promise<Manifest> => JSON.parse(await readFile(path, 'utf-8')) as Manifest
+
+/** Every bare specifier a package's exports map offers a consumer. */
+const declaredSubpaths = (pkg: Manifest): string[] =>
+  Object.keys(pkg.exports ?? {})
+    .filter((key) => key !== './package.json')
+    .map((key) => (key === '.' ? (pkg.name as string) : `${pkg.name}/${key.slice('./'.length)}`))
+
+/** Runs an ESM probe from inside a consumer project, so bare specifiers resolve as a consumer's would. */
+const runProbe = async (consumerDir: string, name: string, source: string): Promise<string> => {
+  const path = join(consumerDir, `${name}.mjs`)
+  await writeFile(path, source, 'utf-8')
+  const { stdout } = await runNode([path], { cwd: consumerDir })
+  return stdout
+}
+
+describe('consumer-e2e', () => {
+  let workDir: string
+  /** Installed with nothing but the tarballs: the no-optional-peers consumer. */
+  let bareDir: string
+  /** The same install plus every optional peer, so the peer-backed subpaths resolve. */
+  let fullDir: string
+  const subpaths: string[] = []
+  let catalog: Record<string, string> = {}
+
+  beforeAll(async () => {
+    workDir = await mkdtemp(join(tmpdir(), 'mini-consumer-'))
+    const packDir = join(workDir, 'tarballs')
+    bareDir = join(workDir, 'bare-app')
+    fullDir = join(workDir, 'full-app')
+    await mkdir(packDir, { recursive: true })
+    await mkdir(bareDir, { recursive: true })
+    await mkdir(fullDir, { recursive: true })
+
+    const rootPkg = await readManifest(join(ROOT, 'package.json'))
+    catalog = rootPkg.catalog ?? {}
+
+    const workspacePackages: { dir: string; pkg: Manifest }[] = []
+    const versions = new Map<string, string>()
+    for (const entry of await readdir(PACKAGES_DIR, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const dir = join(PACKAGES_DIR, entry.name)
+      const pkg = await readManifest(join(dir, 'package.json'))
+      if (pkg.name && pkg.version) versions.set(pkg.name, pkg.version)
+      workspacePackages.push({ dir, pkg })
+    }
+
+    const dependencies: Record<string, string> = {}
+    for (const { dir, pkg } of workspacePackages) {
+      if (pkg.private || !pkg.name) continue
+      if (!existsSync(join(dir, 'dist'))) {
+        throw new Error(`${pkg.name} has no dist/ directory — run \`bun run build\` before \`bun run test:dist\`.`)
+      }
+
+      // Pack from a copy: the release transforms rewrite package.json, and the
+      // working tree must come out of this test exactly as it went in.
+      const copyDir = join(workDir, 'pack-src', pkg.name.replace('/', '__'))
+      await cp(dir, copyDir, { recursive: true, filter: (source) => !source.includes('node_modules') })
+      resolveProtocols(pkg, versions, rootPkg)
+      stripDevelopment(pkg.exports)
+      await writeFile(join(copyDir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf-8')
+
+      const { stdout } = await runCommand('npm', ['pack', '--pack-destination', packDir], { cwd: copyDir })
+      dependencies[pkg.name] = `file:${join(packDir, stdout.trim().split('\n').at(-1) ?? '')}`
+      subpaths.push(...declaredSubpaths(pkg))
+    }
+    expect(Object.keys(dependencies).sort()).toEqual(['@amritk/mini', '@amritk/mini-native'])
+
+    // `overrides` forces every transitive @amritk/* edge onto our tarballs.
+    // Without it the installer is free to satisfy one from the registry, which
+    // is exactly how a corrupted published artifact would slip past this test.
+    const writeConsumer = async (dir: string, name: string, extra: Record<string, string>): Promise<void> => {
+      await writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name,
+          private: true,
+          type: 'module',
+          dependencies: { ...dependencies, ...extra },
+          overrides: dependencies,
+        }),
+        'utf-8',
+      )
+      await runCommand('npm', ['install', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: dir })
+    }
+
+    // happy-dom gives the DOM probes a document without asking mini to ship one.
+    await writeConsumer(bareDir, 'mini-bare-consumer', { 'happy-dom': '^20.0.0' })
+    await writeConsumer(fullDir, 'mini-full-consumer', { 'happy-dom': '^20.0.0', ...OPTIONAL_PEERS })
+  }, 240_000)
+
+  afterAll(async () => {
+    await rm(workDir, { recursive: true, force: true })
+  })
+
+  it('installs manifests with every catalog: and workspace: specifier resolved', async () => {
+    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+      const pkg = await readManifest(join(bareDir, 'node_modules', name, 'package.json'))
+      for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
+        for (const [dep, spec] of Object.entries(pkg[field] ?? {})) {
+          expect(spec, `${name} ${field}.${dep}`).not.toMatch(/^(catalog|workspace):/)
+        }
+      }
+      // The catalog is the single source of truth for the shared reactive core,
+      // so what ships has to be the version the catalog pins.
+      expect(pkg.dependencies?.['alien-signals']).toBe(catalog['alien-signals'])
+    }
+  })
+
+  it('resolves the catalog-pinned alien-signals to one installed copy', async () => {
+    // Two copies of alien-signals means two signal graphs: an effect created
+    // through mini would never see a write made through mini-native.
+    const installed = await readManifest(join(bareDir, 'node_modules/alien-signals/package.json'))
+    expect(installed.version).toBe(catalog['alien-signals'])
+    expect(existsSync(join(bareDir, 'node_modules/@amritk/mini/node_modules/alien-signals'))).toBe(false)
+    expect(existsSync(join(bareDir, 'node_modules/@amritk/mini-native/node_modules/alien-signals'))).toBe(false)
+  })
+
+  it('ships src without a development condition that would resolve to it', async () => {
+    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+      const packageDir = join(bareDir, 'node_modules', name)
+      // Both packages ship their sources for source maps and go-to-definition,
+      // which is precisely why the condition must be gone: it points at real
+      // files in the tarball, so a bundler honouring `development` would hand a
+      // consumer raw TypeScript instead of the built JS.
+      expect(existsSync(join(packageDir, 'src/index.ts')), `${name} ships src`).toBe(true)
+      const pkg = await readManifest(join(packageDir, 'package.json'))
+      expect(JSON.stringify(pkg.exports), `${name} exports`).not.toContain('development')
+    }
+  })
+
+  it('keeps test files out of the published tarballs', async () => {
+    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+      const packageDir = join(bareDir, 'node_modules', name)
+      const files = await readdir(packageDir, { recursive: true })
+      expect(
+        files.filter((file) => file.includes('.test.')),
+        `${name} tarball`,
+      ).toEqual([])
+    }
+  })
+
+  it('resolves every declared export subpath from a consumer install', async () => {
+    // A guard against this sweep going quiet if the exports maps ever move.
+    expect(subpaths.length).toBeGreaterThan(15)
+    const source = `
+      const empty = []
+      for (const specifier of ${JSON.stringify(subpaths)}) {
+        const module = await import(specifier)
+        if (Object.keys(module).length === 0) empty.push(specifier)
+      }
+      console.log(JSON.stringify(empty))
+    `
+    const empty = JSON.parse((await runProbe(fullDir, 'subpaths', source)).trim()) as string[]
+    // `/host` is the renderer contract: types only, so its compiled module is
+    // legitimately empty. Any other entry that ships nothing at runtime is a
+    // build that dropped its exports.
+    expect(empty).toEqual([TYPES_ONLY_SUBPATH])
+  })
+
+  it('imports the core entries with no optional peer installed', async () => {
+    const peerless = subpaths.filter((specifier) => !(specifier in PEER_BACKED_SUBPATHS))
+    expect(peerless.length).toBeGreaterThan(12)
+    const source = `
+      for (const specifier of ${JSON.stringify(peerless)}) await import(specifier)
+      console.log('ok')
+    `
+    expect(await runProbe(bareDir, 'peerless', source)).toContain('ok')
+  })
+
+  it('names the optional peer when a peer-backed subpath is imported without it', async () => {
+    // These subpaths import their peer statically, so in a project without it
+    // they fail at resolution. Pinned here so the set cannot grow silently: a
+    // new peer-backed import inside `.` or `/flow` would be a real regression.
+    for (const [specifier, peer] of Object.entries(PEER_BACKED_SUBPATHS)) {
+      expect(subpaths, `${specifier} is still declared`).toContain(specifier)
+      const source = `await import('${specifier}')`
+      await expect(runProbe(bareDir, `missing-peer-${peer.replace(/\W/g, '-')}`, source)).rejects.toThrow(peer)
+    }
+  })
+
+  it('renders and updates a mini component from the installed tarball', async () => {
+    const source = `
+      import { Window } from 'happy-dom'
+
+      const window = new Window()
+      for (const key of ['document', 'Node', 'Element', 'HTMLElement', 'HTMLInputElement', 'HTMLSelectElement']) {
+        globalThis[key] = window[key]
+      }
+      globalThis.window = window
+
+      const { mount, signal } = await import('@amritk/mini')
+      const { jsx } = await import('@amritk/mini/jsx-runtime')
+
+      const count = signal(0)
+      const container = document.createElement('div')
+      const dispose = mount(container, () => jsx('p', { children: () => 'count ' + count() }))
+
+      const check = (expected) => {
+        if (container.textContent !== expected) {
+          console.error('expected ' + expected + ', got ' + container.textContent)
+          process.exit(1)
+        }
+      }
+
+      check('count 0')
+      // The binding has to survive the build, the pack, and the exports map for
+      // this write to reach the DOM node.
+      count(1)
+      check('count 1')
+
+      dispose()
+      count(2)
+      check('')
+      console.log('ok')
+    `
+    expect(await runProbe(bareDir, 'mini-dom', source)).toContain('ok')
+  })
+
+  it('drives mini-native through its memory host from the installed tarball', async () => {
+    const source = `
+      const { bindText, mount, setHost, signal } = await import('@amritk/mini-native')
+      const { createMemoryHost } = await import('@amritk/mini-native/hosts/memory')
+      const { serializeMemoryTree } = await import('@amritk/mini-native/hosts/memory/serialize')
+
+      const memory = createMemoryHost()
+      setHost(memory.host)
+
+      const label = signal('first')
+      mount(memory.rootElement, () => {
+        const item = memory.host.createElement('text')
+        const text = memory.host.createText('')
+        bindText(text, label)
+        memory.host.insert(item, text, null)
+        return item
+      })
+
+      const check = (expected) => {
+        const tree = serializeMemoryTree(memory.root)
+        if (!tree.includes(expected)) {
+          console.error('expected ' + expected + ' in\\n' + tree)
+          process.exit(1)
+        }
+      }
+
+      check('first')
+      label('second')
+      check('second')
+      console.log('ok')
+    `
+    expect(await runProbe(bareDir, 'native-memory', source)).toContain('ok')
+  })
+})
