@@ -22,7 +22,7 @@ You'll need [Bun](https://bun.sh) ≥ 1.1.
 | `bun run check:reactivity` | Catch signals frozen by being called in JSX |
 | `bun run types:check` | Type-check both packages |
 | `bun run build` | Build both packages |
-| `bun run test:dist` | Load and drive the built `dist/` artifacts (needs a prior build) |
+| `bun run test:dist` | Load, drive and npm-install the built artifacts (needs a prior build) |
 
 Per package: `bun run --filter='@amritk/mini' test` (and `build`, `types:check`).
 

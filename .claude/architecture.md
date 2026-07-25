@@ -37,7 +37,7 @@ mini/
 ├── .changeset/                # Changesets config (release automation)
 ├── .github/                   # CI, release, bench, issue & PR templates
 ├── docs/                      # Longer-form design notes and audits
-├── scripts/                   # Build, release, bench and dist-smoke tooling
+├── scripts/                   # Build, release, bench, dist-smoke and consumer-e2e tooling
 └── package.json               # Workspace root (private)
 ```
 
@@ -156,10 +156,14 @@ reason.
   boilerplate: `import-boundary.test.ts` and `core-size-budget.test.ts` in each
   package are what keep the charter from eroding one convenient import at a
   time.
-- **`bun run test:dist`** is the other half: it loads every compiled module
-  under plain Node and drives the built `mini-native` runtime through its memory
-  host, catching build- and pack-step corruption that the src-aliased suite
-  cannot see by construction.
+- **`bun run test:dist`** is the other half, and it needs a prior
+  `bun run build`. It loads every compiled module under plain Node, drives the
+  built `mini-native` runtime through its memory host, and — in
+  `consumer-e2e.test.ts` — packs both packages the way `release:publish` does
+  (`catalog:`/`workspace:` resolved, the `development` condition stripped),
+  installs the tarballs into scratch projects, and imports every declared
+  subpath from them. That catches build-, pack- and manifest-level breakage the
+  src-aliased suite cannot see by construction.
 
 Run all tests:
 
