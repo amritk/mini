@@ -4,8 +4,8 @@ A design note, not a plan of record. It works out what has to change for a
 component written against the native vocabulary to be a *production* web page as
 well as a device screen, and in what order.
 
-**Style is deliberately out of scope here**, and there is a section at the end
-saying why it is the harder half rather than the easier one.
+**Style is deliberately out of scope here**, and §12 says why it is the harder
+half rather than the easier one.
 
 ---
 
@@ -64,57 +64,59 @@ of this is portable today, unchanged:
 - `class`, `style`, `show`, `ref`, `testId`, and the reactive-if-it-is-a-function
   rule.
 - `onTap` / `onLongPress` / `onFocus` / `onBlur`, and the per-tag handlers.
-- `NativeEventMap`, which already solves the "an event is whatever the host says
-  it is" problem through declaration merging.
+- `bindValue`'s composition handling, which was already written to no-op on
+  targets that do not emit IME events.
 
 The gaps below are additive. None of them asks for a different runtime.
 
-## 4. What does not carry over
+## 4. The two structural gaps
 
-### 4.1 Semantics — the whole of it
+Almost everything in §5–§9 is an instance of one of these two.
+
+### 4.1 Elements have no meaning
 
 Everything is a `div` or a `span`. There is no `role`, no accessible name, no
 focusability, no state (`checked`, `expanded`, `selected`), no heading level, no
 landmark. On a device this is an app-store problem. On the web it is that plus
 keyboard operability, plus SEO, plus the browser's own affordances (form submit,
-open-in-new-tab, find-in-page).
+open-in-new-tab, find-in-page). §5–§7 are the fix.
 
-### 4.2 Interaction beyond tap
+### 4.2 Events have no shape — and this is the one that bites first
 
-`onTap` maps to `click` on the DOM host, so a mouse works and a keyboard does
-not. A `<view role="button">` that renders as a `<div>` is unreachable by Tab and
-unactivatable by Enter or Space. That is not a missing feature, it is a broken
-one — the component *looks* interactive on both targets and is only interactive
-on one.
+`NativeEventMap` is `unknown` for every entry, with the app narrowing it once
+against the host it ships:
 
-The reverse also exists: hover and pointer-precision are real on the web and
-absent on touch, and pan/swipe/pinch are the opposite. Both directions need an
-answer that is honest about degradation rather than silently doing nothing.
+> Every entry is `unknown` here on purpose, because this package cannot know
+> what an event is […] Rather than pick one and be wrong on the other target,
+> the map is left open for the APP to fill in through declaration merging.
 
-### 4.3 Nowhere to put a difference
+That reasoning is correct for *arbitrary* events, and it quietly fails for the
+handful whose meaning **this framework itself defines**. Consider the most
+ordinary thing an app does:
 
-Some things genuinely cannot be written once, and today there is no sanctioned
-way to say so. No platform introspection, no capability query, no build-time
-file-variant convention. Without one, apps will reach for `typeof document !==
-'undefined'`, which is both wrong (the memory host has no document either) and
-unreviewable.
+```tsx
+<scroll-view onScroll={(e) => headerOpacity(/* … what? */)} />
+<view onTap={(e) => ripple(/* … from where? */)} />
+```
 
-### 4.4 No environment
+There is no way to write either of those once. `e` is a `UIEvent` on the web and
+a Lynx scroll event on device; reading an offset means branching on the host
+inside a component. Declaration merging does not help — merging picks *one*
+shape, so an app that ships both targets has to pick the wrong one somewhere.
 
-Safe-area insets, viewport dimensions, orientation, colour scheme. Already on
-the audit's list. They matter more here than in a native-only world, because
-they are precisely the things you *would* branch on — and a good environment
-API removes most of the pressure on 4.3.
+So write-once fails at the event boundary even with a perfect semantics layer,
+and no amount of role mapping fixes it. **The host has to normalise the payloads
+of the events the vocabulary names**, exactly as it already normalises `class`
+into a string and numbers into `100px`. It is the same principle, applied to the
+half of the contract that flows the other way.
 
-### 4.5 No navigation
-
-Web needs real URLs — addressable, back-button-correct, crawlable. Native needs
-a nav stack. `mini` has a router; `mini-native` has none. The matcher half is
-pure and portable, the navigator half is not.
+That is the single biggest concrete finding of this round, and it is cheap:
+`addEventListener` already exists, so this is a change to what hosts *put in*
+the event, not to the contract's shape.
 
 ---
 
-## 5. Proposed design
+## 5. The semantics layer
 
 ### 5.1 A `role` prop, not new tags, and not new host methods
 
@@ -130,17 +132,17 @@ Add to `CommonProps`:
 
 A closed, small role set, each with a real mapping on both sides:
 
-| `role`     | DOM host builds        | Native host sets            |
-| ---------- | ---------------------- | --------------------------- |
-| `button`   | `<button type=button>` | `accessibilityRole=button`  |
-| `link`     | `<a href>`             | `accessibilityRole=link`    |
-| `heading`  | `<h1>`…`<h6>` by level | heading + level             |
-| `list`     | `<ul>`                 | `accessibilityRole=list`    |
-| `listitem` | `<li>`                 | list item                   |
-| `header`   | `<header>`             | landmark                    |
-| `nav`      | `<nav>`                | landmark                    |
-| `main`     | `<main>`               | landmark                    |
-| `footer`   | `<footer>`             | landmark                    |
+| `role`     | DOM host builds           | Native host sets            |
+| ---------- | ------------------------- | --------------------------- |
+| `button`   | `<button type=button>`    | `accessibilityRole=button`  |
+| `link`     | `<a href>`                | `accessibilityRole=link`    |
+| `heading`  | `<h1>`…`<h6>` by level    | heading + level             |
+| `list`     | `<ul>`                    | `accessibilityRole=list`    |
+| `listitem` | `<li>`                    | list item                   |
+| `header`   | `<header>`                | landmark                    |
+| `nav`      | `<nav>`                   | landmark                    |
+| `main`     | `<main>`                  | landmark                    |
+| `footer`   | `<footer>`                | landmark                    |
 | `none`     | unchanged + `aria-hidden` | excluded from the a11y tree |
 
 Three things make this the right shape for *this* codebase:
@@ -167,15 +169,40 @@ toolkit cannot already say with `accessibilityRole`. An ergonomic component
 layer — `<Pressable>`, `<Link>` — can sit on top later without contradicting
 this; it composes, whereas new tags do not.
 
-The companion props, all reactive, all on `CommonProps`:
+Concretely:
 
-- `label` — the accessible name. `aria-label` / `accessibilityLabel`.
-- `hint` — supplementary description. `aria-description` / `accessibilityHint`.
-- `focusable` — participates in focus order. `tabindex` / focusable.
-- `disabled`, `selected`, `checked`, `expanded` — state, to `aria-*` and the
-  native equivalents. (`disabled` is on `input` today and gets promoted.)
-- `href` — accepted only alongside `role="link"`; ignored by hosts with no
-  addressable concept.
+```ts
+/** Static: decides what the host builds, so there is no reactive form. */
+export type Role =
+  | 'button' | 'link' | 'heading' | 'list' | 'listitem'
+  | 'header' | 'nav' | 'main' | 'footer' | 'none'
+
+type AccessibilityProps = {
+  role?: Role
+  /** Heading depth, 1–6. Static, for the same reason `role` is. */
+  level?: 1 | 2 | 3 | 4 | 5 | 6
+  /** The accessible name. `aria-label` / `accessibilityLabel`. */
+  label?: MaybeReactive<string>
+  /** Supplementary description. `aria-description` / `accessibilityHint`. */
+  hint?: MaybeReactive<string>
+  /** Participates in focus order. `tabindex` / focusable. */
+  focusable?: MaybeReactive<boolean>
+  /** Focus this element when it is built. */
+  autoFocus?: boolean
+  disabled?: MaybeReactive<boolean>
+  selected?: MaybeReactive<boolean>
+  checked?: MaybeReactive<boolean>
+  expanded?: MaybeReactive<boolean>
+  /** Accepted only alongside `role="link"`; ignored where nothing is addressable. */
+  href?: MaybeReactive<string>
+}
+```
+
+**Consequence: `image alt` should go.** With `label` on `CommonProps`, `alt` is
+a second name for the accessible name on exactly one tag. Two spellings for one
+concept is precisely the drift a five-tag vocabulary exists to avoid — fold it
+into `label` and let the DOM host emit `alt` for an `<img>`, which is where that
+spelling belongs.
 
 ### 5.2 Tappables are operable, or they are not tappables
 
@@ -186,14 +213,340 @@ keydown handlers that will be subtly wrong.
 
 The cost is that a `<button>` arrives with user-agent styling and its own
 constraints on what may nest inside it. That is a style problem, and it is the
-first concrete reason the style phase has to come *second* rather than being
-independent: the reset exists to make correct semantics look right, so there is
-nothing to reset until the semantics land.
+first concrete reason the style phase has to come *second*: the reset exists to
+make correct semantics look right, so there is nothing to reset until the
+semantics land.
 
-For a tappable that is *not* one of the semantic roles, the host adds
-`tabindex` and synthesises activation. That path should be the exception.
+For a tappable that is *not* one of the semantic roles, the host adds `tabindex`
+and synthesises activation. That path should be the exception.
 
-### 5.3 One place to put a difference
+### 5.3 Normalised event payloads
+
+Per §4.2. The events the vocabulary names get a shape the framework defines,
+built by the host from whatever the target gave it:
+
+```ts
+type TapEvent = { readonly x: number; readonly y: number }
+type ScrollEvent = { readonly x: number; readonly y: number }
+type InputEvent = { readonly value: string }
+type PointerEvent = {
+  readonly id: number
+  readonly x: number
+  readonly y: number
+  readonly phase: 'down' | 'move' | 'up' | 'cancel'
+}
+```
+
+`NativeEventMap` keeps its declaration-merging seam for everything else — a host
+that emits an event this vocabulary has never heard of is still the app's to
+type. What changes is that the *named* events stop being `unknown` and start
+being portable. Coordinates are in the element's own space on every target,
+because a viewport-relative coordinate means something different once a native
+screen has insets.
+
+An honest caveat: `x`/`y` on a tap means the host has to read them off the
+underlying event, and a target that fires a tap with no position (a keyboard
+activation on the web, an accessibility action on device) has no coordinate to
+give. Those arrive as `0, 0`, and that is a documented lie of exactly the kind
+this section is trying to remove. The alternative — `x?: number` — pushes a
+narrowing onto every ripple effect in the app. Neither is free; the optional
+form is probably right, and this is the sort of thing to decide with a real call
+site in front of you.
+
+---
+
+## 6. The component layer
+
+### 6.1 The package ships the semantics, the app ships the taste
+
+The vocabulary is deliberately neutral: `view` and `text` say nothing about what
+a thing *is*. §5 adds that back, but writing `<view role="button" focusable
+label={…}>` at every call site is exactly the repetition a design system exists
+to remove. So: a named component layer on a subpath, per the rule that a feature
+only some apps need stays out of the `.` entry.
+
+```tsx
+import { Button, Heading, Stack, Text } from '@amritk/mini-native/ui'
+```
+
+The line to draw is the whole design of this layer. **The package ships the
+semantics; the app ships the taste.** `<Button>` knows that a button is
+`role="button"`, is focusable, activates on Enter and Space, and is *disabled*
+rather than merely greyed. It does not know that your buttons are 44px tall with
+a 6px radius. The first is portable knowledge that is easy to get wrong and
+worth centralising once; the second is your product's and changes with it.
+
+That line has two payoffs. `/ui` needs **no new host machinery at all** — it is
+pure composition over §5, so it grows the contract by nothing. And because it
+has no appearance, every component in it has an assertable semantic outcome on
+all three hosts, which drops it straight into the parity suite (§13).
+
+A starting set, small enough to be obviously correct:
+
+| Component            | Builds | Semantics                          |
+| -------------------- | ------ | ---------------------------------- |
+| `Text`               | `text` | none                               |
+| `Heading`            | `text` | `role="heading"` + `level`         |
+| `Button`             | `view` | `role="button"`, focusable         |
+| `Link`               | `view` | `role="link"` + `href`             |
+| `Stack` / `Row`      | `view` | none — layout only                 |
+| `List` / `ListItem`  | `view` | `role="list"` / `"listitem"`       |
+| `Screen`             | `view` | `role="main"` + safe-area insets   |
+
+`Screen` is the one that earns `Host.environment` (§8.4) its keep: applying the
+device's insets is the thing every native screen needs and every web page
+ignores, and it should happen in one component rather than in every app.
+
+### 6.2 Typography: what text means and how big it is are different questions
+
+This is the thing most typography systems get wrong, and it is worth being blunt
+about because it is unrecoverable later. A real page needs an `h2` that renders
+small — a sidebar section header — and needs large text that is not a heading at
+all — a hero number, a stat. Couple size to level and authors start picking
+heading levels *by how big they want the text*, which is precisely how a
+document outline stops being navigable to a screen reader and, on the web, to a
+crawler.
+
+So they are two independent props, never one:
+
+```tsx
+<Heading level={2} size="sm">Related</Heading>  // an h2 that renders small
+<Text size="xl">$4,200</Text>                   // large, and not a heading
+<Text size="sm" tone="muted">per seat</Text>
+```
+
+`level` drives semantics — `role="heading"` plus the level, which the DOM host
+turns into a real `<h2>` and a native host turns into a heading of that depth.
+`size` and `tone` drive appearance and resolve against the theme (§9.1).
+
+The default keeps the common path short: `<Heading level={2}>` with no `size`
+picks the scale step that matches, so you only reach for `size` when a design
+genuinely disagrees with the outline.
+
+### 6.3 `as` — and why it takes a role, not a tag
+
+Vue spells it `<component :is>`; most design systems spell it `as`. The need is
+the same and it is real: a thing that should *look* like a button and *be* a
+link.
+
+The web's answer is the wrong one here:
+
+```tsx
+<Button as="a" href="/pricing">    // ✗ means nothing on a device
+```
+
+An HTML tag is not a portable concept, so accepting one would make `as` the hole
+through which web-only code re-enters a write-once component — the single thing
+this whole note is trying to prevent. `as` should take **a role or a
+component**:
+
+```tsx
+<Button as="link" href="/pricing">Compare plans</Button>  // <a> on web, link role natively
+<Text as={Link} href="/docs">Read the docs</Text>         // compose with another component
+```
+
+Three things fall out of that choice.
+
+**`as` is static, and the reactive tool already exists.** `role` decides what
+the host builds and so cannot be a getter (§5.1); `as` overrides `role`, so it
+inherits the constraint. That is not a gap — polymorphism *over time* is a
+different problem and `Dynamic` in `/flow` already solves it. `as` is
+polymorphism at build; `Dynamic` is polymorphism across a signal. Conflating
+them is the mistake to avoid.
+
+**`as` must not be able to produce nonsense.** `<Button as="link">` is coherent —
+both roles are focusable and activatable, so the component's promise survives.
+`<Button as="heading">` is not: a focusable heading with a tap handler is
+meaningless on both targets. So the accepted set narrows per component rather
+than being a global `Role`:
+
+```ts
+type ButtonProps  = { as?: 'button' | 'link'; … }
+type HeadingProps = { as?: 'heading' | 'none'; … }
+```
+
+Polymorphism that cannot break the invariant it is overriding.
+
+**There is no need for `asChild`.** Radix-style slot cloning exists to work
+around React cloning elements to merge props onto a child. Nothing here clones
+anything — components are plain functions returning a host node, and dropping to
+`<view>` or `<text>` directly is always available and costs nothing. A problem
+this runtime does not have needs no mechanism.
+
+If an app genuinely needs a raw web tag, that is what `.web.tsx` is for (§8.3),
+and having it be visibly a platform file is the point.
+
+### 6.4 How the theme arrives
+
+Tokens reach components through context (§9.1). One consequence is worth
+stating because it is load-bearing: a component runs exactly once and therefore
+reads context exactly once, so the theme is a **signal**, not a value. That is
+what makes a live dark-mode switch work with no re-render and no invalidation
+machinery — the same rule as every other reactive value in the package.
+
+The open fork belongs with the style note rather than here: whether tokens
+resolve to style objects (portable, works on every host) or to classes (cheaper
+on the web, meaningless on the memory host, a different mechanism again on
+Lynx). The portable default is style objects with classes as a web-only
+optimisation — but that is a style decision and it is not made in this note.
+
+---
+
+## 7. The primitives, one at a time
+
+The semantics layer is necessary and not sufficient. Each of the five tags has
+somewhere it diverges.
+
+### 7.1 `text` — inheritance is the divergence
+
+CSS inherits `color` and `font` into descendants. Yoga does not: on a native
+target a `text` nested in a styled `view` inherits nothing, while a `text`
+nested in another `text` does. So this renders two different ways today, and the
+browser is the one that flatters you:
+
+```tsx
+<view style={{ color: 'red' }}>
+  <text>is this red?</text>
+</view>
+```
+
+Web: red. Device: not red. Nobody notices until the device build.
+
+The rule to commit to — and to name now, even though implementing it is style
+work — is **inheritance stops at a `view` boundary on every target**, which
+means the DOM host's reset re-asserts the initial text properties at each
+`view`. Picking the native semantics rather than the web's is the same call the
+package already made with `ContainerChildren`: be strict where the strict target
+is, so the permissive one cannot hide a bug.
+
+Also missing and genuinely cross-platform: `selectable`. Web text is selectable
+by default, native text is not, and neither default is wrong — but an app that
+does not say which it wants gets different behaviour per target for free.
+
+`lines` already exists and maps correctly.
+
+### 7.2 `image` — the asset is a bundler problem, and should stay one
+
+`src` is a string, which is right. What is unresolved is where the string comes
+from: `import logo from './logo.png'` yields a URL on the web and a bundled
+resource handle natively, and neither the vocabulary nor the host should try to
+paper over that.
+
+Keep `src: MaybeReactive<string>` and push resolution to the build, exactly as
+§8.3 pushes `.web.tsx` there. The bundler already knows the target; the runtime
+does not and should not learn. Density variants (`srcset` on the web, `@2x`
+natively) fall out of the same decision — a pre-resolved string means the
+bundler can pick, and the vocabulary stays at one prop.
+
+One real gap: a native layout may need an image's intrinsic size *before* the
+image loads, where the web reflows on load. That is a layout concern, so it
+belongs with style, but it is worth knowing it is waiting there.
+
+### 7.3 `input` — three things the web has that need a portable spelling
+
+**Submit.** The web gives you Enter-to-submit inside a `<form>` for free; native
+has a return key with a configurable label and an `onSubmitEditing` callback.
+The portable pair is small and maps cleanly to both:
+
+```ts
+submitLabel?: 'done' | 'go' | 'next' | 'search' | 'send'
+onSubmit?: NativeEventHandler<'submit'>
+```
+
+`submitLabel` is `enterkeyhint` on the web — a real HTML attribute, so the web
+gets the same soft-keyboard affordance the device does — and `returnKeyType`
+natively. `onSubmit` is Enter on the web and `onSubmitEditing` natively. No
+`<form>` tag, no vocabulary growth.
+
+**Autofill.** Painful to retrofit, free to design in, and it is the one input
+feature users notice immediately. A shared subset maps onto web `autocomplete`
+tokens, iOS `textContentType`, and Android autofill hints:
+
+```ts
+autoComplete?: 'off' | 'username' | 'password' | 'new-password'
+  | 'email' | 'tel' | 'name' | 'one-time-code'
+```
+
+**`keyboard="password"` is doing two jobs, and should do one.** Today it is both
+the keyboard mode and the secure-text flag. On the web those collapse into
+`type=password` so the conflation is invisible; natively they are genuinely
+independent — a PIN field is a *numeric* keyboard with secure entry, and today
+that is unsayable. Split it:
+
+```ts
+keyboard?: 'text' | 'number' | 'email' | 'phone'
+secure?: MaybeReactive<boolean>
+```
+
+This is a small breaking change, which pre-alpha explicitly allows, and it is
+much cheaper now than after apps exist. It is also a good example of the
+exercise paying off: the bug is only visible from the native side, and only
+because the web spelling hid it.
+
+### 7.4 Focus — the first genuinely new host methods
+
+Focus is needed for form flow (advance to the next field), modals (trap and
+restore), and error announcement. There is no path to it today short of `ref`
+plus a host-specific cast.
+
+It cannot be a prop, because focusing is an *event*, not a state — a
+`focused={true}` prop has no correct meaning when the user then taps elsewhere.
+So this is the one place the note proposes growing the contract:
+
+```ts
+type Host = {
+  focus?: (element: HostElement) => void
+  blur?: (element: HostElement) => void
+  …
+}
+```
+
+Optional, because a memory host has no focus concept and should not have to fake
+one. That takes the contract from about fifteen functions to about seventeen,
+and the justification is that no existing method can express it and every real
+app needs it.
+
+Focus trapping for modals then composes from `focusable` and §9.2, rather than
+being its own feature.
+
+### 7.5 Gestures — normalise the pointer, put recognisers on a subpath
+
+`onTap` and `onLongPress` are the whole gesture vocabulary, and `longpress` maps
+to `contextmenu` on the DOM, which is a right-click on a desktop and a long
+press on touch — a decent approximation that is wrong half the time.
+
+The portable design is two layers:
+
+1. The **host** normalises a pointer stream to the `PointerEvent` shape in §5.3
+   — Pointer Events on the web, engine touch events natively. That is the only
+   part that cannot be written once, and it is already covered by
+   `addEventListener`, so the contract does not grow.
+2. **Recognisers** — pan, swipe, pinch — are pure math over that stream and live
+   on a `/gestures` subpath, per the rule that a feature only some apps need
+   goes on a subpath. Written once, they run everywhere by construction.
+
+Hover is the other direction and needs honesty rather than machinery:
+`onHoverIn` / `onHoverOut` that never fire on a touch-only target. The API
+should make it obvious that a hover-only affordance is a design bug, not a
+platform difference to be smoothed over.
+
+### 7.6 `scroll-view` — and a naming collision to fix before it ships
+
+`direction` on `scroll-view` means the scroll axis. But `direction` is also the
+name of text direction — RTL — which is a real cross-platform concern that will
+want a prop on `CommonProps`, and CSS has already claimed the word for the
+second meaning. Rename the scroll axis to `axis` now, while there is nothing to
+break.
+
+Beyond that: `onScroll` needs the normalised offset from §5.3 or it is
+unwritable once, and imperative `scrollTo` needs the same argument `focus` did
+in §7.4 — though it can wait, since it is less universally needed.
+
+---
+
+## 8. Saying "these two targets differ"
+
+### 8.1 `platform`
 
 `Host` grows one optional **field** — not a function, so the porting budget is
 untouched:
@@ -206,7 +559,7 @@ type Host = {
 }
 ```
 
-and the runtime exposes the two things apps actually reach for:
+and the runtime exposes the two things apps reach for:
 
 ```ts
 import { platform } from '@amritk/mini-native'
@@ -215,29 +568,30 @@ platform.os                                       // 'web' | 'lynx' | 'memory' |
 platform.select({ web: 12, native: 16, default: 14 })
 ```
 
-Deliberately *not* built yet: a capability registry (`canHover`, `hasBackButton`,
-`isAddressable`). Branching on a capability beats branching on an OS name, but
-designing the flag set before any real branch exists is speculation, and this
-repo's rule is that a feature only some apps need has to justify itself first.
-Revisit once there are three real call sites.
+### 8.2 Not a capability registry, yet
 
-Whole-component divergence is a **bundler** concern, not a runtime one, and it
-needs no code at all today — Vite resolves it with configuration:
+Branching on a capability (`canHover`, `hasBackButton`, `isAddressable`) beats
+branching on an OS name, because the OS name is a proxy for the thing you
+actually care about and proxies rot. But designing the flag set before any real
+branch exists is speculation, and this repo's rule is that a feature only some
+apps need has to justify itself first. Revisit once there are three real call
+sites — the right flags will be obvious then and are guesswork now.
+
+### 8.3 Whole-component divergence is a bundler concern
+
+`.web.tsx` / `.native.tsx` needs no code today — Vite resolves it with
+configuration:
 
 ```ts
 resolve: { extensions: ['.web.tsx', '.web.ts', '.tsx', '.ts', …] }
 ```
 
-Document that; do not build it.
+Document that; do not build it. If it later earns a plugin, it belongs next to
+`mini`'s existing Vite plugin rather than in the runtime.
 
-### 5.4 Environment as optional host state
+### 8.4 `Host.environment`
 
 ```ts
-type Host = {
-  readonly environment?: HostEnvironment
-  …
-}
-
 type HostEnvironment = {
   readonly colorScheme: ReadonlySignal<'light' | 'dark'>
   readonly dimensions: ReadonlySignal<{ width: number; height: number }>
@@ -245,43 +599,109 @@ type HostEnvironment = {
 }
 ```
 
-Optional, with static fallbacks when a host omits it, so the memory host stays a
-dozen lines and no existing host breaks. The DOM host wires `matchMedia`, a
-resize listener, and the `env(safe-area-inset-*)` custom properties; Lynx wires
-its own. This is cheap on both sides and it removes most of the reason to reach
-for `platform.os` in application code.
+Optional on `Host`, with static fallbacks when a host omits it, so the memory
+host stays a dozen lines and no existing host breaks. The DOM host wires
+`matchMedia`, a resize listener, and the `env(safe-area-inset-*)` custom
+properties; Lynx wires its own.
 
-### 5.5 Navigation: shared matcher, split navigator
-
-Port `mini`'s `matchRoute` and `parseQuery` as-is — they are pure. Split the
-navigator behind an interface with a history implementation on the web and a
-nav-stack implementation natively. `<Link>` renders `role="link"` with `href`,
-so the DOM host gives it a real `<a>` and the browser's own affordances survive,
-while a native host treats the same element as a push onto the stack.
+This matters more than its size suggests: safe area, viewport, and colour scheme
+are exactly what an app would otherwise branch on by OS name. A good environment
+API is what keeps §8.1 from being reached for.
 
 ---
 
-## 6. Explicitly out of scope
+## 9. Composition seams write-once needs
 
-- **Style, the layout reset, and the theme system.** Section 7.
-- **SSR and hydration.** The runtime *creates* nodes; it has no way to *adopt*
-  existing ones. Hydration would need a `Host.adopt` seam that walks a
-  server-rendered tree instead of building one — and, interestingly, that is
-  easier here than in React, because with no virtual tree there is nothing to
-  reconcile, only an ordered walk. Not foreclosed. Not now.
-- **Fragments.** Still deliberately absent. Worth noting the cost is *higher* on
-  the web than the README implies — a wrapper div per component breaks a parent
-  `flex` or `grid` in a way a native container view does not. Not reopened here.
-- **Virtualised lists, gestures, animation, context, portal, error boundaries.**
-  All still on the audit's list, all orthogonal to this. Portal is the one that
-  will surface first, since modals need it on both targets.
+### 9.1 Context — and why this package needs what `mini` refuses
 
-## 7. Why style is the hard half
+`mini` rejects context deliberately:
+
+> **Composition is explicit** — no runtime plugin registry […] and no
+> context/provide-inject; dependencies are prop-drilled.
+
+That is right for a byte-budgeted embed widget. It is wrong here, and the reason
+is specifically cross-platform: **the things that vary by platform — theme,
+insets, navigation, locale, colour scheme — are exactly the things you do not
+want in a component's signature.** Prop-drill them and every intermediate
+component grows a platform-shaped prop it does not use, which is write-once
+eroding one signature at a time. A component that takes `insets` as a prop is
+already a component that knows it might be on a phone.
+
+The audit already argues the mechanism fits:
+
+> A scope-keyed provide/inject built on `effectScope` fits the model and is
+> small.
+
+One consequence falls out of the runtime and is worth writing down: **components
+run exactly once, so a context value is read exactly once.** A context that must
+change over time therefore holds a *signal*, not a value. That is not a
+limitation to work around — it is the same rule as every other prop in the
+package, and it means context needs no invalidation machinery at all.
+
+### 9.2 Portal, without a host method
+
+Modals, sheets, toasts, and tooltips all need to escape their parent, on both
+targets. The tempting design is a host-provided overlay root, which means a new
+host method and a per-target answer to "where is the top".
+
+The cheaper design fits the repo's existing rule better: `Portal` takes an
+explicit target `HostElement`, and the app provides its overlay roots from its
+entry point. Composition is explicit, the contract does not grow, and the app —
+which already knows its own shell — answers the question the host would have had
+to guess at.
+
+### 9.3 Error boundaries
+
+A throw during a component's single run leaves a partially built tree. The
+cross-platform angle is the failure mode: on the web that is a blank div and a
+console error, on device it is a dead app. Mostly orthogonal to this note, but
+the native cost is high enough that it should not sit behind the ergonomics
+work.
+
+---
+
+## 10. Web-only obligations
+
+These have no native counterpart, so they cannot be written once — they are
+extra surface the web target owes and the native target ignores. Naming them
+matters because otherwise they get discovered late, in the shape of "we can't
+ship the web build".
+
+- **Document title and meta.** A router-adjacent concern; the native target
+  no-ops.
+- **Scroll restoration** on back/forward. The browser does some of this and
+  fights you for the rest; a native stack restores by construction.
+- **URL as state.** Deep links exist on both, but only the web needs the URL to
+  be *continuously* correct rather than an entry point.
+- **RTL.** Actually not web-only — both targets need it, which is why §7.6
+  wants the `direction` name back.
+
+## 11. App entry
+
+Already correct and worth stating as a rule rather than an accident: the entry
+point is the *only* place that calls `setHost`, and it is the sanctioned place
+for divergence.
+
+```ts
+// main.web.ts
+setHost(createDomHost())
+mount(domRoot(document.body), App)
+
+// main.lynx.ts
+setHost(createLynxHost())
+mount(lynxRoot(), App)
+```
+
+Everything above `App` is shared. Anything else calling `setHost` is a bug, and
+that is cheap to lint for.
+
+## 12. Why style is the hard half
 
 "Add style later" is right as sequencing and wrong as difficulty. Everything
-above is additive: new props, new optional host fields, no behaviour change to
-anything that exists. Style is not, because the two targets do not agree on what
-an element *is* before you write a single declaration:
+above is additive: new props, new optional host fields, one pair of optional
+host methods, no behaviour change to anything that exists. Style is not, because
+the two targets do not agree on what an element *is* before you write a single
+declaration:
 
 | | Native (Yoga) | Web (CSS) |
 | --- | --- | --- |
@@ -296,41 +716,66 @@ An unstyled `<view>` with two children stacks vertically on a device and
 horizontally on the web. That divergence is not cosmetic — it is the difference
 between write-once being true and being a slogan — and closing it means the DOM
 host ships an opinionated reset that makes the browser behave like Yoga. That is
-a real decision with real weight, and it deserves its own note rather than a
-paragraph in this one.
+a real decision with real weight, and it deserves its own note.
 
 The upside of doing semantics first is that the reset then has a fixed target:
 you are resetting `<button>`, `<a>`, `<ul>`, and `<h1>` — a known, finite set —
 instead of guessing.
 
-## 8. Keeping it honest
+## 13. Keeping it honest
 
 The failure mode for cross-platform is silent drift: the web target keeps
-working while the native one quietly stops matching, because nobody ran it.
-This repo already prefers structural tests for exactly this class of problem
+working while the native one quietly stops matching, because nobody ran it. This
+repo already prefers structural tests for exactly this class of problem
 (`import-boundary.test.ts`, `core-size-budget.test.ts`), and the same trick
-applies.
+applies here — twice.
 
-A **parity suite**: one directory of component fixtures, each rendered through
-all three hosts, asserting the *semantic* outcome on each — role, accessible
-name, focusability, state — rather than the markup. `serialize-memory-tree.ts`
-already gives the shape for the memory side. A role that lands on the DOM and
-not on Lynx fails the suite instead of failing on a device.
+**A parity suite.** One directory of component fixtures, each rendered through
+all three hosts, asserting the *semantic* outcome rather than the markup: role,
+accessible name, focusability, state, and the normalised payload of every event
+in §5.3. `serialize-memory-tree.ts` already gives the shape for the memory side.
+A role that lands on the DOM and not on Lynx fails the suite instead of failing
+on a device.
 
-## 9. Order of work
+**An unconsumed-prop test**, which is the more interesting of the two because it
+is mechanical. Walk every prop in `ElementProps`, render it on every host, and
+assert that no host let it through as a raw attribute. A prop no host consumes
+is a documented lie — and the audit found four of them at once:
 
-1. **The accessibility layer** — `role`, `level`, `label`, `hint`, `focusable`,
-   state props; role-driven element construction and real semantic elements in
-   the DOM host; the native mapping in the Lynx host. Closes the audit's number
+> **1.7 The DOM preview does not preview four documented props**
+
+That was found by hand. It is checkable by machine, and a vocabulary this small
+is exactly the size where that is worth doing.
+
+## 14. Order of work
+
+1. **The semantics layer** — `role`, `level`, `label`, `hint`, `focusable`,
+   state props; role-driven element construction in the DOM host; the native
+   mapping in the Lynx host; `alt` folded into `label`. Closes the audit's number
    one native gap and the number one web gap together.
-2. **Operable tappables** — semantic elements first, synthesised activation as
-   the fallback. Falls out of (1) almost entirely.
-3. **`platform.os` / `platform.select`**, and the documented `.web.tsx`
-   resolution convention.
-4. **`Host.environment`** — colour scheme, dimensions, safe area.
-5. **The parity suite**, alongside (1) rather than after it.
-6. **Style**: the layout reset, then the theme story. Its own design note.
-7. Navigation, then portal.
+2. **Normalised event payloads** (§5.3). Independent of (1), similar size, and
+   the thing that blocks write-once soonest in practice.
+3. **Operable tappables.** Falls out of (1) almost entirely.
+4. **The parity suite and the unconsumed-prop test**, alongside (1) and (2)
+   rather than after them.
+5. **The small vocabulary corrections** — `axis` for the scroll direction,
+   `secure` split from `keyboard`, `selectable` on `text`. All pre-alpha
+   breaking changes that get more expensive every week.
+6. **`/ui`** — `Text`, `Heading`, `Button`, `Link`, `Stack`, `List`, and the
+   narrowed `as` override. Pure composition over (1) and (3), so it needs no
+   runtime work of its own, and it is where the typography semantics get pinned
+   before a design system starts depending on them.
+7. **`platform.os` / `platform.select`**, and the documented `.web.tsx`
+   convention.
+8. **`Host.environment`** — colour scheme, dimensions, safe area. Unblocks
+   `Screen` in (6) and most of the pressure on (7).
+9. **Focus** (`Host.focus` / `blur`, `autoFocus`), then **context** — which is
+   what lets the theme reach (6) without prop-drilling — then **portal**.
+10. **Input completeness** — `submitLabel` / `onSubmit`, `autoComplete`.
+11. **Style**: the layout reset, then tokens and the type scale behind (6). Its
+    own design note.
+12. Navigation, gestures subpath, error boundaries.
 
-Steps 1 through 5 need no change to any existing behaviour, and `Host` grows two
-optional fields and no methods.
+Steps 1 through 8 change no existing behaviour beyond the deliberate
+corrections in (5), and `Host` grows two optional fields and no methods. The
+first method it grows is in (9).
