@@ -307,7 +307,7 @@ concluded, for the same reason.
 Note what this does *not* change: `<a>`, `<h1>`–`<h6>`, `<nav>`, `<main>`,
 `<header>`, and `<footer>` all take flow content, so a wrapper inside them is
 legal and they keep their real elements — and with them the browser affordances
-that were the point. `<button>` is the interesting middle case, and §15 is
+that were the point. `<button>` is the interesting middle case, and §16 is
 honest about it.
 
 ---
@@ -845,13 +845,13 @@ accessibility tool already understands it, every developer already knows it, and
 invent and then defend — which is exactly what §5 through §7 spend their length
 doing.
 
-There is one decisive reason not to follow it here, and it is not taste: **React
-Strict DOM needs a compiler.** Mapping CSS onto Yoga statically is what makes the
-approach viable, and this package's charter is compilerless — no build-step
-transform beyond the standard JSX one. Take the compiler and you have a
-different project. So the inversion stays, and the honest framing is that it is
-a consequence of the compilerless constraint rather than an independent
-conviction about vocabularies.
+The usual reason to wave it off is that **React Strict DOM needs a compiler**,
+and this package's charter is compilerless — no build-step transform beyond the
+standard JSX one. That is true of React Strict DOM specifically and too coarse
+as an argument, because most of what it does would in fact run at runtime. §15
+takes the counter-bet seriously and works out what an HTML-first version of
+*this* package would look like, what it would buy, and where it would actually
+break.
 
 **Tamagui** is the other end of that trade: an optimising compiler plus its own
 token and component system, buying a lot of performance and ergonomics for a
@@ -870,7 +870,150 @@ ended up needing a compiler. This package can have the first three and must not
 have the fourth, which is the constraint the style note in (11) has to design
 against.
 
-## 15. What this design costs
+## 15. The other direction: HTML as the source vocabulary
+
+§14 waves this away with "React Strict DOM needs a compiler, and this package is
+compilerless". That is too coarse to be useful, and the more careful version
+changes the answer's shape.
+
+### 15.1 The compiler is the price of CSS, not of HTML
+
+Split the question in two.
+
+**Element mapping is entirely runtime.** `create-dom-host.ts` already carries a
+`HTML_TAGS` table turning the vocabulary into HTML. An HTML-first design is that
+table read backwards, in the Lynx host:
+
+```ts
+const LYNX_TAGS: Record<string, string> = {
+  div: 'view', section: 'view', article: 'view', form: 'view',
+  nav: 'view', header: 'view', footer: 'view', main: 'view',
+  ul: 'view', ol: 'view',
+  span: 'text', p: 'text', li: 'text', a: 'text',
+  h1: 'text', h2: 'text', h3: 'text', h4: 'text', h5: 'text', h6: 'text',
+  button: 'view', img: 'image', input: 'input', textarea: 'input',
+}
+```
+
+plus the roles each tag implies (`nav` → landmark, `button` → button, `h2` →
+heading depth 2). No compiler anywhere.
+
+**Style mapping splits again.** A style *object* needs no compiler either — it is
+key mapping, and `to-style-text.ts` already does the hard part. `StyleValue` is
+deliberately a `Record` with no `cssText` arm:
+
+> Unlike the web there is no `cssText` string form here, because a native host
+> has no CSS parser to hand a string to.
+
+What genuinely needs a compiler is **CSS as authored syntax**: the cascade,
+selectors, `:hover`, media queries, inheritance. StyleX exists mostly to extract
+atomic classes on the web and hand native plain objects with no runtime parsing.
+
+So the accurate claim is narrower than §14's: *the compiler is the price of
+CSS-the-syntax, not of HTML-the-vocabulary.* An HTML-shaped authoring surface
+with style objects is compilerless and could be built here.
+
+### 15.2 What it would buy, and it is not nothing
+
+**The DOM host nearly vanishes.** `createElement` becomes
+`document.createElement(tag)`. The web target stops being a mapping table
+somebody has to keep honest and becomes correct by construction.
+
+**§5 mostly evaporates.** No `role` prop, no role table, no static-versus-
+reactive question, no `alt`-versus-`label` duplication. Semantics arrive with the
+tag, which is what tags are for.
+
+**Existing tooling works on the source.** Accessibility linters, testing-library
+queries, browser devtools, designer handoff, pasteable markup, and every model
+and developer already knowing the vocabulary. That last one is worth more than
+it sounds.
+
+**Migration becomes incremental.** An existing web app can move screen by screen.
+If that is the situation, it is close to decisive.
+
+### 15.3 What it costs
+
+**The subset problem relocates rather than disappearing.** HTML has north of a
+hundred elements and Lynx can honour perhaps twenty. `<table>`, `<select>`,
+`<details>`, `<dialog>`, `<video>`, `<canvas>`, `<svg>` — each needs a line
+drawn and defended. You still invent a subset; you spell it with familiar names.
+The invention cost is a wash and the familiarity is a real gain, so this is the
+weakest of the three objections — but it does mean HTML-first is not the
+"standard vocabulary" it appears to be.
+
+**HTML's permissiveness cannot be honoured natively.** `<div>hello</div>` is
+perfectly good HTML and a blank screen on Lynx, where a text run must live inside
+a `text` element. Today that is a compile error by design:
+
+> Bare strings and numbers are deliberately absent, and that is the whole point
+> of the type existing […] Making it a compile error is the only place to catch
+> it honestly.
+
+HTML-first has to pick one of three, and none is free:
+
+1. **Auto-wrap at runtime**, in `appendChildren`, when the parent maps to a
+   container. Compilerless and it works — at the cost of inserting a node you did
+   not write, on the target where node count *is* the performance problem, with a
+   rendered tree that no longer matches your source.
+2. **Keep the compile error**, so `<div>` rejects a string. Then it is HTML in
+   name only and the first line every developer writes fails.
+3. **Wrap statically in a compiler** — no runtime cost, visible in the output.
+
+Option 3 is plainly the best, which is where the compiler stops being optional.
+It is not needed for the tags; it is needed for HTML's *content model*.
+
+**False friends, which is the real objection.** A `<div>` that defaults to
+`flexDirection: column`, does not cascade `color` to its descendants, has
+`flexShrink: 0` and clips its overflow is not a div. Put the two designs side by
+side:
+
+> The current vocabulary has **unfamiliar names with honest semantics**.
+> HTML-first has **familiar names with unfamiliar semantics**.
+
+The second is far more inviting and fails later, more quietly, and only on
+device. React Strict DOM absorbs exactly this with a documented subset, lint
+rules, a compiler, and a large team enforcing all three. A small package has
+thinner defences, and §12's table is the list of things that would silently
+differ.
+
+**It makes §5.4 worse, not better.** The flow-wrapper hazard does not go away —
+`<ul><For>…</For></ul>` still interposes a wrapper — but the escape hatch does.
+With a vocabulary you can build `div role="list"` and dodge the content model
+entirely; with HTML you wrote `<ul>`, and `<ul>` means what it means. More
+generally: HTML has content models everywhere and the five-tag vocabulary has
+almost none, so HTML-first is the design that *wants* a build-time content-model
+check — which is the same compiler again, arriving from a third direction.
+
+### 15.4 Where this actually lands
+
+The choice is downstream of a question this note cannot answer:
+
+**Which target are you migrating from?**
+
+- **From a web app, wanting it on device** → HTML-first is right, and you should
+  seriously evaluate React Strict DOM before building your own. That is the
+  problem it was built for and it has a compiler, a subset, and Meta's tooling
+  behind it.
+- **Building a native-shaped app that also ships a good web build, compilerless,
+  with a small surface** → the native vocabulary, which is the current design.
+- **If a compiler ever becomes acceptable**, the calculus flips hard, and it is
+  worth knowing exactly what one buys: static text wrapping, real CSS authoring,
+  content-model validation at build (which catches §5.4's hazard mechanically
+  rather than by a rule in a document), dead-style elimination, and `.web.tsx`
+  resolution for free. That is a lot. It is also a different project.
+
+There is a middle path worth naming, because it captures most of the ergonomic
+win with none of the false friends: **keep `view` and `text` as the intrinsics,
+and let `/ui` (§6) carry the familiar names.** `<Stack>`, `<Text>`, `<Heading>`,
+`<Button>`, `<List>` are recognisable to anyone who has written a component in
+the last decade, they are where a design system wants to live anyway, and they
+sit on primitives that never pretend to be HTML. Authors get a familiar surface;
+the runtime keeps an honest one; there is no second vocabulary to maintain.
+
+That is not a compromise position so much as the observation that §6 already
+absorbs most of what HTML-first was going to buy.
+
+## 16. What this design costs
 
 Every proposal above has a bill, and they are worth writing down next to the
 benefits rather than being discovered later.
@@ -919,7 +1062,7 @@ is a much larger commitment than this note is proposing.
 all trivial today and all breaking. They are listed at (5) in the order of work
 for that reason alone.
 
-## 16. Order of work
+## 17. Order of work
 
 1. **The semantics layer** — `role`, `level`, `label`, `hint`, `focusable`,
    state props; role-driven element construction in the DOM host; the native
