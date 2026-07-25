@@ -1,0 +1,49 @@
+{
+  "name": "mini",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "catalog": {
+    "alien-signals": "3.2.1"
+  },
+  "type": "module",
+  "keywords": [
+    "signals",
+    "reactive",
+    "jsx",
+    "dom",
+    "native",
+    "ui",
+    "typescript"
+  ],
+  "author": "amritk",
+  "license": "MIT",
+  "scripts": {
+    "build": "bun run --workspaces build",
+    "types:check": "bun run --workspaces types:check",
+    "lint:check": "bun run check",
+    "check": "biome check .",
+    "check:reactivity": "bun run scripts/catch-called-signals.ts",
+    "format": "biome check --write --formatter-enabled=true --linter-enabled=false .",
+    "lint": "biome lint .",
+    "test": "bun run --workspaces test",
+    "test:seq": "bun run --workspaces --sequential test",
+    "test:dist": "vitest run --config vitest.dist.config.ts",
+    "bench": "bun run scripts/bench-compare.ts",
+    "generate-llms": "bun run scripts/generate-llms.ts",
+    "release:version": "changeset version && bun install --no-frozen-lockfile",
+    "release:publish": "bun run scripts/resolve-workspace-protocol.ts && bun run scripts/strip-development-exports.ts && bun run scripts/copy-license.ts && changeset publish"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@changesets/cli": "^2.30.0",
+    "@types/node": "^25.9.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260524.1",
+    "esbuild": "^0.28.1",
+    "happy-dom": "^20.0.0",
+    "tsc-alias": "^1.8.17",
+    "typescript": "^5",
+    "vitest": "^4.1.5"
+  }
+}

@@ -1,0 +1,9 @@
+[install]
+minimumReleaseAge = 432000
+# The five-day quarantine exists to keep a compromised third-party publish from
+# reaching a lockfile before the registry has had a chance to notice it. That
+# reasoning does not apply to our own package: @amritk/runtime-validators is
+# published from github.com/amritk/mjst under the same account, and it is the
+# optional peer behind @amritk/mini/forms' schema arm — quarantining it would
+# pin this repo to a release older than the peer range mini declares.
+minimumReleaseAgeExcludes = ["@amritk/runtime-validators"]
