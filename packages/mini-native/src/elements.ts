@@ -1,4 +1,4 @@
-import type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
+import type { InputEvent, NativeEvent, PointerEvent, ScrollEvent, TapEvent } from './events'
 import type { ClassValue, ContainerChildren, HostElement, MaybeReactive, MiniChildren, StyleValue } from './types'
 
 /**
@@ -73,6 +73,9 @@ export interface NativeEventMap {
   input: InputEvent
   change: InputEvent
   submit: InputEvent
+  pointer: PointerEvent
+  hoverin: NativeEvent
+  hoverout: NativeEvent
 }
 
 /** A handler for one of the events in {@link NativeEventMap}. */
@@ -91,6 +94,27 @@ type EventHandlers = {
   onLongPress?: NativeEventHandler<'longpress'>
   onFocus?: NativeEventHandler<'focus'>
   onBlur?: NativeEventHandler<'blur'>
+  /**
+   * Every phase of every pointer over this element — down, move, up, cancel.
+   *
+   * The raw material rather than a gesture. One handler covers all four phases
+   * because a gesture is a sequence and splitting it across four props would
+   * mean reassembling it at every call site. Reach for the recognisers in
+   * `@amritk/mini-native/gestures` before reaching for this: `pan` and `swipe`
+   * are pure arithmetic over exactly this stream, which is why they are
+   * portable by construction.
+   */
+  onPointer?: NativeEventHandler<'pointer'>
+  /**
+   * A pointer that can hover entered or left this element.
+   *
+   * These never fire on a touch-only target, and the API is shaped to make that
+   * obvious rather than to smooth it over. A hover-only affordance is a design
+   * bug — content nobody on a phone will ever see — not a platform difference
+   * to be papered over, so nothing here synthesises a fake hover from a touch.
+   */
+  onHoverIn?: NativeEventHandler<'hoverin'>
+  onHoverOut?: NativeEventHandler<'hoverout'>
 }
 
 /**

@@ -103,7 +103,7 @@ Effects run synchronously on write. The flush scheduler already collapses a burs
 
 `submitLabel` and `onSubmit` are the portable pair replacing the web's Enter-to-submit-inside-a-`<form>`: no form element in the vocabulary, and `enterkeyhint` on the web means the browser raises the same confirm key a device does. `onSubmit` does not fire on a multiline field, where the key inserts a newline on every target, nor on the Enter that chooses an input-method candidate.
 
-Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, `autoFocus`, and the gestures `onTap` / `onLongPress` / `onFocus` / `onBlur`. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
+Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, `autoFocus`, the gestures `onTap` / `onLongPress` / `onPointer`, and `onFocus` / `onBlur` / `onHoverIn` / `onHoverOut`. `onHoverIn` and `onHoverOut` **never fire on a touch** — a hover-only affordance is a design bug, not a platform difference to smooth over, so nothing synthesises a fake hover from a tap. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
 
 `children` is **per tag**, not common, because what a tag may contain differs sharply. Only `text` accepts a text run; `view` and `scroll-view` take elements only; `image` and `input` are leaves. That is not pedantry — Lynx will not render a text run outside a `<text>`, so `<view>hello</view>` builds a screen that silently comes up blank on a device while looking perfectly fine in the browser preview. It is a compile error instead.
 
@@ -222,6 +222,23 @@ Two things are worth knowing about it.
 
 The theme is a **signal**, which is load-bearing: a component runs exactly once and therefore reads context exactly once, so a plain theme would be frozen at boot. Holding the signal means a dark-mode switch reaches the whole tree with no re-render and no invalidation machinery — the same node, with a style mutated. Not providing a theme is a supported state; the fallback is a real one, so components render on their own in a test.
 
+### Gestures (`@amritk/mini-native/gestures`)
+
+| Export | Purpose |
+|:---|:---|
+| `pan(element, handlers)` | A drag. Reports position, total displacement, velocity, and whether the target **cancelled** it. |
+| `swipe(element, options)` | A flick in one of four directions, gated on both distance and end velocity. |
+
+The design is two layers, and the split is what makes gestures portable at all. **The host normalises** — a browser's Pointer Events and an engine's touch events become one `PointerEvent` with an id, an element-relative position, and a phase. That is the only part that cannot be written once, and it needed no new host method. **The recognisers are arithmetic**: `pan` and `swipe` know nothing about any platform, and `swipe` is built on `pan`.
+
+```tsx
+<view ref={(element) => swipe(element, { onSwipe: (event) => event.direction === 'left' && dismiss() })} />
+```
+
+A **cancel** is not an end. It is the target taking the gesture away — a scroll container claiming the drag, a call arriving — and a recogniser that treats it as an `up` commits gestures nobody made. `swipe` never fires on one.
+
+Pinch and rotate are writable over the same stream (`PointerEvent.id` is what makes multi-touch expressible) and are deliberately not shipped: their thresholds are worth tuning against a real screen rather than guessed at.
+
 ### Composition (`@amritk/mini-native/composition`)
 
 | Export | Purpose |
@@ -300,7 +317,7 @@ Deliberate:
 Not built yet:
 
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
-- **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
+- **No pinch or rotate.** Both are writable over the normalised pointer stream and neither is shipped: their thresholds are worth tuning against a real screen rather than guessed at.
 - **`ErrorBoundary` covers construction only.** A throw inside an effect, a handler, or a promise happens after every component has finished running, and belongs to whoever started it.
 - **No animation seam**, so an animation is a bridge write per frame on a native target.
 - **No responsive primitive.** `dimensions()` works and branching on it works, but there is no `@media`-shaped abstraction — a native target has no media queries, and inventing one before there are real call sites would be speculation.

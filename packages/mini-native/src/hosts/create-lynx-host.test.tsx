@@ -364,6 +364,33 @@ describe('create-lynx-host events', () => {
     expect(seen).toMatchObject({ x: 0, y: 200 })
   })
 
+  it('normalises the engine touch stream into one pointer handler', () => {
+    const engine = setup()
+    const phases: string[] = []
+    mount(lynxRoot(toLynx(engine.root)), () => <view onPointer={(event) => phases.push(event.phase)} />)
+
+    fireChild(engine, 'touchstart', { detail: { identifier: 1, x: 5, y: 5 } })
+    fireChild(engine, 'touchmove', { detail: { identifier: 1, x: 20, y: 5 } })
+    fireChild(engine, 'touchend', { detail: { identifier: 1, x: 40, y: 5 } })
+
+    // Four engine events, one vocabulary event with a phase — which is what
+    // lets the recognisers in `/gestures` be arithmetic rather than a mapping
+    // table per target.
+    expect(phases).toEqual(['down', 'move', 'up'])
+  })
+
+  it('reads a touch out of a touches list as well as out of detail', () => {
+    const engine = setup()
+    let seen: { id: number; x: number; y: number } | null = null
+    mount(lynxRoot(toLynx(engine.root)), () => <view onPointer={(event) => (seen = event)} />)
+
+    fireChild(engine, 'touchstart', { touches: [{ identifier: 7, x: 12, y: 34 }] })
+
+    // Which field the engine uses is the part most likely to differ per engine
+    // version, which is exactly why the fake asserts both shapes.
+    expect(seen).toMatchObject({ id: 7, x: 12, y: 34 })
+  })
+
   it('leaves an event the vocabulary does not name alone', () => {
     const engine = setup()
     const host = createLynxHost(engine.api)

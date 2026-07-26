@@ -45,6 +45,7 @@ src/
   ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
   platform/               platform.os / platform.select, and the environment accessors
   composition/            createContext, Portal, ErrorBoundary
+  gestures/               pan, swipe — arithmetic over the normalised pointer stream
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
     create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)
@@ -275,6 +276,21 @@ permanent.
   system-information globals vary by engine version, and there is no fake to
   test them against, so shipping plausible-but-wrong values per build would be
   worse than asking the app, which knows exactly which engine it runs on.
+
+- **Gestures are two layers, and the split is the whole design.** The HOST
+  normalises a browser's Pointer Events and an engine's touch events into one
+  `PointerEvent` — id, element-relative position, phase. That is the only part
+  that cannot be written once, and it needed no new host method. The
+  RECOGNISERS in `/gestures` are then pure arithmetic and know no platform at
+  all, which is why they are portable by construction rather than by anyone
+  maintaining two versions. A recogniser that reaches for a host means the
+  normalisation was not actually done and the maths is compensating.
+- **Hover never fires on a touch, deliberately.** A browser synthesises
+  `pointerenter`/`pointerleave` around a tap and the DOM host filters those out.
+  A hover-only affordance is a design bug — content nobody on a phone will see —
+  not a platform difference to smooth over, so nothing synthesises a fake hover.
+- **`onPointer` is one prop for four phases.** A gesture is a sequence; four
+  props would only mean reassembling it at every call site.
 
 ## Settled decisions on style
 

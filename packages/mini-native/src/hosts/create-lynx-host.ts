@@ -160,17 +160,24 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: L
       const byName = handlers.get(element) ?? new Map<string, Set<HostEventHandler>>()
       handlers.set(element, byName)
 
+      // Most vocabulary events are one engine event; `pointer` is four, because
+      // a gesture is a sequence and one handler for all its phases is what
+      // makes a recogniser writable without reassembling the stream.
+      const engineNames = EVENT_GROUPS[name] ?? [name]
+
       const existing = byName.get(name)
       if (existing) {
         existing.add(handler)
       } else {
         const set = new Set<HostEventHandler>([handler])
         byName.set(name, set)
-        // Iterate a copy so a handler detaching itself cannot disturb the walk.
-        api.__AddEvent(element, 'bindEvent', name, (event) => {
-          const native = toNativeEvent(name, event)
-          for (const listener of [...set]) listener(native)
-        })
+        for (const engineName of engineNames) {
+          // Iterate a copy so a handler detaching itself cannot disturb the walk.
+          api.__AddEvent(element, 'bindEvent', engineName, (event) => {
+            const native = toNativeEvent(name, event, engineName)
+            for (const listener of [...set]) listener(native)
+          })
+        }
       }
 
       return () => {
@@ -181,7 +188,7 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: L
         // left calling into an empty set for every gesture.
         if (set.size === 0) {
           byName.delete(name)
-          api.__AddEvent(element, 'bindEvent', name, null)
+          for (const engineName of engineNames) api.__AddEvent(element, 'bindEvent', engineName, null)
         }
       }
     },
@@ -277,6 +284,26 @@ const DEFAULT_DISPLAY = 'flex'
  * correcting an attribute name is a one-line edit with a test that says whether
  * it took.
  */
+/**
+ * Vocabulary events that need several engine listeners rather than one.
+ *
+ * Hover is deliberately absent, and its absence is the feature: a device has no
+ * hover, so `onHoverIn` never fires here. A hover-only affordance is a design
+ * bug rather than a platform difference to smooth over, and synthesising one
+ * from a touch would hide it until somebody used the app.
+ */
+const EVENT_GROUPS: Record<string, readonly string[]> = {
+  pointer: ['touchstart', 'touchmove', 'touchend', 'touchcancel'],
+}
+
+/** Which phase each of those engine events reports. */
+const POINTER_PHASES: Record<string, 'down' | 'move' | 'up' | 'cancel'> = {
+  touchstart: 'down',
+  touchmove: 'move',
+  touchend: 'up',
+  touchcancel: 'cancel',
+}
+
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
   axis: 'scroll-orientation',
@@ -312,8 +339,25 @@ const ATTRIBUTES: Record<string, string> = {
  * most likely to need adjusting per engine version, and are asserted against the
  * fake engine for exactly that reason.
  */
-const toNativeEvent = (name: string, event: unknown): unknown => {
+const toNativeEvent = (name: string, event: unknown, engineName: string = name): unknown => {
   const source = (event ?? {}) as Record<string, unknown>
+
+  if (name === 'pointer') {
+    // The engine reports a touch under `detail`, or as a `touches` list when
+    // more than one finger is down. Reading both is the same defensiveness the
+    // rest of this function applies: these field names are the part most likely
+    // to differ per engine version, which is why the fake engine asserts them.
+    const detail = (source['detail'] ?? source) as Record<string, unknown>
+    const touches = source['touches']
+    const touch = (Array.isArray(touches) && touches.length > 0 ? touches[0] : detail) as Record<string, unknown>
+    return {
+      id: numberOr(touch['identifier']) ?? numberOr(touch['id']) ?? 0,
+      x: numberOr(touch['x']) ?? 0,
+      y: numberOr(touch['y']) ?? 0,
+      phase: POINTER_PHASES[engineName] ?? 'move',
+      raw: event,
+    }
+  }
 
   if (name === 'tap' || name === 'longpress') {
     const detail = (source['detail'] ?? source) as Record<string, unknown>

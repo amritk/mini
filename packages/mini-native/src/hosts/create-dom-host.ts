@@ -260,6 +260,37 @@ export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
     element.setAttribute('type', layer.secure ? 'password' : (INPUT_TYPES[layer.keyboard ?? ''] ?? 'text'))
   }
 
+  /**
+   * The element's box, remembered for the length of one pointer stream.
+   *
+   * Coordinates have to be element-relative on every target, which on the web
+   * means subtracting the element's box — and `getBoundingClientRect` forces
+   * layout. Taps can afford that per event because they are rare; a
+   * `pointermove` fires as fast as the display refreshes, and reading layout on
+   * each one is how a drag turns janky. So the box is read once when the
+   * gesture starts and reused until it ends.
+   *
+   * A gesture whose element genuinely moves mid-drag reports against where it
+   * started, which is what a drag wants anyway: the offset from the point the
+   * finger went down.
+   */
+  const pointerBoxes = new WeakMap<HTMLElement, DOMRect>()
+
+  const toPointerEvent = (event: PointerEvent, element: HTMLElement): unknown => {
+    const phase = POINTER_PHASES[event.type] ?? 'move'
+    if (phase === 'down') pointerBoxes.set(element, element.getBoundingClientRect())
+    const box = pointerBoxes.get(element) ?? element.getBoundingClientRect()
+    if (phase === 'up' || phase === 'cancel') pointerBoxes.delete(element)
+
+    return {
+      id: event.pointerId,
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+      phase,
+      raw: event,
+    }
+  }
+
   return {
     platform: 'web',
 
@@ -393,7 +424,10 @@ export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
 
     addEventListener: (target, name, handler) => {
       const element = fromHostElement(target)
-      const domName = EVENTS[name] ?? name
+      // Most vocabulary events are one DOM event; `pointer` is four, because a
+      // gesture is a sequence and splitting it across four props would only
+      // mean reassembling it at every call site.
+      const domNames = EVENT_GROUPS[name] ?? [EVENTS[name] ?? name]
       // The listener is wrapped rather than passed straight through, because the
       // handler is owed the framework's payload shape and not the browser's.
       // The wrapper is what `removeEventListener` has to be given back, hence
@@ -402,10 +436,21 @@ export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
         // `submit` rides on `keydown`, so most of what arrives is not a
         // submission at all and has to be dropped before the handler sees it.
         if (name === 'submit' && !isSubmit(event, element)) return
+        // Hover is mouse and pen only. A browser synthesises enter and leave
+        // from a touch, and passing those through would make a hover-only
+        // affordance look like it worked on a phone — the exact design bug the
+        // prop's absence on a device is meant to surface.
+        if ((name === 'hoverin' || name === 'hoverout') && !canHover(event)) return
+        if (name === 'pointer') {
+          handler(toPointerEvent(event as PointerEvent, element))
+          return
+        }
         handler(toNativeEvent(name, event, element))
       }
-      element.addEventListener(domName, listener)
-      return () => element.removeEventListener(domName, listener)
+      for (const domName of domNames) element.addEventListener(domName, listener)
+      return () => {
+        for (const domName of domNames) element.removeEventListener(domName, listener)
+      }
     },
 
     insert: (parent, node, anchor) => {
@@ -670,9 +715,34 @@ type InputTypeLayer = {
  * Anything unmapped passes through unchanged, which is what lets the composition
  * events the two-way input binding listens for reach the element directly.
  */
+/** Vocabulary events that need several DOM listeners rather than one. */
+const EVENT_GROUPS: Record<string, readonly string[]> = {
+  pointer: ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'],
+}
+
+/** Which phase each of those DOM events reports. */
+const POINTER_PHASES: Record<string, 'down' | 'move' | 'up' | 'cancel'> = {
+  pointerdown: 'down',
+  pointermove: 'move',
+  pointerup: 'up',
+  pointercancel: 'cancel',
+}
+
+/**
+ * Whether an enter or leave came from something that can actually hover.
+ *
+ * A browser fires `pointerenter` and `pointerleave` for a touch too, as a pair
+ * around the tap. Letting those through would make a hover-only affordance
+ * appear to work on a phone, which is precisely the design bug that the prop
+ * never firing on a device is supposed to expose.
+ */
+const canHover = (event: Event): boolean => (event as PointerEvent).pointerType !== 'touch'
+
 const EVENTS: Record<string, string> = {
   tap: 'click',
   longpress: 'contextmenu',
+  hoverin: 'pointerenter',
+  hoverout: 'pointerleave',
   // There is no `submit` on an input outside a `<form>`, and the vocabulary
   // deliberately has no form element — a device has a return key, not a form.
   // Enter on a keydown is the same gesture, filtered by `isSubmit`.

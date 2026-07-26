@@ -181,6 +181,20 @@ const toNativeEvent = (name: string, event: unknown): unknown => {
     return { x: numberOr(source['x']), y: numberOr(source['y']), raw: event }
   }
 
+  if (name === 'pointer') {
+    // `phase` defaults to `move` rather than `down`, so a test that forgets it
+    // describes the phase a gesture spends most of its time in instead of
+    // silently starting a new one.
+    const phase = source['phase']
+    return {
+      id: numberOr(source['id']),
+      x: numberOr(source['x']),
+      y: numberOr(source['y']),
+      phase: typeof phase === 'string' ? phase : 'move',
+      raw: event,
+    }
+  }
+
   if (name === 'input' || name === 'change' || name === 'submit') {
     return { value: String(source['value'] ?? ''), raw: event }
   }

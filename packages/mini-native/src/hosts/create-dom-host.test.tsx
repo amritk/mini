@@ -381,6 +381,79 @@ describe('create-dom-host events', () => {
     // the platform-specific code it is.
     expect((seen as unknown as { raw: unknown }).raw).toBe(click)
   })
+
+  it('reports every phase of a pointer through one handler', () => {
+    setHost(createDomHost())
+    const root = container()
+    const phases: string[] = []
+
+    mount(domRoot(root), () => <view onPointer={(event) => phases.push(event.phase)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect
+    for (const type of ['pointerdown', 'pointermove', 'pointerup']) {
+      element.dispatchEvent(new PointerEvent(type, { clientX: 5, clientY: 5, pointerId: 1 }))
+    }
+
+    // A gesture is a sequence, so one handler covers all four phases —
+    // splitting it across four props would only mean reassembling it at every
+    // call site.
+    expect(phases).toEqual(['down', 'move', 'up'])
+  })
+
+  it('measures a pointer against the element rather than the viewport', () => {
+    setHost(createDomHost())
+    const root = container()
+    const points: { x: number; y: number }[] = []
+
+    mount(domRoot(root), () => <view onPointer={(event) => points.push({ x: event.x, y: event.y })} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect
+    element.dispatchEvent(new PointerEvent('pointerdown', { clientX: 35, clientY: 50, pointerId: 1 }))
+
+    expect(points[0]).toEqual({ x: 25, y: 30 })
+  })
+
+  it('reads the element box once per gesture rather than once per move', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view onPointer={() => {}} />)
+    const element = root.firstElementChild as HTMLElement
+    let reads = 0
+    element.getBoundingClientRect = () => {
+      reads++
+      return { left: 0, top: 0 } as DOMRect
+    }
+
+    element.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }))
+    for (let step = 0; step < 20; step++) {
+      element.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1 }))
+    }
+
+    // `getBoundingClientRect` forces layout, and a `pointermove` fires as fast
+    // as the display refreshes. Reading it on every one is how a drag turns
+    // janky, so the box is read when the gesture starts and reused until it
+    // ends.
+    expect(reads).toBe(1)
+  })
+
+  it('never reports a hover from a touch', () => {
+    setHost(createDomHost())
+    const root = container()
+    let hovers = 0
+
+    mount(domRoot(root), () => <view onHoverIn={() => hovers++} />)
+    const element = root.firstElementChild as HTMLElement
+    element.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'touch' }))
+
+    // A browser synthesises enter and leave around a tap. Letting those through
+    // would make a hover-only affordance appear to work on a phone, which is
+    // exactly the design bug that the prop never firing on a device exposes.
+    expect(hovers).toBe(0)
+
+    element.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }))
+    expect(hovers).toBe(1)
+  })
 })
 
 /**

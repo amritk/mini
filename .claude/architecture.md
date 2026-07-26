@@ -115,8 +115,9 @@ the real target that native approximates.
   `List`/`ListItem`, `Screen`), `@amritk/mini-native/platform`
   (`platform.os`/`platform.select` plus `colorScheme`/`dimensions`/`safeArea` as
   signals), `@amritk/mini-native/composition` (`createContext`, `Portal`,
-  `ErrorBoundary`), the three hosts, and `@amritk/mini-native/host` for the
-  contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
+  `ErrorBoundary`), `@amritk/mini-native/gestures` (`pan`, `swipe`, arithmetic
+  over a pointer stream the host normalises), the three hosts, and
+  `@amritk/mini-native/host` for the contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
   the vocabulary's `role` prop, so it needs no host machinery, and screens
   written in it keep the vocabulary confined to a dozen components rather than
   spread across every screen.

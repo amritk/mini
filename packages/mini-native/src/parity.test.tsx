@@ -203,6 +203,14 @@ describe('event parity', () => {
     ])
   })
 
+  it('agrees on the shape of a pointer going down', () => {
+    expect(pointerEverywhere()).toEqual([
+      { id: 1, x: 12, y: 34, phase: 'down' },
+      { id: 1, x: 12, y: 34, phase: 'down' },
+      { id: 1, x: 12, y: 34, phase: 'down' },
+    ])
+  })
+
   it('agrees that a tap without a position reports none', () => {
     // The case a component reads to decide where to put a ripple. If one target
     // reported the top-left corner instead, the divergence would only show up as
@@ -286,6 +294,45 @@ const tapEverywhere = (point: { x: number; y: number } | null): Record<string, u
   mount(memory.rootElement, () => <view onTap={seen} />)
   for (const listener of (memory.root.children[0] as MemoryElement).listeners.get('tap') ?? []) {
     listener(point ?? {})
+  }
+  clearHost()
+
+  return results
+}
+
+/**
+ * Puts one pointer down on each host and reports the portable fields.
+ *
+ * This is the shape every gesture recogniser is built on, so a divergence here
+ * would not show up as a broken pointer handler — it would show up as `pan` and
+ * `swipe` quietly misbehaving on one target, several layers away from the cause.
+ */
+const pointerEverywhere = (): Record<string, unknown>[] => {
+  const results: Record<string, unknown>[] = []
+  const seen = (event: unknown): void => {
+    const { raw: _raw, ...portable } = event as Record<string, unknown>
+    results.push(portable)
+  }
+
+  setHost(createDomHost())
+  const domRootElement = document.createElement('div')
+  mount(domRoot(domRootElement), () => <view onPointer={seen} />)
+  const domElement = domRootElement.firstElementChild as HTMLElement
+  domElement.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect
+  domElement.dispatchEvent(new PointerEvent('pointerdown', { clientX: 12, clientY: 34, pointerId: 1 }))
+  clearHost()
+
+  const engine = createFakeEngine()
+  setHost(createLynxHost(engine.api))
+  mount(lynxRoot(engine.root as unknown as LynxElement), () => <view onPointer={seen} />)
+  engine.root.children[0]?.events.get('bindEvent:touchstart')?.({ detail: { identifier: 1, x: 12, y: 34 } })
+  clearHost()
+
+  const memory = createMemoryHost()
+  setHost(memory.host)
+  mount(memory.rootElement, () => <view onPointer={seen} />)
+  for (const listener of (memory.root.children[0] as MemoryElement).listeners.get('pointer') ?? []) {
+    listener({ id: 1, x: 12, y: 34, phase: 'down' })
   }
   clearHost()
 

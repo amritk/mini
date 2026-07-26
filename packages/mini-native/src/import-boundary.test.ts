@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures']
 
 /**
  * Drops comments before the specifiers are read.
@@ -153,6 +153,15 @@ describe('import-boundary', () => {
     const composition = walk(resolve(SRC, 'composition', 'index.ts'))
     expect(leaksFrom(composition.files, ['hosts'])).toEqual([])
     expect([...composition.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the gestures subpath free of any host', () => {
+    // The recognisers are arithmetic over a stream the host already normalised.
+    // If one of them reached for a host, it would mean the normalisation had
+    // not actually been done and the maths was compensating for a platform.
+    const gestures = walk(resolve(SRC, 'gestures', 'index.ts'))
+    expect(leaksFrom(gestures.files, ['hosts'])).toEqual([])
+    expect([...gestures.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

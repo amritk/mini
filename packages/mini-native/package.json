@@ -82,6 +82,12 @@
       "import": "./dist/ui/index.js",
       "default": "./dist/ui/index.js"
     },
+    "./gestures": {
+      "development": "./src/gestures/index.ts",
+      "types": "./dist/gestures/index.d.ts",
+      "import": "./dist/gestures/index.js",
+      "default": "./dist/gestures/index.js"
+    },
     "./composition": {
       "development": "./src/composition/index.ts",
       "types": "./dist/composition/index.d.ts",
