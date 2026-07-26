@@ -222,6 +222,25 @@ Two things are worth knowing about it.
 
 The theme is a **signal**, which is load-bearing: a component runs exactly once and therefore reads context exactly once, so a plain theme would be frozen at boot. Holding the signal means a dark-mode switch reaches the whole tree with no re-render and no invalidation machinery — the same node, with a style mutated. Not providing a theme is a supported state; the fallback is a real one, so components render on their own in a test.
 
+### Routing (`@amritk/mini-native/router`)
+
+| Export | Purpose |
+|:---|:---|
+| `createRouter({ routes, history })` | Matches the current location into a reactive `route` signal. Also `navigate`, `back`, and a `canGoBack` signal. |
+| `createMemoryHistory(initial?)` | A navigation stack in memory — the *native* history as much as the test one. |
+| `<RouteView router fallback?>` | Renders the matched route. |
+| `<RouteLink to navigate>` | A real link that navigates through the router. |
+| `matchRoute` / `parseQuery` | The pure halves, exported for anything that needs them directly. |
+| `createBrowserHistory({ mode, base })` | From `@amritk/mini-native/router/browser` — the web's session history, `history` or `hash` mode. |
+
+The split is the design. **Matching a pattern against a path is string arithmetic** and ports for nothing. **Moving between locations is not**: a browser has an address bar, a back button, and a session history shared across tabs; a device has a navigation stack the app owns and nothing the user can type into. So the router takes a `RouterHistory`, and the browser one lives on its own entry — importing `/router` never drags a `window` reference into a device build, which the boundary suite asserts.
+
+`RouteView` keeps the screen when only the params changed. `/users/1` → `/users/2` is the same route, so scroll position, a focused field, and anything in flight survive, and the `params()` getter reports the new values. A different route swaps the subtree.
+
+`canGoBack` counts the steps *this app* took. A browser's `history.length` counts entries from every page the tab has visited, so it cannot answer "would going back leave the app" — which is the only question a back chevron asks.
+
+Not here: a native navigation **stack** (where `/users/2` pushes over `/users/1` and animates — it needs an animation seam that does not exist yet, and would be the wrong default for the web), and the web-only obligations of document title, scroll restoration, and keeping the URL continuously correct, which belong in the app's web entry point.
+
 ### Gestures (`@amritk/mini-native/gestures`)
 
 | Export | Purpose |
@@ -324,7 +343,8 @@ Not built yet:
 - **The reset is asserted, not observed.** Its suite checks that the rules are installed and stamped onto the right elements; it cannot check that a container then stacks its children, because happy-dom lays nothing out. Screenshots on two real targets are the only thing that would.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
 - **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.
-- **No router, forms, or query.** [`@amritk/mini`](../mini) has all three; forms and query are close to platform-free, and the router's matching half is pure — only navigation needs a native nav-stack shim rather than `window.history`.
+- **No forms or query.** [`@amritk/mini`](../mini) has both, and both are close to platform-free — they are simply not ported yet.
+- **No navigation stack or transitions.** `RouteView` is a single slot; pushing a screen over another and animating between them needs an animation seam that does not exist.
 
 ---
 

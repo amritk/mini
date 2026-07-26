@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router']
 
 /**
  * Drops comments before the specifiers are read.
@@ -162,6 +162,16 @@ describe('import-boundary', () => {
     const gestures = walk(resolve(SRC, 'gestures', 'index.ts'))
     expect(leaksFrom(gestures.files, ['hosts'])).toEqual([])
     expect([...gestures.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the router free of the browser it can drive', () => {
+    // The whole reason `createBrowserHistory` is on its own entry. Matching a
+    // path is arithmetic and ports for nothing; only navigation has a
+    // per-target answer, and it arrives as an argument. A device build that
+    // imports the router must not pull `window` along with it.
+    const router = walk(resolve(SRC, 'router', 'index.ts'))
+    expect(leaksFrom(router.files, ['hosts'])).toEqual([])
+    expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

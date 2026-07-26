@@ -46,6 +46,7 @@ src/
   platform/               platform.os / platform.select, and the environment accessors
   composition/            createContext, Portal, ErrorBoundary
   gestures/               pan, swipe — arithmetic over the normalised pointer stream
+  router/                 Pattern matching (pure) + a pluggable history; the browser one is its own entry
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
     create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)

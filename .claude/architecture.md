@@ -116,8 +116,11 @@ the real target that native approximates.
   (`platform.os`/`platform.select` plus `colorScheme`/`dimensions`/`safeArea` as
   signals), `@amritk/mini-native/composition` (`createContext`, `Portal`,
   `ErrorBoundary`), `@amritk/mini-native/gestures` (`pan`, `swipe`, arithmetic
-  over a pointer stream the host normalises), the three hosts, and
-  `@amritk/mini-native/host` for the contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
+  over a pointer stream the host normalises), `@amritk/mini-native/router`
+  (pattern matching, which is pure, plus a pluggable `RouterHistory`; the
+  browser implementation sits on `/router/browser` so the router itself stays
+  platform-free), the three hosts, and `@amritk/mini-native/host` for the
+  contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
   the vocabulary's `role` prop, so it needs no host machinery, and screens
   written in it keep the vocabulary confined to a dozen components rather than
   spread across every screen.
