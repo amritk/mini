@@ -293,3 +293,84 @@ describe('create-dom-host accessibility', () => {
     expect(root.innerHTML).toBe('<div aria-hidden="true"></div>')
   })
 })
+
+/**
+ * Normalised event payloads. Without these `onScroll={(event) => …}` cannot be
+ * written once — reading an offset would mean knowing which host is installed,
+ * which is write-once failing at the event boundary no matter how good the
+ * semantics layer is.
+ */
+describe('create-dom-host events', () => {
+  it('reports a tap position in the element’s own box', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x?: number; y?: number } | null = null
+
+    mount(domRoot(root), () => <view onTap={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect
+    element.dispatchEvent(new MouseEvent('click', { clientX: 35, clientY: 50, detail: 1 }))
+
+    // Local rather than viewport coordinates, because a viewport point means
+    // something different once a native screen has safe-area insets.
+    expect(seen).toMatchObject({ x: 25, y: 30 })
+  })
+
+  it('reports no position for a keyboard activation', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x?: number } | null = null
+
+    mount(domRoot(root), () => <view role="button" onTap={(event) => (seen = event)} />)
+    // Enter or Space on a focused button fires a real click whose coordinates
+    // are zero, and `detail === 0` is how the browser says so. Reporting the
+    // top-left corner would misplace a ripple for every keyboard user.
+    root.firstElementChild?.dispatchEvent(new MouseEvent('click', { detail: 0 }))
+
+    expect(seen).not.toBeNull()
+    expect((seen as unknown as { x?: number }).x).toBeUndefined()
+  })
+
+  it('reports a scroll offset', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x: number; y: number } | null = null
+
+    mount(domRoot(root), () => <scroll-view onScroll={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.scrollTop = 120
+    element.dispatchEvent(new Event('scroll'))
+
+    expect(seen).toMatchObject({ x: 0, y: 120 })
+  })
+
+  it('puts the current text on an input event', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { value: string } | null = null
+
+    mount(domRoot(root), () => <input onInput={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.value = 'sam'
+    element.dispatchEvent(new Event('input'))
+
+    // Reading it back off the element is the one thing every handler wants and
+    // the one thing that differs per target.
+    expect(seen).toMatchObject({ value: 'sam' })
+  })
+
+  it('keeps the platform event reachable on raw', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { raw: unknown } | null = null
+
+    mount(domRoot(root), () => <view onTap={(event) => (seen = event)} />)
+    const click = new MouseEvent('click', { detail: 1 })
+    root.firstElementChild?.dispatchEvent(click)
+
+    // Normalising discards everything target-specific, so the escape hatch has
+    // to exist — typed `unknown`, so reaching for it costs a cast and reads as
+    // the platform-specific code it is.
+    expect((seen as unknown as { raw: unknown }).raw).toBe(click)
+  })
+})

@@ -24,7 +24,8 @@ src/
   host.ts                 The Host contract — the entire platform surface
   current-host.ts         setHost / requireHost / scheduleFlush (one host per context)
   types.ts                MaybeReactive, ClassValue, StyleValue, opaque node handles
-  elements.ts             The element vocabulary (view/text/image/scroll-view/input)
+  elements.ts             The element vocabulary (view/text/image/scroll-view/input) + roles
+  events.ts               The event payloads the framework defines, so hosts normalise to them
   jsx-runtime.ts          The compilerless JSX runtime + the JSX type surface
   jsx-dev-runtime.ts      Dev entry point (same implementation)
   apply-prop.ts           One prop → host calls, deciding static-vs-reactive
@@ -45,6 +46,7 @@ src/
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
+    named-events.ts       Which events a host owes a normalised payload for
 ```
 
 ## Invariants — do not break these
@@ -75,6 +77,14 @@ src/
 - **No raw-markup sink, ever.** There is deliberately no `bindHtml` equivalent
   anywhere in the host contract, so bound data cannot inject elements on any
   target.
+- **A host normalises the payload of every event the vocabulary NAMES**, to the
+  shapes in `events.ts` — the same job as resolving a `class` array to a string,
+  pointed the other way. Without it `onScroll={(event) => event.y}` cannot be
+  written once, because reading an offset would mean knowing which host is
+  installed. Anything the vocabulary does not name passes through untouched and
+  belongs to whoever installed the host. `NAMED_EVENTS_WITHOUT_DATA` is shared
+  between the hosts rather than copied, because three sets that must agree are
+  three sets that can drift silently.
 - **A wrapper the framework inserted is never visible to accessibility.**
   `createFlowHost` builds the container every control-flow component swaps
   inside, and the moment elements carry roles an interposed generic node breaks

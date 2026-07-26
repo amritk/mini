@@ -1,5 +1,6 @@
 import type { Host, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
+import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 
 /** An element in the in-memory tree. */
 export type MemoryElement = {
@@ -90,10 +91,20 @@ export const createMemoryHost = (): MemoryHost => {
     addEventListener: (target, name, handler) => {
       const el = fromHostElement(target)
       const existing = el.listeners.get(name) ?? new Set<HostEventHandler>()
-      existing.add(handler)
+      // Normalised here as well, even though there is no platform to normalise
+      // FROM, because the contract says a handler receives the framework's
+      // payload shape and this host is the reference implementation of that
+      // contract. Passing the dispatched object straight through would let a
+      // test assert a shape neither real host produces — which is precisely how
+      // the visibility bug survived this suite once already.
+      const listener: HostEventHandler = (event) => handler(toNativeEvent(name, event))
+      existing.add(listener)
       el.listeners.set(name, existing)
+      // The WRAPPER is what has to be removed, not the handler that was passed
+      // in — deleting the latter would find nothing in the set and leave the
+      // listener attached forever.
       return () => {
-        existing.delete(handler)
+        existing.delete(listener)
       }
     },
 
@@ -133,6 +144,41 @@ export const createMemoryHost = (): MemoryHost => {
 
   return { host, root, rootElement: toHostElement(root) }
 }
+
+/**
+ * Turns a dispatched object into the shape the vocabulary promises.
+ *
+ * There is no platform here to translate from, so a test supplies the semantic
+ * fields directly — `dispatchMemoryEvent(row, 'scroll', { y: 120 })` — and this
+ * adds what the contract guarantees around them. That makes the reference host
+ * demonstrate the rule rather than sidestep it, without inventing a fake
+ * platform encoding for tests to learn.
+ */
+const toNativeEvent = (name: string, event: unknown): unknown => {
+  const source = (event ?? {}) as Record<string, unknown>
+
+  if (name === 'tap' || name === 'longpress') {
+    const x = source['x']
+    const y = source['y']
+    // A tap with no position is a real case on both real targets — a keyboard
+    // activation, an accessibility action — so it has to be expressible here.
+    return typeof x === 'number' && typeof y === 'number' ? { x, y, raw: event } : { raw: event }
+  }
+
+  if (name === 'scroll') {
+    return { x: numberOr(source['x']), y: numberOr(source['y']), raw: event }
+  }
+
+  if (name === 'input' || name === 'change') {
+    return { value: String(source['value'] ?? ''), raw: event }
+  }
+
+  if (NAMED_EVENTS_WITHOUT_DATA.has(name)) return { raw: event }
+  return event
+}
+
+/** Reads a numeric field, treating anything else as a zero offset. */
+const numberOr = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
 
 /** Builds a bare element with every field initialised, so no consumer sees a partial node. */
 const element = (tag: string): MemoryElement => ({

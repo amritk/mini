@@ -1,3 +1,4 @@
+import type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
 import type { ClassValue, ContainerChildren, HostElement, MaybeReactive, MiniChildren, StyleValue } from './types'
 
 /**
@@ -25,37 +26,52 @@ export const ELEMENT_TAGS = ['view', 'text', 'image', 'scroll-view', 'input'] as
  * sees — the runtime lowercases the prop, so `onLongPress` arrives as
  * `longpress`.
  *
- * Every entry is `unknown` here on purpose, because this package cannot know
- * what an event is: that is decided by whichever host is installed, and a Lynx
- * gesture and a DOM `MouseEvent` have nothing in common. Rather than pick one
- * and be wrong on the other target, the map is left open for the APP to fill in
- * through declaration merging, once, against the host it ships:
+ * The entries below are the ones this vocabulary NAMES, so the framework owns
+ * their shape and every host normalises to it. That is what makes the ordinary
+ * case writable once:
+ *
+ * ```tsx
+ * <scroll-view onScroll={(event) => headerOpacity(event.y)} />
+ * ```
+ *
+ * These were all `unknown` at first, on the reasoning that the package cannot
+ * know what an event is — a Lynx gesture and a DOM `MouseEvent` have nothing in
+ * common — leaving apps to fill them in through declaration merging. That is
+ * right for an arbitrary event and wrong for these, because merging picks ONE
+ * shape: an app shipping both a web and a device build would have to declare a
+ * `MouseEvent` that is a lie on the device, or the reverse. There is no
+ * declaration that is true on both, which is write-once failing at the event
+ * boundary no matter how good the rest of the layer is.
+ *
+ * The seam stays open for what the framework does NOT name. This is an
+ * interface rather than a type alias so an app can merge in the events its own
+ * host emits, once, against the host it ships:
  *
  * ```ts
  * declare module '@amritk/mini-native' {
  *   interface NativeEventMap {
- *     tap: MouseEvent
- *     input: InputEvent
+ *     swipe: { direction: 'left' | 'right' }
  *   }
  * }
  * ```
  *
- * Every `onTap` in that codebase is then typed, with no cast at any call site
- * and nothing added at runtime. This is the one place the repository's
- * `type`-over-`interface` rule is broken, and it is broken deliberately:
- * declaration merging is what makes the seam work, and only an interface can be
- * merged into.
+ * Merging can ADD entries but not redefine the ones below, which is the
+ * intended asymmetry: the payloads the framework guarantees are not negotiable
+ * per app, or they would stop being guarantees. Reaching past a normalised shape
+ * is what {@link NativeEvent.raw} is for. This is the one place the
+ * repository's `type`-over-`interface` rule is broken, and it is broken
+ * deliberately — only an interface can be merged into.
  */
 export interface NativeEventMap {
-  tap: unknown
-  longpress: unknown
-  focus: unknown
-  blur: unknown
-  scroll: unknown
-  load: unknown
-  error: unknown
-  input: unknown
-  change: unknown
+  tap: TapEvent
+  longpress: TapEvent
+  focus: NativeEvent
+  blur: NativeEvent
+  scroll: ScrollEvent
+  load: NativeEvent
+  error: NativeEvent
+  input: InputEvent
+  change: InputEvent
 }
 
 /** A handler for one of the events in {@link NativeEventMap}. */

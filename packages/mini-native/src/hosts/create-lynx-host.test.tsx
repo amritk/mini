@@ -317,3 +317,66 @@ describe('create-lynx-host accessibility', () => {
     expect(heading?.attrs).toMatchObject({ 'accessibility-role': 'heading', 'accessibility-level': 2 })
   })
 })
+
+/** Fires an event on the first element the mount created. */
+const fireChild = (engine: FakeEngine, name: string, event: unknown): void => {
+  const child = engine.root.children[0]
+  if (child) fire(child, name, event)
+}
+
+/**
+ * The same normalisation from the other side. The engine keeps a gesture's
+ * position under `detail` and a scroll offset in its own fields; reconciling
+ * that here is what makes one handler mean the same thing on both targets.
+ */
+describe('create-lynx-host events', () => {
+  it('normalises a gesture position out of the engine payload', () => {
+    const engine = setup()
+    let seen: { x?: number; y?: number } | null = null
+    mount(lynxRoot(toLynx(engine.root)), () => <view onTap={(event) => (seen = event)} />)
+
+    fireChild(engine, 'tap', { detail: { x: 12, y: 34 } })
+
+    // Different words for the same two numbers the DOM host reads off a
+    // MouseEvent, which is the whole point of the host owning this.
+    expect(seen).toMatchObject({ x: 12, y: 34 })
+  })
+
+  it('reports no position when the engine sent none', () => {
+    const engine = setup()
+    let seen: unknown = null
+    mount(lynxRoot(toLynx(engine.root)), () => <view onTap={(event) => (seen = event)} />)
+
+    fireChild(engine, 'tap', {})
+
+    // An accessibility action can activate an element without touching it, here
+    // as much as on the web.
+    expect((seen as { x?: number }).x).toBeUndefined()
+  })
+
+  it('normalises a scroll offset', () => {
+    const engine = setup()
+    let seen: { x: number; y: number } | null = null
+    mount(lynxRoot(toLynx(engine.root)), () => <scroll-view onScroll={(event) => (seen = event)} />)
+
+    fireChild(engine, 'scroll', { scrollLeft: 0, scrollTop: 200 })
+
+    expect(seen).toMatchObject({ x: 0, y: 200 })
+  })
+
+  it('leaves an event the vocabulary does not name alone', () => {
+    const engine = setup()
+    const host = createLynxHost(engine.api)
+    setHost(host)
+    const view = host.createElement('view')
+    let seen: unknown = null
+    host.addEventListener(view, 'swipe', (event) => {
+      seen = event
+    })
+
+    const payload = { direction: 'left' }
+    fire(asFake(view), 'swipe', payload)
+
+    expect(seen).toBe(payload)
+  })
+})

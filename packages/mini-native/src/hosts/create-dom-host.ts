@@ -1,5 +1,6 @@
 import type { Host } from '../host'
 import type { HostElement, HostNode, HostText } from '../types'
+import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
 
 /**
@@ -312,8 +313,13 @@ export const createDomHost = (): Host => {
     addEventListener: (target, name, handler) => {
       const element = fromHostElement(target)
       const domName = EVENTS[name] ?? name
-      element.addEventListener(domName, handler)
-      return () => element.removeEventListener(domName, handler)
+      // The listener is wrapped rather than passed straight through, because the
+      // handler is owed the framework's payload shape and not the browser's.
+      // The wrapper is what `removeEventListener` has to be given back, hence
+      // the local binding.
+      const listener = (event: Event): void => handler(toNativeEvent(name, event, element))
+      element.addEventListener(domName, listener)
+      return () => element.removeEventListener(domName, listener)
     },
 
     insert: (parent, node, anchor) => {
@@ -429,6 +435,56 @@ const GENERIC_ROLES = new Set(['list', 'listitem'])
 
 /** Elements with a real `disabled` attribute, which beats `aria-disabled` where it exists. */
 const SUPPORTS_DISABLED = new Set(['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT'])
+
+/**
+ * Turns a DOM event into the shape the vocabulary promises.
+ *
+ * Only the events the framework names are reshaped. Anything else — the
+ * composition events the two-way input binding listens for, or whatever an app
+ * attached through `ref` — is handed over untouched, because its meaning belongs
+ * to whoever asked for it rather than to this package.
+ */
+const toNativeEvent = (name: string, event: Event, element: HTMLElement): unknown => {
+  if (name === 'tap' || name === 'longpress') {
+    const point = pointIn(event, element)
+    return point === null ? { raw: event } : { x: point.x, y: point.y, raw: event }
+  }
+
+  if (name === 'scroll') {
+    return { x: element.scrollLeft, y: element.scrollTop, raw: event }
+  }
+
+  if (name === 'input' || name === 'change') {
+    return { value: 'value' in element ? String((element as HTMLInputElement).value) : '', raw: event }
+  }
+
+  if (NAMED_EVENTS_WITHOUT_DATA.has(name)) return { raw: event }
+  return event
+}
+
+/**
+ * Where in the element a pointer event landed, or `null` when it had no
+ * position at all.
+ *
+ * Pressing Enter or Space on a focused `<button>` fires a real `click` whose
+ * coordinates are zero — as does an activation from an assistive technology —
+ * and `detail === 0` is how the browser distinguishes that from a click at the
+ * element's top-left corner. Reporting the corner would put a ripple in the
+ * wrong place for every keyboard user, so the absence is reported instead.
+ *
+ * The box is read per event rather than cached because layout moves and a stale
+ * origin is worse than the read. That is affordable here precisely because taps
+ * are rare; `scroll` never comes through this path.
+ */
+const pointIn = (event: Event, element: HTMLElement): { x: number; y: number } | null => {
+  if (!isPointerish(event) || event.detail === 0) return null
+  const box = element.getBoundingClientRect()
+  return { x: event.clientX - box.left, y: event.clientY - box.top }
+}
+
+/** A DOM event carrying a viewport position and an activation count. */
+const isPointerish = (event: Event): event is MouseEvent =>
+  'clientX' in event && 'clientY' in event && 'detail' in event
 
 /** Sets an attribute, or removes it when the value is `null`. */
 const attribute = (element: HTMLElement, name: string, value: string | null): void => {

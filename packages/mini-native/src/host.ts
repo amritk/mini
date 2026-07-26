@@ -113,6 +113,18 @@ export type Host = {
    *
    * There is no delegation and there are no listener options, which keeps this
    * portable — native targets have no bubbling phase to hook into.
+   *
+   * A host MUST normalise the payload of every event the vocabulary names, to
+   * the shape in `events.ts`. That is the same job as resolving a `class` array
+   * into a string or a bare `100` into `100px`, pointed the other way: without
+   * it `onScroll={(event) => …}` cannot be written once, because reading an
+   * offset would mean knowing which host is installed. Anything the vocabulary
+   * does NOT name is passed through untouched and belongs to whoever installed
+   * the host — `NativeEventMap` is the seam for typing those.
+   *
+   * Everything target-specific that normalising discarded stays reachable on
+   * the payload's `raw`, which is deliberately `unknown` so that using it costs
+   * a cast and shows up in review as the platform-specific code it is.
    */
   addEventListener: (element: HostElement, name: string, handler: HostEventHandler) => Dispose
 
