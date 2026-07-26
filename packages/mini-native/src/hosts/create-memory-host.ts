@@ -1,6 +1,7 @@
 import type { Host, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
+import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
 
 /** An element in the in-memory tree. */
 export type MemoryElement = {
@@ -74,7 +75,12 @@ export const createMemoryHost = (): MemoryHost => {
 
     setProperty: (target, name, value) => {
       const el = fromHostElement(target)
-      if (value === false || value === null || value === undefined) delete el.props[name]
+      // `false` is a stated value for a handful of props rather than an absence,
+      // so dropping it here would erase what the author actually said — and the
+      // parity suite found exactly that, with the DOM host honouring it and this
+      // one silently not.
+      const unset = TRI_STATE_PROPS.has(name) ? isAbsent(value) : value === false || isAbsent(value)
+      if (unset) delete el.props[name]
       else el.props[name] = value
     },
 

@@ -3,6 +3,7 @@ import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
+import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
 
 /**
  * A host that renders onto Lynx, driving its Element PAPI directly.
@@ -91,7 +92,11 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
         api.__SetClasses(element, typeof value === 'string' ? value : '')
         return
       }
-      api.__SetAttribute(element, ATTRIBUTES[name] ?? name, value === false || value === undefined ? null : value)
+      // `false` clears an attribute for nearly everything, and for the tri-state
+      // props it is the value itself — see TRI_STATE_PROPS. Collapsing the two
+      // would drop a stated opt-out on this target while the DOM host kept it.
+      const unset = TRI_STATE_PROPS.has(name) ? isAbsent(value) : value === false || isAbsent(value)
+      api.__SetAttribute(element, ATTRIBUTES[name] ?? name, unset ? null : value)
     },
 
     getProperty: (target, name) => api.__GetAttributes(fromHostElement(target))[ATTRIBUTES[name] ?? name],
