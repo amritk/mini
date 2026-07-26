@@ -2,6 +2,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { For } from '../flow'
 import { clearHost, mount, setHost, signal } from '../index'
 import { createDomHost, domRoot } from './create-dom-host'
 
@@ -121,5 +122,327 @@ describe('create-dom-host', () => {
     dispose()
 
     expect(root.innerHTML).toBe('')
+  })
+})
+
+/**
+ * The semantics layer. These assert what an element MEANS rather than what it
+ * looks like, which is the difference between a preview and a page you would
+ * ship — a `<div>` with a tap handler is unreachable by keyboard no matter how
+ * convincing it looks.
+ */
+describe('create-dom-host accessibility', () => {
+  it('builds the real element a role implies', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <view role="button" onTap={() => {}} />
+        <view role="link" href="/pricing" />
+        <view role="navigation" />
+        <view role="main" />
+      </view>
+    ))
+
+    // Not a div with an ARIA role: a real button and a real anchor, so focus
+    // order, Enter and Space activation, and middle-click come from the
+    // browser rather than being re-synthesised.
+    expect(root.innerHTML).toBe(
+      '<div><button type="button"></button><a href="/pricing"></a><nav></nav><main></main></div>',
+    )
+  })
+
+  it('builds a heading at the requested depth, defaulting to 2', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <text role="heading" level={1}>
+          title
+        </text>
+        <text role="heading">section</text>
+      </view>
+    ))
+
+    // The default is 2 rather than 1 because a page's single h1 should be
+    // something an author chose, not something they got by omission.
+    expect(root.innerHTML).toBe('<div><h1>title</h1><h2>section</h2></div>')
+  })
+
+  it('keeps list roles generic, so a flow wrapper cannot invalidate them', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view role="list">
+        <view role="listitem" />
+      </view>
+    ))
+
+    // A real <ul> accepts only <li>, which is a parse-level content model — and
+    // the control-flow components put a wrapper in between. An ARIA role has no
+    // content model, so this survives what <ul> would not.
+    expect(root.innerHTML).toBe('<div role="list"><div role="listitem"></div></div>')
+  })
+
+  it('keeps the flow wrapper out of the accessibility tree', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view role="list">
+        <For each={[1, 2]}>{(n) => <view role="listitem" testId={`row-${n}`} />}</For>
+      </view>
+    ))
+
+    const wrapper = root.querySelector('[role="list"]')?.firstElementChild
+    // Vanishing from layout is not vanishing from the accessibility tree, and
+    // an interposed generic element severs list-owns-listitem for a screen
+    // reader. `display: contents` alone has never been reliable for this.
+    expect(wrapper?.getAttribute('role')).toBe('presentation')
+    expect(wrapper?.getAttribute('style')).toContain('contents')
+  })
+
+  it('spells the accessible name per element', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <image src="/puck.png" label="a puck" />
+        <view role="button" label="save" />
+      </view>
+    ))
+
+    // Same prop, two spellings — `alt` is what an <img> uses and `aria-label`
+    // is what everything else uses. Which one is the host's problem, not the
+    // component author's.
+    expect(root.innerHTML).toBe(
+      '<div><img src="/puck.png" alt="a puck"><button type="button" aria-label="save"></button></div>',
+    )
+  })
+
+  it('prefers a real disabled attribute where one exists', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <view role="button" disabled={true} />
+        <view disabled={true} />
+      </view>
+    ))
+
+    // A real <button disabled> is genuinely unclickable; `aria-disabled` only
+    // announces it. Each element gets whichever it can actually honour.
+    expect(root.innerHTML).toBe(
+      '<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>',
+    )
+  })
+
+  it('tracks reactive accessibility state', () => {
+    setHost(createDomHost())
+    const root = container()
+    const open = signal(false)
+
+    mount(domRoot(root), () => <view role="button" expanded={open} />)
+    const button = root.firstElementChild as HTMLElement
+
+    // `false` is written out rather than removing the attribute, which is the
+    // one place these props break the contract's usual false-means-unset rule.
+    // A collapsed disclosure is `aria-expanded="false"`; no attribute at all is
+    // something that does not expand, and announcing the second for the first
+    // is a different sentence.
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    open(true)
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    open(false)
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('takes an element out of the tab order with an explicit -1', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view role="button" focusable={false} />)
+
+    // Removing the attribute would leave a <button> natively focusable, so the
+    // prop would appear to do nothing. Only an explicit -1 takes it back out.
+    expect((root.firstElementChild as HTMLElement).getAttribute('tabindex')).toBe('-1')
+  })
+
+  it('does not leak href onto an element that cannot navigate', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view href="/pricing" />)
+
+    // An attribute the browser ignores is the preview quietly stopping matching
+    // the device, which is the bug class this host exists to avoid.
+    expect(root.innerHTML).toBe('<div></div>')
+  })
+
+  it('hides a role="none" element from assistive technology', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view role="none" />)
+
+    expect(root.innerHTML).toBe('<div aria-hidden="true"></div>')
+  })
+})
+
+/**
+ * Normalised event payloads. Without these `onScroll={(event) => …}` cannot be
+ * written once — reading an offset would mean knowing which host is installed,
+ * which is write-once failing at the event boundary no matter how good the
+ * semantics layer is.
+ */
+describe('create-dom-host events', () => {
+  it('reports a tap position in the element’s own box', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x?: number; y?: number } | null = null
+
+    mount(domRoot(root), () => <view onTap={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect
+    element.dispatchEvent(new MouseEvent('click', { clientX: 35, clientY: 50, detail: 1 }))
+
+    // Local rather than viewport coordinates, because a viewport point means
+    // something different once a native screen has safe-area insets.
+    expect(seen).toMatchObject({ x: 25, y: 30 })
+  })
+
+  it('reports no position for a keyboard activation', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x?: number } | null = null
+
+    mount(domRoot(root), () => <view role="button" onTap={(event) => (seen = event)} />)
+    // Enter or Space on a focused button fires a real click whose coordinates
+    // are zero, and `detail === 0` is how the browser says so. Reporting the
+    // top-left corner would misplace a ripple for every keyboard user.
+    root.firstElementChild?.dispatchEvent(new MouseEvent('click', { detail: 0 }))
+
+    expect(seen).not.toBeNull()
+    expect((seen as unknown as { x?: number }).x).toBeUndefined()
+  })
+
+  it('reports a scroll offset', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { x: number; y: number } | null = null
+
+    mount(domRoot(root), () => <scroll-view onScroll={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.scrollTop = 120
+    element.dispatchEvent(new Event('scroll'))
+
+    expect(seen).toMatchObject({ x: 0, y: 120 })
+  })
+
+  it('puts the current text on an input event', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { value: string } | null = null
+
+    mount(domRoot(root), () => <input onInput={(event) => (seen = event)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.value = 'sam'
+    element.dispatchEvent(new Event('input'))
+
+    // Reading it back off the element is the one thing every handler wants and
+    // the one thing that differs per target.
+    expect(seen).toMatchObject({ value: 'sam' })
+  })
+
+  it('keeps the platform event reachable on raw', () => {
+    setHost(createDomHost())
+    const root = container()
+    let seen: { raw: unknown } | null = null
+
+    mount(domRoot(root), () => <view onTap={(event) => (seen = event)} />)
+    const click = new MouseEvent('click', { detail: 1 })
+    root.firstElementChild?.dispatchEvent(click)
+
+    // Normalising discards everything target-specific, so the escape hatch has
+    // to exist — typed `unknown`, so reaching for it costs a cast and reads as
+    // the platform-specific code it is.
+    expect((seen as unknown as { raw: unknown }).raw).toBe(click)
+  })
+})
+
+/**
+ * The vocabulary corrections. Each of these is a prop whose web spelling hid a
+ * distinction the device has, so each one is only visible from the native side.
+ */
+describe('create-dom-host vocabulary', () => {
+  it('scrolls a scroll-view before anyone sets an axis', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <scroll-view />)
+
+    // A scroll container scrolls whether or not the prop was written, so it is
+    // created as though the default had been set. This is asserted rather than
+    // assumed because renaming the prop once broke it silently: the handler was
+    // renamed and this caller was not, and nothing in the suite noticed.
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('overflow-y')).toBe('auto')
+    expect(element.style.getPropertyValue('overflow-x')).toBe('hidden')
+  })
+
+  it('flips both axes together when told to scroll horizontally', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <scroll-view axis="horizontal" />)
+
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('overflow-x')).toBe('auto')
+    expect(element.style.getPropertyValue('overflow-y')).toBe('hidden')
+  })
+
+  it('keeps the keyboard mode and the mask independent', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input keyboard="number" secure={true} />)
+
+    // A PIN field: numeric keypad, masked characters. Natively those are two
+    // settings and this is ordinary; the web collapses both into one `type`,
+    // which is exactly why the conflation went unnoticed until a device.
+    expect((root.firstElementChild as HTMLElement).getAttribute('type')).toBe('password')
+  })
+
+  it('does not let the two type props depend on attribute order', () => {
+    setHost(createDomHost())
+    const root = container()
+    const masked = signal(true)
+
+    mount(domRoot(root), () => <input secure={masked} keyboard="email" />)
+    const element = root.firstElementChild as HTMLElement
+
+    // Same slot, two owners — the shape of bug that made `show` and `style`
+    // fight over `display`. Unmasking has to fall back to the keyboard mode
+    // rather than to whatever was written last.
+    expect(element.getAttribute('type')).toBe('password')
+    masked(false)
+    expect(element.getAttribute('type')).toBe('email')
+  })
+
+  it('states whether text is selectable, since the targets disagree', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <text selectable={false}>secret</text>)
+
+    // Web text is selectable by default and native text is not, so a component
+    // that says nothing behaves differently on each.
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('user-select')).toBe('none')
   })
 })

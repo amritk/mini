@@ -1,3 +1,4 @@
+import type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
 import type { ClassValue, ContainerChildren, HostElement, MaybeReactive, MiniChildren, StyleValue } from './types'
 
 /**
@@ -25,37 +26,52 @@ export const ELEMENT_TAGS = ['view', 'text', 'image', 'scroll-view', 'input'] as
  * sees — the runtime lowercases the prop, so `onLongPress` arrives as
  * `longpress`.
  *
- * Every entry is `unknown` here on purpose, because this package cannot know
- * what an event is: that is decided by whichever host is installed, and a Lynx
- * gesture and a DOM `MouseEvent` have nothing in common. Rather than pick one
- * and be wrong on the other target, the map is left open for the APP to fill in
- * through declaration merging, once, against the host it ships:
+ * The entries below are the ones this vocabulary NAMES, so the framework owns
+ * their shape and every host normalises to it. That is what makes the ordinary
+ * case writable once:
+ *
+ * ```tsx
+ * <scroll-view onScroll={(event) => headerOpacity(event.y)} />
+ * ```
+ *
+ * These were all `unknown` at first, on the reasoning that the package cannot
+ * know what an event is — a Lynx gesture and a DOM `MouseEvent` have nothing in
+ * common — leaving apps to fill them in through declaration merging. That is
+ * right for an arbitrary event and wrong for these, because merging picks ONE
+ * shape: an app shipping both a web and a device build would have to declare a
+ * `MouseEvent` that is a lie on the device, or the reverse. There is no
+ * declaration that is true on both, which is write-once failing at the event
+ * boundary no matter how good the rest of the layer is.
+ *
+ * The seam stays open for what the framework does NOT name. This is an
+ * interface rather than a type alias so an app can merge in the events its own
+ * host emits, once, against the host it ships:
  *
  * ```ts
  * declare module '@amritk/mini-native' {
  *   interface NativeEventMap {
- *     tap: MouseEvent
- *     input: InputEvent
+ *     swipe: { direction: 'left' | 'right' }
  *   }
  * }
  * ```
  *
- * Every `onTap` in that codebase is then typed, with no cast at any call site
- * and nothing added at runtime. This is the one place the repository's
- * `type`-over-`interface` rule is broken, and it is broken deliberately:
- * declaration merging is what makes the seam work, and only an interface can be
- * merged into.
+ * Merging can ADD entries but not redefine the ones below, which is the
+ * intended asymmetry: the payloads the framework guarantees are not negotiable
+ * per app, or they would stop being guarantees. Reaching past a normalised shape
+ * is what {@link NativeEvent.raw} is for. This is the one place the
+ * repository's `type`-over-`interface` rule is broken, and it is broken
+ * deliberately — only an interface can be merged into.
  */
 export interface NativeEventMap {
-  tap: unknown
-  longpress: unknown
-  focus: unknown
-  blur: unknown
-  scroll: unknown
-  load: unknown
-  error: unknown
-  input: unknown
-  change: unknown
+  tap: TapEvent
+  longpress: TapEvent
+  focus: NativeEvent
+  blur: NativeEvent
+  scroll: ScrollEvent
+  load: NativeEvent
+  error: NativeEvent
+  input: InputEvent
+  change: InputEvent
 }
 
 /** A handler for one of the events in {@link NativeEventMap}. */
@@ -74,6 +90,121 @@ type EventHandlers = {
   onLongPress?: NativeEventHandler<'longpress'>
   onFocus?: NativeEventHandler<'focus'>
   onBlur?: NativeEventHandler<'blur'>
+}
+
+/**
+ * What an element IS, as opposed to what it looks like.
+ *
+ * This is the one piece of information both targets need and neither can infer.
+ * A native host turns it into an accessibility role; the DOM host turns it into
+ * an actual element, so `role="button"` builds a `<button>` and inherits focus
+ * order, Enter and Space activation, and form submission rather than
+ * re-synthesising all three onto a `<div>`.
+ *
+ * The set is closed and small on purpose: every entry has a real mapping on
+ * both sides, and a role neither target can honour would be a promise the
+ * runtime cannot keep.
+ *
+ * Two of them deliberately do NOT get their obvious HTML element. `list` and
+ * `listitem` build a generic element carrying the ARIA role instead of `<ul>`
+ * and `<li>`, because `<ul>` accepts only `<li>` — a parse-level content model
+ * — and the control-flow components put a wrapper in between:
+ *
+ * ```tsx
+ * <view role="list">
+ *   <For each={rows}>{(row) => <view role="listitem">…</view>}</For>
+ * </view>
+ * ```
+ *
+ * See the invariant on `Host.createFlowHost`.
+ */
+export type Role =
+  | 'button'
+  | 'link'
+  | 'heading'
+  | 'list'
+  | 'listitem'
+  /** The page or screen header. Spelled the ARIA way; the DOM host builds `<header>`. */
+  | 'banner'
+  | 'navigation'
+  | 'main'
+  /** The page or screen footer. Spelled the ARIA way; the DOM host builds `<footer>`. */
+  | 'contentinfo'
+  /** Strips the element's semantics and hides it from assistive technology. */
+  | 'none'
+
+/**
+ * The roles above as a runtime set, for hosts that want to validate one.
+ *
+ * Every name here is an ARIA role rather than an HTML tag, which is the same
+ * rule the `as` override follows: a tag is not a portable concept, and letting
+ * one in through a prop meant to describe SEMANTICS is how web-only thinking
+ * re-enters a component written for both targets. It is why the landmarks are
+ * `banner` and `contentinfo` rather than the friendlier `header` and `footer` —
+ * those two are elements, and these two are what the element MEANS.
+ */
+export const ROLES = [
+  'button',
+  'link',
+  'heading',
+  'list',
+  'listitem',
+  'banner',
+  'navigation',
+  'main',
+  'contentinfo',
+  'none',
+] as const
+
+/**
+ * The accessibility surface, shared by every tag.
+ *
+ * It is not a web feature with a native counterpart, it is one fact per element
+ * that both targets need — which is why it lives on the vocabulary rather than
+ * in a host. Adding it cost the `Host` contract nothing: `role` and `level`
+ * arrive through `createElement`'s existing props parameter, the rest through
+ * `setProperty`.
+ */
+type AccessibilityProps = {
+  /**
+   * What this element is. STATIC, with no reactive form, because on the DOM it
+   * decides which element gets built and a node cannot change what it is — the
+   * same constraint `input multiline` lives under. A getter here is reported by
+   * {@link warn} rather than silently read once.
+   */
+  role?: Role
+  /**
+   * Heading depth, alongside `role="heading"`. Static for the same reason
+   * `role` is; the DOM host builds `<h1>`…`<h6>` from it. Defaults to 2, on the
+   * grounds that a page's single `<h1>` should be deliberate.
+   */
+  level?: 1 | 2 | 3 | 4 | 5 | 6
+  /**
+   * The accessible name — what a screen reader announces. This is the ONLY
+   * spelling of it: `image` has no separate `alt`, because two names for one
+   * concept is exactly the drift a five-tag vocabulary exists to avoid. The DOM
+   * host still emits `alt` on an `<img>`, which is where that spelling belongs.
+   */
+  label?: MaybeReactive<string>
+  /** Supplementary description, announced after the name. */
+  hint?: MaybeReactive<string>
+  /**
+   * Whether the element takes part in focus order. The semantic roles are
+   * focusable already; this is for the elements that are interactive without
+   * looking it.
+   */
+  focusable?: MaybeReactive<boolean>
+  /** Unavailable for interaction, and announced as such rather than merely greyed. */
+  disabled?: MaybeReactive<boolean>
+  selected?: MaybeReactive<boolean>
+  checked?: MaybeReactive<boolean>
+  expanded?: MaybeReactive<boolean>
+  /**
+   * Where a `role="link"` points. Hosts with nothing addressable ignore it;
+   * the DOM host puts it on a real `<a>`, so middle-click, open-in-new-tab, and
+   * a crawler all work without the app doing anything.
+   */
+  href?: MaybeReactive<string>
 }
 
 /**
@@ -104,7 +235,8 @@ type CommonProps = {
   id?: MaybeReactive<string>
   /** A stable handle for UI tests, passed straight through to the host. */
   testId?: MaybeReactive<string>
-} & EventHandlers
+} & EventHandlers &
+  AccessibilityProps
 
 /** Per-tag props, layered on top of {@link CommonProps}. */
 type TagProps = {
@@ -121,13 +253,20 @@ type TagProps = {
     children?: MiniChildren
     /** Truncate after this many lines. Maps to the host's own line-clamp. */
     lines?: MaybeReactive<number>
+    /**
+     * Whether the user can select and copy this text.
+     *
+     * Worth stating rather than inheriting, because the targets disagree on the
+     * default — web text is selectable, native text is not — so a component that
+     * says nothing behaves differently on each, and neither default is wrong
+     * enough to simply pick.
+     */
+    selectable?: MaybeReactive<boolean>
   }
   image: {
     /** An image is a leaf: there is nothing a target could render inside one. */
     children?: never
     src?: MaybeReactive<string>
-    /** Accessible description. Native targets surface this to screen readers. */
-    alt?: MaybeReactive<string>
     /** How the image fills its box. The names match the CSS `object-fit` values the DOM host maps onto. */
     fit?: MaybeReactive<'cover' | 'contain' | 'fill' | 'none'>
     onLoad?: NativeEventHandler<'load'>
@@ -136,8 +275,17 @@ type TagProps = {
   'scroll-view': {
     /** Nested elements. Like any container, it cannot hold a bare text run. */
     children?: ContainerChildren
-    /** Scroll axis. Defaults to vertical, matching every native scroll container. */
-    direction?: MaybeReactive<'vertical' | 'horizontal'>
+    /**
+     * Which way this scrolls. Defaults to vertical, matching every native
+     * scroll container.
+     *
+     * Named `axis` rather than `direction` because CSS has already claimed the
+     * second word for text direction — RTL — which is a real cross-platform
+     * concern that will want a prop of its own on every element. Two meanings
+     * for one prop name is the sort of thing that is free to fix now and
+     * expensive later.
+     */
+    axis?: MaybeReactive<'vertical' | 'horizontal'>
     onScroll?: NativeEventHandler<'scroll'>
   }
   input: {
@@ -145,7 +293,6 @@ type TagProps = {
     children?: never
     value?: MaybeReactive<string>
     placeholder?: MaybeReactive<string>
-    disabled?: MaybeReactive<boolean>
     readonly?: MaybeReactive<boolean>
     /**
      * Grows to multiple lines. Unlike every other prop this one is STRUCTURAL
@@ -156,8 +303,22 @@ type TagProps = {
      * typecheck and then silently only ever be read once.
      */
     multiline?: boolean
-    /** Which on-screen keyboard to raise. Native targets have no text `type`, they have a keyboard mode. */
-    keyboard?: MaybeReactive<'text' | 'number' | 'email' | 'phone' | 'password'>
+    /**
+     * Which on-screen keyboard to raise. Native targets have no text `type`,
+     * they have a keyboard mode.
+     *
+     * `password` is deliberately NOT one of these — see {@link secure}.
+     */
+    keyboard?: MaybeReactive<'text' | 'number' | 'email' | 'phone'>
+    /**
+     * Masks what the user types.
+     *
+     * Separate from {@link keyboard} because natively they are genuinely two
+     * settings, and a PIN entry needs both at once: a NUMERIC keyboard with
+     * masked text. The web collapses them into `type="password"`, which is
+     * exactly why the conflation was invisible until this ran on a device.
+     */
+    secure?: MaybeReactive<boolean>
     onInput?: NativeEventHandler<'input'>
     onChange?: NativeEventHandler<'change'>
   }

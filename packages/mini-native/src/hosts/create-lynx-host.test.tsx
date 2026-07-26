@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { For } from '../flow'
 import type { HostElement } from '../index'
 import { clearHost, mount, setHost, signal } from '../index'
 import { createLynxHost, lynxRoot } from './create-lynx-host'
@@ -261,5 +262,121 @@ describe('create-lynx-host', () => {
     // whole-tree commit per attribute, which is the difference between a cheap
     // update and a stutter.
     expect(engine.flushes()).toBe(afterMount + 1)
+  })
+})
+
+/**
+ * The other half of the semantics layer. The DOM host picks an ELEMENT from a
+ * role; a native tree has one container view, so here the same prop is a flat
+ * rename onto Lynx's `accessibility-*` attributes. Asserting the mapping
+ * against a fake engine is what keeps correcting it for a given engine version
+ * a one-line edit with a test that says whether it took.
+ */
+describe('create-lynx-host accessibility', () => {
+  it('maps the accessibility props onto engine attributes', () => {
+    const engine = setup()
+    mount(lynxRoot(toLynx(engine.root)), () => (
+      <view role="button" label="save" hint="writes to disk" disabled={true} />
+    ))
+
+    expect(engine.root.children[0]?.attrs).toMatchObject({
+      'accessibility-role': 'button',
+      'accessibility-label': 'save',
+      'accessibility-hint': 'writes to disk',
+      'accessibility-disabled': true,
+    })
+  })
+
+  it('keeps the flow wrapper out of the accessibility tree', () => {
+    const engine = setup()
+    mount(lynxRoot(toLynx(engine.root)), () => (
+      <view role="list">
+        <For each={[1]}>{() => <view role="listitem" />}</For>
+      </view>
+    ))
+
+    // A container view is an entirely ordinary node here, which is exactly why
+    // it would otherwise sit between the list and its items in the
+    // accessibility tree. Same invariant as the DOM host, different spelling.
+    const wrapper = engine.root.children[0]?.children[0]
+    expect(wrapper?.attrs['accessibility-element']).toBe(false)
+  })
+
+  it('carries role and level as attributes, since native has no tag to choose', () => {
+    const engine = setup()
+    mount(lynxRoot(toLynx(engine.root)), () => (
+      <text role="heading" level={2}>
+        Pricing
+      </text>
+    ))
+
+    // The DOM host builds an <h2> and drops the level as redundant. There is no
+    // heading element here, so both facts have to survive as attributes.
+    const heading = engine.root.children[0]
+    expect(heading?.tag).toBe('text')
+    expect(heading?.attrs).toMatchObject({ 'accessibility-role': 'heading', 'accessibility-level': 2 })
+  })
+})
+
+/** Fires an event on the first element the mount created. */
+const fireChild = (engine: FakeEngine, name: string, event: unknown): void => {
+  const child = engine.root.children[0]
+  if (child) fire(child, name, event)
+}
+
+/**
+ * The same normalisation from the other side. The engine keeps a gesture's
+ * position under `detail` and a scroll offset in its own fields; reconciling
+ * that here is what makes one handler mean the same thing on both targets.
+ */
+describe('create-lynx-host events', () => {
+  it('normalises a gesture position out of the engine payload', () => {
+    const engine = setup()
+    let seen: { x?: number; y?: number } | null = null
+    mount(lynxRoot(toLynx(engine.root)), () => <view onTap={(event) => (seen = event)} />)
+
+    fireChild(engine, 'tap', { detail: { x: 12, y: 34 } })
+
+    // Different words for the same two numbers the DOM host reads off a
+    // MouseEvent, which is the whole point of the host owning this.
+    expect(seen).toMatchObject({ x: 12, y: 34 })
+  })
+
+  it('reports no position when the engine sent none', () => {
+    const engine = setup()
+    let seen: unknown = null
+    mount(lynxRoot(toLynx(engine.root)), () => <view onTap={(event) => (seen = event)} />)
+
+    fireChild(engine, 'tap', {})
+
+    // An accessibility action can activate an element without touching it, here
+    // as much as on the web.
+    expect((seen as { x?: number }).x).toBeUndefined()
+  })
+
+  it('normalises a scroll offset', () => {
+    const engine = setup()
+    let seen: { x: number; y: number } | null = null
+    mount(lynxRoot(toLynx(engine.root)), () => <scroll-view onScroll={(event) => (seen = event)} />)
+
+    fireChild(engine, 'scroll', { scrollLeft: 0, scrollTop: 200 })
+
+    expect(seen).toMatchObject({ x: 0, y: 200 })
+  })
+
+  it('leaves an event the vocabulary does not name alone', () => {
+    const engine = setup()
+    const host = createLynxHost(engine.api)
+    setHost(host)
+    const view = host.createElement('view')
+    let seen: unknown = null
+    host.addEventListener(view, 'swipe', (event) => {
+      seen = event
+    })
+
+    const payload = { direction: 'left' }
+    fire(asFake(view), 'swipe', payload)
+
+    expect(seen).toBe(payload)
   })
 })

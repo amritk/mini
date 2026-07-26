@@ -96,10 +96,10 @@ Effects run synchronously on write. The flush scheduler already collapses a burs
 | Tag | Props beyond the common set |
 |:---|:---|
 | `view` | — (element children only) |
-| `text` | `lines` (line clamp) — the only tag that accepts a text run |
-| `image` | `src`, `alt`, `fit`, `onLoad`, `onError` — a leaf, no children |
-| `scroll-view` | `direction`, `onScroll` (element children only) |
-| `input` | `value`, `placeholder`, `disabled`, `readonly`, `multiline`, `keyboard`, `onInput`, `onChange` — a leaf, no children |
+| `text` | `lines` (line clamp), `selectable` — the only tag that accepts a text run |
+| `image` | `src`, `fit`, `onLoad`, `onError` — a leaf, no children. The accessible name is `label`, not `alt` |
+| `scroll-view` | `axis`, `onScroll` (element children only) |
+| `input` | `value`, `placeholder`, `readonly`, `multiline`, `keyboard`, `secure`, `onInput`, `onChange` — a leaf, no children |
 
 Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, and the gestures `onTap` / `onLongPress` / `onFocus` / `onBlur`. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
 
@@ -114,6 +114,45 @@ declare module '@amritk/mini-native' {
 ```
 
 ---
+
+## What an element means
+
+Five tags describe *shape*, not meaning, so every element also takes a `role`.
+One prop, two targets: a native host turns it into an accessibility role, and
+the DOM host builds the actual element — so `role="button"` is a real
+`<button>`, with focus order, Enter and Space activation, and form submission
+already correct rather than re-synthesised onto a `<div>`.
+
+```tsx
+<view role="button" label="Add to cart" onTap={add} />
+<text role="heading" level={2}>Pricing</text>
+<view role="link" href="/pricing" />
+```
+
+| Prop | |
+| --- | --- |
+| `role` | `button`, `link`, `heading`, `list`, `listitem`, `banner`, `navigation`, `main`, `contentinfo`, `none`. **Static** — it decides what the host builds, and a node cannot change what it is. |
+| `level` | Heading depth 1–6, defaulting to 2. Static, for the same reason. |
+| `label` | The accessible name. The only spelling of it — `image` has no separate `alt`. |
+| `hint` | Supplementary description, announced after the name. |
+| `focusable` | Whether the element takes part in focus order. `false` writes an explicit opt-out, since a `<button>` is focusable without being asked. |
+| `disabled`, `selected`, `checked`, `expanded` | State. The last three write `false` out rather than removing the attribute: a collapsed disclosure and a thing that does not expand are different sentences. |
+| `href` | Where a `role="link"` points. Ignored by hosts with nothing addressable. |
+
+Two roles deliberately do *not* get their obvious HTML element. `list` and
+`listitem` build a generic element carrying the ARIA role, because `<ul>`
+accepts only `<li>` — a parse-level content model — and the control-flow
+components put a wrapper in between:
+
+```tsx
+<For each={rows} as="view" role="list">
+  {(row) => <view role="listitem">…</view>}
+</For>
+```
+
+That wrapper is why `role` on a collection needs an `as` container: the default
+one is presentational on every host, so that a framework-inserted node can never
+interpose between a list and its items in the accessibility tree.
 
 ## API
 
@@ -132,7 +171,7 @@ declare module '@amritk/mini-native' {
 | `list(container, items, key, create)` | The only reconciler — keyed collections over four host operations, move-minimal. |
 | `renderChild(wrapper, select)` | Reactive single-slot swap; the base of the control-flow components. |
 | `bindText` / `bindProp` / `bindShow` / `bindValue` | Imperative bindings for `ref` code. `bindValue` is two-way and holds writes during IME composition. |
-| `ELEMENT_TAGS`, `ElementProps`, `ElementTag`, `NativeEventMap` | The element vocabulary, at runtime and in types. Augment `NativeEventMap` to type your handlers. |
+| `ELEMENT_TAGS`, `ROLES`, `ElementProps`, `ElementTag`, `Role`, `NativeEventMap` | The element vocabulary and role set, at runtime and in types. Augment `NativeEventMap` to type your handlers. |
 | `Host`, `HostElement`, `HostNode`, `HostText`, `Component`, `MaybeReactive`, … | The renderer contract and the shared types. |
 
 ### Control flow (`@amritk/mini-native/flow`)
@@ -188,7 +227,6 @@ Deliberate:
 
 Not built yet:
 
-- **No accessibility props.** `image alt` is the only one. This is the largest gap and the next thing worth doing — it is far cheaper to design in while the vocabulary is five tags.
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
 - **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
 - **No context, portal, or error boundary.**

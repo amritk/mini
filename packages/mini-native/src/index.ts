@@ -45,7 +45,10 @@ export {
   type ElementTag,
   type NativeEventHandler,
   type NativeEventMap,
+  ROLES,
+  type Role,
 } from './elements'
+export type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
 export type { Host, HostEventHandler } from './host'
 export { list } from './list'
 export { mount } from './mount'

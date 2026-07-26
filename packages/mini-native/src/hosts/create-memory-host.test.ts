@@ -271,17 +271,65 @@ describe('create-memory-host', () => {
     expect(seen).toEqual(['second'])
   })
 
-  it('hands the event object straight through to the handler', () => {
+  it('normalises the events the vocabulary names', () => {
     const { host } = createMemoryHost()
     const view = host.createElement('view')
     const received: unknown[] = []
     host.addEventListener(view, 'tap', (event) => received.push(event))
 
-    const event = { x: 1 }
+    const event = { x: 1, y: 2 }
     dispatchMemoryEvent(asElement(view), 'tap', event)
 
-    // The runtime never reads an event, so a host must not reshape one either.
+    // This host once handed the dispatched object straight through, on the
+    // reasoning that the runtime never reads an event so a host should not
+    // reshape one. That holds for an arbitrary event and fails for the ones the
+    // vocabulary NAMES: a handler cannot read a tap position once if each target
+    // spells it differently, so normalising is the host's job. `raw` is where
+    // everything discarded stays reachable.
+    expect(received).toEqual([{ x: 1, y: 2, raw: event }])
+  })
+
+  it('reports a tap that genuinely had no position', () => {
+    const { host } = createMemoryHost()
+    const view = host.createElement('view')
+    const received: unknown[] = []
+    host.addEventListener(view, 'tap', (event) => received.push(event))
+
+    dispatchMemoryEvent(asElement(view), 'tap')
+
+    // Pressing Enter on a focused button, or activating it through assistive
+    // technology, is a real tap with no point attached. Reporting 0,0 would put
+    // a ripple in the corner for every keyboard user, so the absence is modelled.
+    expect(received).toEqual([{ raw: {} }])
+  })
+
+  it('leaves an event the vocabulary does not name alone', () => {
+    const { host } = createMemoryHost()
+    const view = host.createElement('view')
+    const received: unknown[] = []
+    host.addEventListener(view, 'swipe', (event) => received.push(event))
+
+    const event = { direction: 'left' }
+    dispatchMemoryEvent(asElement(view), 'swipe', event)
+
+    // Its meaning belongs to whoever installed the host, so reshaping it would
+    // be this package inventing a contract it has no standing to define.
     expect(received).toEqual([event])
+  })
+
+  it('detaches the listener it actually attached', () => {
+    const { host } = createMemoryHost()
+    const view = host.createElement('view')
+    let taps = 0
+    const dispose = host.addEventListener(view, 'tap', () => taps++)
+
+    dispose()
+    dispatchMemoryEvent(asElement(view), 'tap')
+
+    // Normalising means the set holds a wrapper rather than the handler that was
+    // passed in, so removing the latter would find nothing and leave the
+    // listener attached forever.
+    expect(taps).toBe(0)
   })
 
   it('throws when asked to insert something it did not create', () => {

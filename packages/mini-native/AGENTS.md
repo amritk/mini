@@ -24,7 +24,8 @@ src/
   host.ts                 The Host contract — the entire platform surface
   current-host.ts         setHost / requireHost / scheduleFlush (one host per context)
   types.ts                MaybeReactive, ClassValue, StyleValue, opaque node handles
-  elements.ts             The element vocabulary (view/text/image/scroll-view/input)
+  elements.ts             The element vocabulary (view/text/image/scroll-view/input) + roles
+  events.ts               The event payloads the framework defines, so hosts normalise to them
   jsx-runtime.ts          The compilerless JSX runtime + the JSX type surface
   jsx-dev-runtime.ts      Dev entry point (same implementation)
   apply-prop.ts           One prop → host calls, deciding static-vs-reactive
@@ -45,6 +46,8 @@ src/
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
+    named-events.ts       Which events a host owes a normalised payload for
+    tri-state-props.ts    The props where `false` is a value, not an absence
 ```
 
 ## Invariants — do not break these
@@ -75,6 +78,21 @@ src/
 - **No raw-markup sink, ever.** There is deliberately no `bindHtml` equivalent
   anywhere in the host contract, so bound data cannot inject elements on any
   target.
+- **`false` is a VALUE for the tri-state props, not an absence.** `setProperty`'s
+  general rule that `false` means "unset it" erases the very thing `focusable`,
+  `selected`, `checked`, `expanded`, and `selectable` exist to express — a
+  collapsed disclosure is `aria-expanded="false"`, and no attribute at all is
+  something that does not expand. `tri-state-props.ts` holds the set, shared so
+  the rule cannot land on one host and not the others. It already did: the
+  parity suite caught the DOM host honouring it while Lynx and memory dropped it.
+- **A host normalises the payload of every event the vocabulary NAMES**, to the
+  shapes in `events.ts` — the same job as resolving a `class` array to a string,
+  pointed the other way. Without it `onScroll={(event) => event.y}` cannot be
+  written once, because reading an offset would mean knowing which host is
+  installed. Anything the vocabulary does not name passes through untouched and
+  belongs to whoever installed the host. `NAMED_EVENTS_WITHOUT_DATA` is shared
+  between the hosts rather than copied, because three sets that must agree are
+  three sets that can drift silently.
 - **A wrapper the framework inserted is never visible to accessibility.**
   `createFlowHost` builds the container every control-flow component swaps
   inside, and the moment elements carry roles an interposed generic node breaks
@@ -128,6 +146,32 @@ ignored for element tags, where there is no keying at the JSX level at all.
 
 > `@amritk/mini` had this hole too — its `for.test.tsx` only ever called
 > `For({…})` directly, which is likely why nobody noticed. Fixed there as well.
+
+## The two structural suites
+
+`parity.test.tsx` renders one component through all three hosts and compares
+what each reports back — role, accessible name, focusability, availability, and
+the payload of a tap. It compares SEMANTICS rather than markup on purpose:
+asserting markup would only re-test each host's mapping table and would fail
+whenever a mapping legitimately changed.
+
+It exists because the failure mode of cross-platform work is silent drift — the
+web target keeps working while the device target stops matching, because nobody
+runs the second one day to day. It earned its keep on the first run by catching
+`focusable={false}` surviving on the DOM host and being erased by the other two,
+which is where `tri-state-props.ts` came from.
+
+`vocabulary-coverage.test.tsx` asks whether every prop the vocabulary DOCUMENTS
+actually does something, by walking `ElementProps` and asserting no prop reaches
+a DOM element as a dead attribute. The audit found four that did — `fit`,
+`lines`, `direction`, `multiline` — by reading. The mapped type is the mechanism:
+it demands one sample per prop per tag, so adding a prop without adding a sample
+fails `types:check` rather than quietly going untested.
+
+Both carry the happy-dom pragma, since comparing against the DOM host needs a
+document. That does not weaken the DOM-free guarantee — the memory and Lynx
+suites still run in plain node — and both are excluded from `tsconfig.json` and
+checked by `tsconfig.dom.json`, exactly like `create-dom-host.test.tsx`.
 
 ## Testing
 
@@ -183,9 +227,10 @@ note.
 ## Known gaps
 
 See the README's *Known gaps* for the full list. The short version: `bindClass`
-and fragments are deliberate omissions; accessibility props, a virtualised list,
-gestures beyond tap, an animation seam, context/portal/error boundaries, and the
-router / forms / query subpaths are simply not built yet. `docs/mini-native-audit.md`
+and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
+an animation seam, context/portal/error boundaries, and the router / forms /
+query subpaths are simply not built yet. Accessibility props are **done** — see
+`Role` in `elements.ts` and the two host mappings. `docs/mini-native-audit.md`
 at the repo root carries the reasoning and the priority order.
 
 Add a changeset for every change (`bunx changeset`).

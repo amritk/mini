@@ -7,6 +7,11 @@
     // something.
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/hosts/create-dom-host.ts", "src/hosts/create-dom-host.test.tsx"],
+  "include": [
+    "src/hosts/create-dom-host.ts",
+    "src/hosts/create-dom-host.test.tsx",
+    "src/parity.test.tsx",
+    "src/vocabulary-coverage.test.tsx"
+  ],
   "exclude": ["dist", "node_modules"]
 }

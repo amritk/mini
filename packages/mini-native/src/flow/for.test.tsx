@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
+import { serializeMemoryTree } from '../hosts/serialize-memory-tree'
 import { clearHost, mount, onCleanup, setHost, signal } from '../index'
 import { For } from './for'
 
@@ -146,5 +147,69 @@ describe('for', () => {
     dispose()
 
     expect(disposed).toEqual(['a', 'b'])
+  })
+})
+
+/**
+ * The container is how an accessible collection is expressed. The default flow
+ * wrapper is presentational on purpose, so a role needs a real element to land
+ * on — a constraint rather than an inconvenience, and the same reason the DOM
+ * host never builds a `<ul>`.
+ */
+describe('For container semantics', () => {
+  it('puts a role on the `as` container', () => {
+    const { host, root, rootElement } = createMemoryHost()
+    setHost(host)
+
+    mount(rootElement, () => (
+      <For each={['a', 'b']} as="view" role="list" label="tags">
+        {(tag) => <text role="listitem">{tag}</text>}
+      </For>
+    ))
+
+    expect(serializeMemoryTree(containerOf({ host, root, rootElement }))).toBe(
+      [
+        '<view label="tags" role="list">',
+        '  <text role="listitem">',
+        '    "a"',
+        '  <text role="listitem">',
+        '    "b"',
+      ].join('\n'),
+    )
+  })
+
+  it('marks the default wrapper as presentational', () => {
+    const { host, root, rootElement } = createMemoryHost()
+    setHost(host)
+
+    mount(rootElement, () => <For each={['a']}>{(tag) => <text>{tag}</text>}</For>)
+
+    // Nobody wrote this element. Both real hosts say so in their own spelling,
+    // and the memory host carries the marker too so one parity assertion can
+    // cover all three.
+    expect((root.children[0] as MemoryElement | undefined)?.props['role']).toBe('presentation')
+  })
+
+  it('reports a role that has no container to land on', () => {
+    const { host, rootElement } = createMemoryHost()
+    setHost(host)
+    const warnings: string[] = []
+    const original = globalThis.console
+    globalThis.console = { ...original, warn: (message: unknown) => warnings.push(String(message)) }
+
+    try {
+      mount(rootElement, () => (
+        <For each={['a']} role="list">
+          {(tag) => <text>{tag}</text>}
+        </For>
+      ))
+    } finally {
+      globalThis.console = original
+    }
+
+    // Dropping it silently would leave a list reading as a plain group to a
+    // screen reader while looking right in the source — the exact failure this
+    // layer exists to remove.
+    expect(warnings[0]).toContain('`role` on a collection needs an `as` container')
   })
 })

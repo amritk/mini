@@ -1,7 +1,9 @@
 import type { Host, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
+import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
+import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
 
 /**
  * A host that renders onto Lynx, driving its Element PAPI directly.
@@ -62,7 +64,15 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
     // A native container view is the idiomatic wrapper for a swapped subtree,
     // so unlike the web there is no layout trick needed here — the wrapper is
     // simply part of the view hierarchy, which is how native trees are built.
-    createFlowHost: () => toHostElement(api.__CreateElement('view', 0, {})),
+    createFlowHost: () => {
+      const wrapper = api.__CreateElement('view', 0, {})
+      // Nobody wrote this element, so it must not appear in the accessibility
+      // tree between a `role="list"` and its items. Being an ordinary container
+      // view is exactly why that would otherwise happen here. See the invariant
+      // on `Host.createFlowHost`.
+      api.__SetAttribute(wrapper, 'accessibility-element', false)
+      return toHostElement(wrapper)
+    },
 
     // Text in Lynx lives in a `raw-text` element carrying a `text` attribute,
     // nested inside a `<text>` element that provides the styling.
@@ -82,7 +92,11 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
         api.__SetClasses(element, typeof value === 'string' ? value : '')
         return
       }
-      api.__SetAttribute(element, ATTRIBUTES[name] ?? name, value === false || value === undefined ? null : value)
+      // `false` clears an attribute for nearly everything, and for the tri-state
+      // props it is the value itself — see TRI_STATE_PROPS. Collapsing the two
+      // would drop a stated opt-out on this target while the DOM host kept it.
+      const unset = TRI_STATE_PROPS.has(name) ? isAbsent(value) : value === false || isAbsent(value)
+      api.__SetAttribute(element, ATTRIBUTES[name] ?? name, unset ? null : value)
     },
 
     getProperty: (target, name) => api.__GetAttributes(fromHostElement(target))[ATTRIBUTES[name] ?? name],
@@ -123,7 +137,8 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
         byName.set(name, set)
         // Iterate a copy so a handler detaching itself cannot disturb the walk.
         api.__AddEvent(element, 'bindEvent', name, (event) => {
-          for (const listener of [...set]) listener(event)
+          const native = toNativeEvent(name, event)
+          for (const listener of [...set]) listener(native)
         })
       }
 
@@ -201,10 +216,79 @@ const DEFAULT_DISPLAY = 'flex'
  * engine does not recognise, so a UI test would have nothing to select on. The
  * DOM host already emits `data-testid`, and matching it here means one selector
  * finds the element in the browser preview and on the device alike.
+ *
+ * The accessibility entries follow Lynx's `accessibility-*` attribute
+ * convention. Unlike the DOM host there is no element to choose — a native tree
+ * has one container view and the role is an attribute on it — so this stays a
+ * flat rename rather than the two-spellings-per-prop arrangement the web needs.
+ *
+ * This table is the part of the host most likely to need adjusting for a given
+ * engine version, and it is deliberately the cheapest thing to adjust: the
+ * mapping is asserted in `create-lynx-host.test.tsx` against a fake engine, so
+ * correcting an attribute name is a one-line edit with a test that says whether
+ * it took.
  */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
+  axis: 'scroll-orientation',
+  secure: 'secure-input',
+  selectable: 'text-selection',
+  role: 'accessibility-role',
+  level: 'accessibility-level',
+  label: 'accessibility-label',
+  hint: 'accessibility-hint',
+  focusable: 'focusable',
+  disabled: 'accessibility-disabled',
+  selected: 'accessibility-selected',
+  checked: 'accessibility-checked',
+  expanded: 'accessibility-expanded',
 }
+
+/**
+ * Turns a Lynx event into the shape the vocabulary promises.
+ *
+ * The engine reports a gesture's position under `detail`, and a scroll offset
+ * under `scrollLeft` / `scrollTop` — different words for the same two numbers
+ * the DOM host reads off a `MouseEvent` and an element. Reconciling that here is
+ * the entire reason `onScroll={(event) => event.y}` means one thing on both
+ * targets.
+ *
+ * Anything the vocabulary does not name passes through untouched: its meaning
+ * belongs to whoever attached the listener, and this host has no standing to
+ * reshape it.
+ *
+ * Like {@link ATTRIBUTES}, the field names read from the engine are the part
+ * most likely to need adjusting per engine version, and are asserted against the
+ * fake engine for exactly that reason.
+ */
+const toNativeEvent = (name: string, event: unknown): unknown => {
+  const source = (event ?? {}) as Record<string, unknown>
+
+  if (name === 'tap' || name === 'longpress') {
+    const detail = (source['detail'] ?? source) as Record<string, unknown>
+    const x = numberOr(detail['x'])
+    const y = numberOr(detail['y'])
+    // A gesture with no position is a real case here too — an accessibility
+    // action can activate an element without touching it — so the absence is
+    // reported rather than being flattened to the top-left corner.
+    return x === null || y === null ? { raw: event } : { x, y, raw: event }
+  }
+
+  if (name === 'scroll') {
+    return { x: numberOr(source['scrollLeft']) ?? 0, y: numberOr(source['scrollTop']) ?? 0, raw: event }
+  }
+
+  if (name === 'input' || name === 'change') {
+    const detail = (source['detail'] ?? source) as Record<string, unknown>
+    return { value: String(detail['value'] ?? ''), raw: event }
+  }
+
+  if (NAMED_EVENTS_WITHOUT_DATA.has(name)) return { raw: event }
+  return event
+}
+
+/** Reads a numeric field, treating anything that is not a finite number as missing. */
+const numberOr = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 
 /**
  * Stringifies a style bag and drops the entries that mean "unset".
