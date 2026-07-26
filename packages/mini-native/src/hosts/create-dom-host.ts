@@ -1,6 +1,7 @@
 import type { Host } from '../host'
 import type { HostElement, HostNode, HostText } from '../types'
 import { createDomEnvironment } from './dom-environment'
+import { installDomReset, RESET_CONTAINER_MARKER, RESET_MARKER } from './dom-reset'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
 
@@ -16,8 +17,17 @@ import { toStyleText } from './to-style-text'
  *
  * Mutations apply immediately, so there is no `flush` and the scheduler skips
  * the commit step entirely.
+ *
+ * @param options.reset Whether to install the layout reset that makes a browser
+ *   behave like Yoga. On by default, because without it an unstyled container
+ *   with two children stacks vertically on a device and horizontally here —
+ *   which is write-once being a slogan rather than a fact. Turn it off when
+ *   this runtime is a guest in a page whose styling you do not own, and read
+ *   `dom-reset.ts` for exactly what you are then responsible for.
  */
-export const createDomHost = (): Host => {
+export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
+  if (reset) installDomReset()
+
   /**
    * The host's own style layer, kept per element.
    *
@@ -269,6 +279,12 @@ export const createDomHost = (): Host => {
 
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
+      if (reset) {
+        element.setAttribute(RESET_MARKER, '')
+        // Everything except a text run is a container, and a container is where
+        // text inheritance stops — the rule Yoga follows and CSS does not.
+        if (tag !== 'text') element.setAttribute(RESET_CONTAINER_MARKER, '')
+      }
       // A `scroll-view` scrolls whether or not anyone wrote a `direction`, so it
       // is created as though the prop were already set to its default. A later
       // `direction` write simply replaces these.
@@ -422,6 +438,12 @@ export const createDomHost = (): Host => {
  * mount(domRoot(document.body), App)
  * ```
  */
+/** Options for {@link createDomHost}. */
+export type DomHostOptions = {
+  /** Install the Yoga-shaped layout reset. Defaults to `true`; see {@link createDomHost}. */
+  reset?: boolean
+}
+
 export const domRoot = (element: Element): HostElement => toHostElement(element)
 
 /**

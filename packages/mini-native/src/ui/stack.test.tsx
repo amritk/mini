@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
 import { clearHost, mount, setHost, signal } from '../index'
 import { Stack } from './stack'
+import { defaultTheme } from './theme'
 
 afterEach(() => {
   clearHost()
@@ -53,6 +54,31 @@ describe('stack', () => {
       display: 'flex',
       flexDirection: 'column',
       padding: 24,
+    })
+  })
+
+  it('resolves a gap against the theme scale', () => {
+    const memory = createMemoryHost()
+    setHost(memory.host)
+
+    mount(memory.rootElement, () => <Stack gap="lg" />)
+
+    // A named step rather than a number, so spacing across an app is a set of
+    // decisions rather than a set of numbers people typed.
+    expect((memory.root.children[0] as MemoryElement).style).toMatchObject({ gap: defaultTheme.space.lg })
+  })
+
+  it('stays effect-free when there is no gap to resolve', () => {
+    const memory = createMemoryHost()
+    setHost(memory.host)
+
+    mount(memory.rootElement, () => <Stack />)
+
+    // A container view is the most common element in a native tree, so a stack
+    // that was asked for nothing should cost nothing beyond the element.
+    expect((memory.root.children[0] as MemoryElement).style).toEqual({
+      display: 'flex',
+      flexDirection: 'column',
     })
   })
 

@@ -205,6 +205,7 @@ The named things a screen is actually written in. **The package ships the semant
 | `<Stack>` / `<Row>` | `view` | none — layout only, column and row |
 | `<List>` / `<ListItem>` | `view` | `role="list"` / `"listitem"` |
 | `<Screen>` | `view` | `role="main"`, plus the safe-area insets |
+| `ThemeContext` | — | The type scale, tones, and spacing steps, as a **signal** |
 
 Two things are worth knowing about it.
 
@@ -212,7 +213,14 @@ Two things are worth knowing about it.
 
 **`<Button>Save</Button>` works even though `<view>Save</view>` does not compile.** A container refuses a bare text run because on a device a run outside a `text` element renders nothing; a component is different — it has an opinion about its own contents, and its label needs a `text` element on every target anyway. The wrap lives in the component layer and never in the runtime.
 
-Not here yet, each waiting on something specific: `size` and `tone` (they need a type scale resolved against a theme), and the theme itself (context). The theme will be a **signal** rather than a value when it lands — a component runs exactly once and reads context exactly once, which is what makes a live dark-mode switch work here with no re-render.
+**`size` and `level` are two props, always.** A real page needs an `h2` that renders small (a sidebar header) and large text that is not a heading at all (a stat). Couple them and authors start picking heading levels by how big they want the text, which is how a document outline stops being navigable. `Text` has no `role` or `level` on its surface at all, so it enforces the split rather than documenting it.
+
+```tsx
+<Heading level={2} size="sm">Related</Heading>  // an h2 that renders small
+<Text size="xl">$4,200</Text>                   // large, and not a heading
+```
+
+The theme is a **signal**, which is load-bearing: a component runs exactly once and therefore reads context exactly once, so a plain theme would be frozen at boot. Holding the signal means a dark-mode switch reaches the whole tree with no re-render and no invalidation machinery — the same node, with a style mutated. Not providing a theme is a supported state; the fallback is a real one, so components render on their own in a test.
 
 ### Composition (`@amritk/mini-native/composition`)
 
@@ -257,7 +265,7 @@ A whole file that is obviously platform-specific is reviewable, greppable, and c
 
 | Import | Target |
 |:---|:---|
-| `@amritk/mini-native/hosts/dom` | `createDomHost()` + `domRoot(element)` — the web preview target, the only file in the package that knows what HTML is. |
+| `@amritk/mini-native/hosts/dom` | `createDomHost({ reset })` + `domRoot(element)` — the web target, and the only place in the package that knows what HTML is. Installs the **layout reset** by default: one zero-specificity stylesheet that makes a browser lay out like Yoga, so an unstyled container does not stack vertically on a device and horizontally here. Pass `{ reset: false }` when this runtime is a guest in a page whose styling you do not own. |
 | `@amritk/mini-native/hosts/lynx` | `createLynxHost(api?)` + `lynxRoot(element)` — drives [Lynx](https://lynxjs.org)'s Element PAPI. Takes the PAPI as an argument, so it is testable against a fake engine. |
 | `@amritk/mini-native/hosts/memory` | `createMemoryHost()` — plain objects, no platform. The reference implementation and what the test suite runs against. |
 | `@amritk/mini-native/hosts/memory/serialize` | `serializeMemoryTree(node)` — the in-memory tree as an indented string, for assertions. |
@@ -294,7 +302,9 @@ Not built yet:
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
 - **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
 - **`ErrorBoundary` covers construction only.** A throw inside an effect, a handler, or a promise happens after every component has finished running, and belongs to whoever started it.
-- **No design tokens or type scale**, so `/ui` carries semantics and no appearance. Whether tokens resolve to style objects or to classes is genuinely open, and belongs with the layout reset in a note of its own.
+- **No animation seam**, so an animation is a bridge write per frame on a native target.
+- **No responsive primitive.** `dimensions()` works and branching on it works, but there is no `@media`-shaped abstraction — a native target has no media queries, and inventing one before there are real call sites would be speculation.
+- **The reset is asserted, not observed.** Its suite checks that the rules are installed and stamped onto the right elements; it cannot check that a container then stacks its children, because happy-dom lays nothing out. Screenshots on two real targets are the only thing that would.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
 - **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.
 - **No router, forms, or query.** [`@amritk/mini`](../mini) has all three; forms and query are close to platform-free, and the router's matching half is pure — only navigation needs a native nav-stack shim rather than `window.history`.

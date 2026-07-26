@@ -47,8 +47,9 @@ src/
   composition/            createContext, Portal, ErrorBoundary
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
-    create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the one below)
+    create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)
     dom-environment.ts    Colour scheme, viewport and safe-area insets, read off the browser
+    dom-reset.ts          The stylesheet that makes a browser lay out like Yoga
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
@@ -275,11 +276,44 @@ permanent.
   test them against, so shipping plausible-but-wrong values per build would be
   worse than asking the app, which knows exactly which engine it runs on.
 
-Still genuinely open, so do not treat either as decided: whether `role="button"`
+## Settled decisions on style
+
+[`docs/mini-native-style.md`](../../docs/mini-native-style.md) is the reasoning.
+
+- **The reset is the floor, not a nicety.** An unstyled container with two
+  children stacks vertically on a device and horizontally on the web. Everything
+  else in the cross-platform story is additive; this is not, and no amount of
+  careful component authoring above it papers over it.
+- **The reset never outranks the app.** Every rule is `:where()`-wrapped, so
+  specificity is zero and a single class or a `style` prop beats it. A reset that
+  wins arguments is one people work around, and the workarounds are worse than
+  the divergence.
+- **Scoped by `data-mn`, not by tag.** An app embedding this runtime keeps its
+  own page. Flow wrappers are deliberately unstamped — `display: contents` means
+  no box to reset, and a `display: flex` rule would fight the one thing the
+  wrapper must be.
+- **Text inheritance stops at a container**, matching Yoga rather than CSS, and
+  the base is `--mn-font` / `--mn-color` rather than `initial` — `font: initial`
+  is a serif face, so an app that had never heard of the reset would come up in
+  Times.
+- **Overflow is NOT clipped.** It looks like a missing row in the divergence
+  table and is left out on purpose: the two native platforms disagree with each
+  other, and clipping every container on the web breaks shadows, focus rings,
+  and popovers. *Reopen if* a real screen shows the difference is structural
+  rather than cosmetic.
+- **Tokens resolve to STYLE OBJECTS, not classes.** Classes are cheaper on the
+  web and meaningless on a headless host. A style object is the only shape every
+  target already consumes, and class extraction stays available later as a
+  web-only optimisation behind the optional plugin — where skipping it costs
+  bytes rather than correctness. Choosing classes first would have made the
+  other two hosts carry a translation layer that could never be removed.
+- **`size` and `level` are two props, always.** Couple them and authors pick
+  heading levels by how big they want the text. `Text` has no `role` or `level`
+  on its surface at all, which enforces it rather than documenting it.
+
+Still genuinely open, so do not treat it as decided: whether `role="button"`
 builds a real `<button>` (browser affordances, but a content model TypeScript
-cannot enforce) or a `div` with the role and synthesised activation; and whether
-design tokens resolve to style objects or to classes. Both belong with the style
-note.
+cannot enforce) or a `div` with the role and synthesised activation.
 
 ## Known gaps
 

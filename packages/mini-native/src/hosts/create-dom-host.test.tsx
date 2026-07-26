@@ -26,6 +26,16 @@ afterEach(() => {
 /** Builds a fresh container element to mount into. */
 const container = (): Element => document.createElement('div')
 
+/**
+ * The rendered markup, without the attributes the layout reset is scoped by.
+ *
+ * These cases are about the vocabulary landing on the right HTML, and every
+ * element the host builds carries `data-mn` so the reset can find it — real,
+ * asserted in `dom-reset.test.ts`, and pure noise in an assertion about which
+ * tag a role produces. Stripping it here keeps each suite about one thing.
+ */
+const markup = (root: Element): string => root.innerHTML.replace(/ data-mn(-container)?=""/g, '')
+
 describe('create-dom-host', () => {
   it('maps the element vocabulary onto HTML tags', () => {
     setHost(createDomHost())
@@ -40,7 +50,7 @@ describe('create-dom-host', () => {
 
     // `view` is a div and `text` is a span — the browser is the guest here,
     // rendering a native vocabulary rather than defining it.
-    expect(root.innerHTML).toBe('<div><span>hello</span><img src="/puck.png"></div>')
+    expect(markup(root)).toBe('<div><span>hello</span><img src="/puck.png"></div>')
   })
 
   it('maps native gesture names onto DOM events', () => {
@@ -121,7 +131,7 @@ describe('create-dom-host', () => {
     const dispose = mount(domRoot(root), () => <view />)
     dispose()
 
-    expect(root.innerHTML).toBe('')
+    expect(markup(root)).toBe('')
   })
 })
 
@@ -148,7 +158,7 @@ describe('create-dom-host accessibility', () => {
     // Not a div with an ARIA role: a real button and a real anchor, so focus
     // order, Enter and Space activation, and middle-click come from the
     // browser rather than being re-synthesised.
-    expect(root.innerHTML).toBe(
+    expect(markup(root)).toBe(
       '<div><button type="button"></button><a href="/pricing"></a><nav></nav><main></main></div>',
     )
   })
@@ -168,7 +178,7 @@ describe('create-dom-host accessibility', () => {
 
     // The default is 2 rather than 1 because a page's single h1 should be
     // something an author chose, not something they got by omission.
-    expect(root.innerHTML).toBe('<div><h1>title</h1><h2>section</h2></div>')
+    expect(markup(root)).toBe('<div><h1>title</h1><h2>section</h2></div>')
   })
 
   it('keeps list roles generic, so a flow wrapper cannot invalidate them', () => {
@@ -184,7 +194,7 @@ describe('create-dom-host accessibility', () => {
     // A real <ul> accepts only <li>, which is a parse-level content model — and
     // the control-flow components put a wrapper in between. An ARIA role has no
     // content model, so this survives what <ul> would not.
-    expect(root.innerHTML).toBe('<div role="list"><div role="listitem"></div></div>')
+    expect(markup(root)).toBe('<div role="list"><div role="listitem"></div></div>')
   })
 
   it('keeps the flow wrapper out of the accessibility tree', () => {
@@ -219,7 +229,7 @@ describe('create-dom-host accessibility', () => {
     // Same prop, two spellings — `alt` is what an <img> uses and `aria-label`
     // is what everything else uses. Which one is the host's problem, not the
     // component author's.
-    expect(root.innerHTML).toBe(
+    expect(markup(root)).toBe(
       '<div><img src="/puck.png" alt="a puck"><button type="button" aria-label="save"></button></div>',
     )
   })
@@ -237,9 +247,7 @@ describe('create-dom-host accessibility', () => {
 
     // A real <button disabled> is genuinely unclickable; `aria-disabled` only
     // announces it. Each element gets whichever it can actually honour.
-    expect(root.innerHTML).toBe(
-      '<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>',
-    )
+    expect(markup(root)).toBe('<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>')
   })
 
   it('tracks reactive accessibility state', () => {
@@ -281,7 +289,7 @@ describe('create-dom-host accessibility', () => {
 
     // An attribute the browser ignores is the preview quietly stopping matching
     // the device, which is the bug class this host exists to avoid.
-    expect(root.innerHTML).toBe('<div></div>')
+    expect(markup(root)).toBe('<div></div>')
   })
 
   it('hides a role="none" element from assistive technology', () => {
@@ -290,7 +298,7 @@ describe('create-dom-host accessibility', () => {
 
     mount(domRoot(root), () => <view role="none" />)
 
-    expect(root.innerHTML).toBe('<div aria-hidden="true"></div>')
+    expect(markup(root)).toBe('<div aria-hidden="true"></div>')
   })
 })
 

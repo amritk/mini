@@ -32,19 +32,26 @@
  *
  * The rule, then: **a screen file should contain almost no vocabulary tags.**
  *
+ * ## The theme is a signal
+ *
+ * {@link ThemeContext} carries a signal rather than a `Theme`, and that is
+ * load-bearing rather than stylistic. A component runs exactly once and
+ * therefore reads context exactly once — a plain theme would be whatever it was
+ * at boot, forever. Holding the signal means every component reads it once and
+ * goes on tracking it, so a dark-mode switch reaches the whole tree with no
+ * re-render, no invalidation pass, and no machinery beyond the signal that was
+ * going to exist anyway.
+ *
+ * Not providing one is a supported state. The fallback is a real theme, so a
+ * component renders correctly on its own, in a test, with no app around it.
+ *
  * ## What is not here yet
  *
- * - **`size` and `tone`.** {@link Heading} takes `level` and nothing else on
- *   purpose, so the outline cannot be chosen by how big the text should look.
- *   The appearance half of that pair arrives with the type scale, resolved
- *   against a theme, and adding the props before there is anything to resolve
- *   them against would ship two names for nothing.
- * - **A theme.** Tokens reach components through context, and context is not
- *   built. One consequence is already settled and worth knowing early: a
- *   component runs exactly once and therefore reads context exactly once, so
- *   the theme will be a SIGNAL rather than a value. That is what makes a live
- *   dark-mode switch work here with no re-render and no invalidation machinery
- *   — the same rule as every other reactive value in the package.
+ * - **Icons, fields, and the rest of a real design system.** What is here is
+ *   the set whose correctness is portable and easy to get wrong. Everything
+ *   past that is taste, and taste belongs to the app — the smaller this layer
+ *   stays, the less a design system built on it is version-coupled to this
+ *   package.
  *
  * @example
  * ```tsx
@@ -80,3 +87,5 @@ export { Row, type RowProps } from './row'
 export { Screen, type ScreenProps } from './screen'
 export { Stack, type StackProps } from './stack'
 export { Text, type TextProps } from './text'
+export { defaultTheme, type Space, type TextSize, type Theme, type Tone } from './theme'
+export { ThemeContext } from './theme-context'

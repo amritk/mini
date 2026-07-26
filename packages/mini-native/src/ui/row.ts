@@ -2,6 +2,8 @@ import { jsx } from '../jsx-runtime'
 import type { ContainerChildren, HostElement, StyleValue } from '../types'
 import type { Forwarded } from './forwarded'
 import { mergeStyle } from './merge-style'
+import type { Space } from './theme'
+import { ThemeContext } from './theme-context'
 
 /**
  * The one thing a `Row` asserts — and the direction that actually diverges.
@@ -15,6 +17,8 @@ const ROW: StyleValue = { display: 'flex', flexDirection: 'row' }
 
 /** Props for {@link Row}. */
 export type RowProps = Forwarded<'view'> & {
+  /** Space between children, as a step of the theme's spacing scale. */
+  gap?: Space
   /** Nested elements. Like any container, it cannot hold a bare text run. */
   children?: ContainerChildren
 }
@@ -23,9 +27,14 @@ export type RowProps = Forwarded<'view'> & {
  * Children in a row.
  *
  * {@link Stack} turned sideways, with the same reasoning about spacing: the
- * direction is portability and belongs here, the gap is taste and does not.
+ * direction is portability and belongs here, the size of the gap is taste and
+ * comes from the theme.
  */
 export const Row = (props: RowProps): HostElement => {
-  const { style, ...rest } = props
-  return jsx('view', { ...rest, style: mergeStyle(ROW, style) })
+  const { gap, style, ...rest } = props
+  const theme = ThemeContext.use()
+
+  const base = gap === undefined ? ROW : (): StyleValue => ({ ...ROW, gap: theme().space[gap] })
+
+  return jsx('view', { ...rest, style: mergeStyle(base, style) })
 }
