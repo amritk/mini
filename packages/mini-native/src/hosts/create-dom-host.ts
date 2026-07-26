@@ -108,7 +108,7 @@ export const createDomHost = (): Host => {
       return true
     }
 
-    if (name === 'direction') {
+    if (name === 'axis') {
       // A native scroll container scrolls one axis and pins the other, so both
       // are set rather than leaving the cross axis to spill. Anything that is
       // not an explicit `horizontal` — including no prop at all — is vertical,
@@ -116,6 +116,19 @@ export const createDomHost = (): Host => {
       const horizontal = value === 'horizontal'
       own(element, 'overflow-x', horizontal ? 'auto' : 'hidden')
       own(element, 'overflow-y', horizontal ? 'hidden' : 'auto')
+      return true
+    }
+
+    if (name === 'selectable') {
+      // `false` is the whole point of the prop, so it cannot mean "unset it" the
+      // way the contract's general rule would have it — only an absent value
+      // means "leave the target's default alone". Same trap as `focusable`.
+      const selection = value === null || value === undefined ? null : value ? 'text' : 'none'
+      // Both spellings, because the unprefixed property is still not enough on
+      // WebKit — and a preview that can be selected where the device cannot is
+      // the divergence this prop exists to remove.
+      own(element, 'user-select', selection)
+      own(element, '-webkit-user-select', selection)
       return true
     }
 
@@ -211,13 +224,38 @@ export const createDomHost = (): Host => {
     return false
   }
 
+  /**
+   * What each input wants its `type` to be, from the two props that both land
+   * there.
+   *
+   * `keyboard` and `secure` are one setting on the web and two everywhere else,
+   * so they collide over a single attribute here — the same shape of problem as
+   * `style` and `show` fighting over `display`, and it fails the same way:
+   * whichever prop was written last would win, making behaviour depend on JSX
+   * attribute order. Remembering both and resolving them is the fix.
+   */
+  const inputTypes = new WeakMap<HTMLElement, InputTypeLayer>()
+
+  /** Applies `type` from whichever of the two props last changed. */
+  const applyInputType = (element: HTMLElement, change: Partial<InputTypeLayer>): void => {
+    const layer = inputTypes.get(element) ?? { keyboard: null, secure: false }
+    Object.assign(layer, change)
+    inputTypes.set(element, layer)
+    // A textarea has no `type` at all, so a multiline input simply has neither
+    // a keyboard mode nor a mask rather than growing an attribute nothing reads.
+    if (element.tagName === 'TEXTAREA') return
+    // Masking wins: a secure field that raised the right keyboard but showed the
+    // characters would be a far worse failure than the reverse.
+    element.setAttribute('type', layer.secure ? 'password' : (INPUT_TYPES[layer.keyboard ?? ''] ?? 'text'))
+  }
+
   return {
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
       // A `scroll-view` scrolls whether or not anyone wrote a `direction`, so it
       // is created as though the prop were already set to its default. A later
       // `direction` write simply replaces these.
-      if (tag === 'scroll-view') applyLayoutProp(element, 'direction', undefined)
+      if (tag === 'scroll-view') applyLayoutProp(element, 'axis', undefined)
       // A bare `<button>` defaults to `type="submit"`, so the same component
       // that behaves correctly on its own would submit the form the moment
       // someone nested it in one — and native targets have no such concept for
@@ -266,13 +304,18 @@ export const createDomHost = (): Host => {
         return
       }
 
-      // A textarea has no `type`, so a multiline input drops the keyboard mode
-      // rather than growing an attribute the browser ignores.
-      if (name === 'keyboard' && element.tagName === 'TEXTAREA') return
-      const resolved = name === 'keyboard' && typeof value === 'string' ? (INPUT_TYPES[value] ?? value) : value
+      if (name === 'keyboard') {
+        applyInputType(element, { keyboard: typeof value === 'string' ? value : null })
+        return
+      }
 
-      if (resolved === false || resolved === null || resolved === undefined) element.removeAttribute(attribute)
-      else element.setAttribute(attribute, resolved === true ? '' : String(resolved))
+      if (name === 'secure') {
+        applyInputType(element, { secure: value === true })
+        return
+      }
+
+      if (value === false || value === null || value === undefined) element.removeAttribute(attribute)
+      else element.setAttribute(attribute, value === true ? '' : String(value))
     },
 
     getProperty: (target, name) => {
@@ -510,7 +553,6 @@ const HTML_TAGS: Record<string, string> = {
 /** Vocabulary prop names that have a different spelling in HTML. */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
-  keyboard: 'type',
 }
 
 /**
@@ -519,13 +561,24 @@ const ATTRIBUTES: Record<string, string> = {
  * Most of the vocabulary happens to line up with a type name, but `phone` does
  * not: `type="phone"` is not a real input type, so the browser silently falls
  * back to plain text and the preview loses the numeric keypad the device shows.
+ *
+ * `password` is absent because it is not a keyboard mode — it is masking, which
+ * the vocabulary spells `secure`. The web is the only target where the two are
+ * the same attribute.
  */
 const INPUT_TYPES: Record<string, string> = {
   text: 'text',
   number: 'number',
   email: 'email',
   phone: 'tel',
-  password: 'password',
+}
+
+/** The two props competing for one input `type`. See `applyInputType`. */
+type InputTypeLayer = {
+  /** The keyboard mode last asked for, or `null` for the default. */
+  keyboard: string | null
+  /** Whether the field masks what is typed. */
+  secure: boolean
 }
 
 /**

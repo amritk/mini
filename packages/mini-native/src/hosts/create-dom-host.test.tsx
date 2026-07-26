@@ -374,3 +374,75 @@ describe('create-dom-host events', () => {
     expect((seen as unknown as { raw: unknown }).raw).toBe(click)
   })
 })
+
+/**
+ * The vocabulary corrections. Each of these is a prop whose web spelling hid a
+ * distinction the device has, so each one is only visible from the native side.
+ */
+describe('create-dom-host vocabulary', () => {
+  it('scrolls a scroll-view before anyone sets an axis', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <scroll-view />)
+
+    // A scroll container scrolls whether or not the prop was written, so it is
+    // created as though the default had been set. This is asserted rather than
+    // assumed because renaming the prop once broke it silently: the handler was
+    // renamed and this caller was not, and nothing in the suite noticed.
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('overflow-y')).toBe('auto')
+    expect(element.style.getPropertyValue('overflow-x')).toBe('hidden')
+  })
+
+  it('flips both axes together when told to scroll horizontally', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <scroll-view axis="horizontal" />)
+
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('overflow-x')).toBe('auto')
+    expect(element.style.getPropertyValue('overflow-y')).toBe('hidden')
+  })
+
+  it('keeps the keyboard mode and the mask independent', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input keyboard="number" secure={true} />)
+
+    // A PIN field: numeric keypad, masked characters. Natively those are two
+    // settings and this is ordinary; the web collapses both into one `type`,
+    // which is exactly why the conflation went unnoticed until a device.
+    expect((root.firstElementChild as HTMLElement).getAttribute('type')).toBe('password')
+  })
+
+  it('does not let the two type props depend on attribute order', () => {
+    setHost(createDomHost())
+    const root = container()
+    const masked = signal(true)
+
+    mount(domRoot(root), () => <input secure={masked} keyboard="email" />)
+    const element = root.firstElementChild as HTMLElement
+
+    // Same slot, two owners — the shape of bug that made `show` and `style`
+    // fight over `display`. Unmasking has to fall back to the keyboard mode
+    // rather than to whatever was written last.
+    expect(element.getAttribute('type')).toBe('password')
+    masked(false)
+    expect(element.getAttribute('type')).toBe('email')
+  })
+
+  it('states whether text is selectable, since the targets disagree', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <text selectable={false}>secret</text>)
+
+    // Web text is selectable by default and native text is not, so a component
+    // that says nothing behaves differently on each.
+    const element = root.firstElementChild as HTMLElement
+    expect(element.style.getPropertyValue('user-select')).toBe('none')
+  })
+})

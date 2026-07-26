@@ -253,6 +253,15 @@ type TagProps = {
     children?: MiniChildren
     /** Truncate after this many lines. Maps to the host's own line-clamp. */
     lines?: MaybeReactive<number>
+    /**
+     * Whether the user can select and copy this text.
+     *
+     * Worth stating rather than inheriting, because the targets disagree on the
+     * default — web text is selectable, native text is not — so a component that
+     * says nothing behaves differently on each, and neither default is wrong
+     * enough to simply pick.
+     */
+    selectable?: MaybeReactive<boolean>
   }
   image: {
     /** An image is a leaf: there is nothing a target could render inside one. */
@@ -266,8 +275,17 @@ type TagProps = {
   'scroll-view': {
     /** Nested elements. Like any container, it cannot hold a bare text run. */
     children?: ContainerChildren
-    /** Scroll axis. Defaults to vertical, matching every native scroll container. */
-    direction?: MaybeReactive<'vertical' | 'horizontal'>
+    /**
+     * Which way this scrolls. Defaults to vertical, matching every native
+     * scroll container.
+     *
+     * Named `axis` rather than `direction` because CSS has already claimed the
+     * second word for text direction — RTL — which is a real cross-platform
+     * concern that will want a prop of its own on every element. Two meanings
+     * for one prop name is the sort of thing that is free to fix now and
+     * expensive later.
+     */
+    axis?: MaybeReactive<'vertical' | 'horizontal'>
     onScroll?: NativeEventHandler<'scroll'>
   }
   input: {
@@ -285,8 +303,22 @@ type TagProps = {
      * typecheck and then silently only ever be read once.
      */
     multiline?: boolean
-    /** Which on-screen keyboard to raise. Native targets have no text `type`, they have a keyboard mode. */
-    keyboard?: MaybeReactive<'text' | 'number' | 'email' | 'phone' | 'password'>
+    /**
+     * Which on-screen keyboard to raise. Native targets have no text `type`,
+     * they have a keyboard mode.
+     *
+     * `password` is deliberately NOT one of these — see {@link secure}.
+     */
+    keyboard?: MaybeReactive<'text' | 'number' | 'email' | 'phone'>
+    /**
+     * Masks what the user types.
+     *
+     * Separate from {@link keyboard} because natively they are genuinely two
+     * settings, and a PIN entry needs both at once: a NUMERIC keyboard with
+     * masked text. The web collapses them into `type="password"`, which is
+     * exactly why the conflation was invisible until this ran on a device.
+     */
+    secure?: MaybeReactive<boolean>
     onInput?: NativeEventHandler<'input'>
     onChange?: NativeEventHandler<'change'>
   }

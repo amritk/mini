@@ -96,10 +96,10 @@ Effects run synchronously on write. The flush scheduler already collapses a burs
 | Tag | Props beyond the common set |
 |:---|:---|
 | `view` | — (element children only) |
-| `text` | `lines` (line clamp) — the only tag that accepts a text run |
+| `text` | `lines` (line clamp), `selectable` — the only tag that accepts a text run |
 | `image` | `src`, `fit`, `onLoad`, `onError` — a leaf, no children. The accessible name is `label`, not `alt` |
-| `scroll-view` | `direction`, `onScroll` (element children only) |
-| `input` | `value`, `placeholder`, `readonly`, `multiline`, `keyboard`, `onInput`, `onChange` — a leaf, no children |
+| `scroll-view` | `axis`, `onScroll` (element children only) |
+| `input` | `value`, `placeholder`, `readonly`, `multiline`, `keyboard`, `secure`, `onInput`, `onChange` — a leaf, no children |
 
 Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, and the gestures `onTap` / `onLongPress` / `onFocus` / `onBlur`. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
 

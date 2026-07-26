@@ -225,6 +225,9 @@ const DEFAULT_DISPLAY = 'flex'
  */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
+  axis: 'scroll-orientation',
+  secure: 'secure-input',
+  selectable: 'text-selection',
   role: 'accessibility-role',
   level: 'accessibility-level',
   label: 'accessibility-label',
