@@ -9,6 +9,7 @@ import { createMemoryHost, type MemoryElement } from './hosts/create-memory-host
 import type { LynxElement, LynxElementApi } from './hosts/lynx-element-api'
 import type { HostElement } from './index'
 import { clearHost, mount, setHost } from './index'
+import { Button, Heading, List, ListItem } from './ui'
 
 /**
  * The parity suite.
@@ -108,6 +109,48 @@ describe('host parity', () => {
     // has to keep it out of the accessibility tree in its own spelling, or it
     // severs list-owns-listitem for a screen reader on that target alone.
     expectAgreement(seen, { role: 'presentation', name: null, focusable: null, disabled: null })
+  })
+})
+
+/**
+ * The component layer, held to the same standard as the vocabulary.
+ *
+ * `/ui` has no appearance by design — it ships semantics and leaves taste to
+ * the app — which means every component in it has an outcome that can be
+ * asserted on all three hosts. That is not a happy accident; it is the reason
+ * the line between the two was drawn where it was.
+ */
+describe('component-layer parity', () => {
+  it('agrees that a Button can be reached', () => {
+    const seen = renderEverywhere(() => <Button label="Save" />)
+
+    // The finding that made the component worth having. Without the stated
+    // `focusable`, all three hosts would report `null` here and the suite would
+    // call that agreement — while a real <button> sat in the focus order and a
+    // Lynx view with a button role sat outside it. Both hosts would be right;
+    // the component is what makes them the same.
+    expectAgreement(seen, { role: 'button', name: 'Save', focusable: true, disabled: null })
+  })
+
+  it('agrees on a Heading', () => {
+    const seen = renderEverywhere(() => <Heading level={3}>Pricing</Heading>)
+
+    expectAgreement(seen, { role: 'heading', name: null, focusable: null, disabled: null })
+  })
+
+  it('agrees on a List built the way a screen would build one', () => {
+    const seen = renderEverywhere(
+      () => (
+        <List>
+          <For each={[1]}>{() => <ListItem>Milk</ListItem>}</For>
+        </List>
+      ),
+      { depth: 2 },
+    )
+
+    // Two levels in — past the flow wrapper — is where the item sits, which is
+    // exactly the shape a `<ul>` could not have survived.
+    expectAgreement(seen, { role: 'listitem', name: null, focusable: null, disabled: null })
   })
 })
 

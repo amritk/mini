@@ -76,6 +76,12 @@
       "import": "./dist/flow/index.js",
       "default": "./dist/flow/index.js"
     },
+    "./ui": {
+      "development": "./src/ui/index.ts",
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js",
+      "default": "./dist/ui/index.js"
+    },
     "./hosts/dom": {
       "development": "./src/hosts/create-dom-host.ts",
       "types": "./dist/hosts/create-dom-host.d.ts",

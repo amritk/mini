@@ -40,6 +40,7 @@ src/
   warn.ts                 Recoverable-mistake reporting, without assuming a console
   bind/                   bind-text, bind-prop, bind-show, bind-value
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
+  ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
     create-dom-host.ts    Web preview target (the ONLY file that knows about HTML)
@@ -103,6 +104,17 @@ src/
   semantics layer on. The same rule is why a `list` role must not build a real
   `<ul>` — `<ul>` may only contain `<li>`, which is a parse-level content model
   no attribute can rescue once a wrapper sits between them.
+- **A bare text run gets its element in a COMPONENT, never in the runtime.**
+  `ui/wrap-text-runs.ts` is why `<Button>Save</Button>` works while
+  `<view>Save</view>` still does not compile, and the distinction is the whole
+  point. A container refusing a text run is a compile error because there is no
+  correct reading of it — on Lynx that screen comes up blank. A component is
+  different: it has an opinion about its own contents, its label needs a `text`
+  element on every target anyway, and the wrap is one visible line in one file.
+  `appendChildren` must never grow this behaviour — that is
+  [`docs/mini-native-cross-platform.md` §15.3](../../docs/mini-native-cross-platform.md)'s
+  rejected option 1, inserting nodes nobody wrote on the target where node count
+  is the performance problem.
 - **The compiler ceiling here is an OPTIONAL OPTIMISING plugin**, one level above
   `@amritk/mini`'s diagnostics-only ceiling, because this package's consumer owns
   a whole app toolchain rather than embedding into someone else's page. The
@@ -216,7 +228,16 @@ permanent.
 - **Screens should be written in components, not in vocabulary tags.** This is
   the thing that keeps every decision above reversible: if the vocabulary lives
   in twenty components rather than two hundred screens, changing any of it is a
-  rewrite of the component layer instead of the app.
+  rewrite of the component layer instead of the app. `/ui` is that layer.
+- **`/ui` ships the semantics; the app ships the taste.** `<Button>` knows a
+  button is a button on both targets, is reachable by keyboard on both, and is
+  unavailable rather than greyed. It does not know your buttons are 44px tall.
+  Two things follow and both are load-bearing: the layer needs **no host
+  machinery at all**, so it grows the `Host` contract by nothing, and because it
+  has no appearance every component has an assertable semantic outcome on all
+  three hosts — which is why they sit in `parity.test.tsx` beside the
+  vocabulary. Keep it small: the more it carries, the more a design system built
+  on it is version-coupled to this package.
 
 Still genuinely open, so do not treat either as decided: whether `role="button"`
 builds a real `<button>` (browser affordances, but a content model TypeScript
@@ -230,7 +251,15 @@ See the README's *Known gaps* for the full list. The short version: `bindClass`
 and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
 an animation seam, context/portal/error boundaries, and the router / forms /
 query subpaths are simply not built yet. Accessibility props are **done** — see
-`Role` in `elements.ts` and the two host mappings. `docs/mini-native-audit.md`
+`Role` in `elements.ts` and the two host mappings — and so is the component
+layer, `/ui`.
+
+Three things are deliberately missing from `/ui`, each waiting on something
+specific rather than on someone getting to it. `size` and `tone` want a type
+scale resolved against a theme; `Screen` wants safe-area insets, which no host
+can report yet; and the theme itself wants context. Adding any of them early
+would mean shipping a prop with nothing behind it, which is the class of
+documented lie `vocabulary-coverage.test.tsx` exists to catch one layer down. `docs/mini-native-audit.md`
 at the repo root carries the reasoning and the priority order.
 
 Add a changeset for every change (`bunx changeset`).

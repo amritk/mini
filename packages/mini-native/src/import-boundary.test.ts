@@ -18,6 +18,10 @@ import { describe, expect, it } from 'vitest'
  * `flow/` may be reachable either, since the control-flow components are an
  * opt-in subpath rather than part of the runtime everyone pays for.
  *
+ * Nothing under `ui/` may be reachable for the same reason as `flow/`: the
+ * component layer is an opt-in subpath, and an app that writes its own
+ * components should not pay for the ones shipped here.
+ *
  * Today the only thing enforcing any of this is the tsconfig's missing DOM lib,
  * which catches a stray `document` but is perfectly happy with an import that
  * merely drags a host's bytes along. This walks the source graph from
@@ -27,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui']
 
 /**
  * Drops comments before the specifiers are read.
@@ -123,6 +127,16 @@ describe('import-boundary', () => {
     const flow = walk(resolve(SRC, 'flow', 'index.ts'))
     expect(leaksFrom(flow.files, ['hosts'])).toEqual([])
     expect([...flow.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the component layer free of any host', () => {
+    // `/ui` is pure composition over the vocabulary — it names things, it does
+    // not render them — so a host reaching it would mean a component had
+    // learned what platform it was on, which is the one thing this layer exists
+    // to prevent.
+    const ui = walk(resolve(SRC, 'ui', 'index.ts'))
+    expect(leaksFrom(ui.files, ['hosts'])).toEqual([])
+    expect([...ui.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

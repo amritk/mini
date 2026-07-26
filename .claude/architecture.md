@@ -109,6 +109,14 @@ the real target that native approximates.
   there and checked by `tsconfig.dom.json` instead (the `types:check` script
   runs both passes). Every suite but the DOM host's runs in the node
   environment, where `document` genuinely does not exist.
+- **Subpaths, each its own module graph:** `@amritk/mini-native/flow` (`Show`,
+  `Switch`/`Match`, `Dynamic`, `For`, `Index`), `@amritk/mini-native/ui` (the
+  component layer — `Text`, `Heading`, `Button`, `Link`, `Stack`/`Row`,
+  `List`/`ListItem`), the three hosts, and `@amritk/mini-native/host` for the
+  contract on its own. `/ui` ships semantics and no appearance: it is pure
+  composition over the vocabulary's `role` prop, so it needs no host machinery,
+  and screens written in it keep the vocabulary confined to a dozen components
+  rather than spread across every screen.
 - **Depends on:** `alien-signals` only, re-exported from `src/signals.ts` so
   nothing else imports it.
 - **Build:** `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`, the

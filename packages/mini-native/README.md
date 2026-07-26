@@ -189,6 +189,27 @@ Each renders into a wrapper the host supplies via `createFlowHost` — a `displa
 
 `For` and `Index` differ in what identifies a row, and the choice is load-bearing. `For` keys on the item, so a row follows its data through a reorder and keeps its focus and input state; two items with the same key are reported and dropped. `Index` keys on the slot, which is what makes `['red', 'red', 'blue']` renderable — but a row then belongs to the position rather than to the item, so anything living inside it stays behind when the data moves.
 
+### Components (`@amritk/mini-native/ui`)
+
+The named things a screen is actually written in. **The package ships the semantics; the app ships the taste** — `<Button>` knows that a button is a button on both targets, is reachable by keyboard on both, and is *unavailable* rather than merely greyed; it does not know that your buttons are 44px tall with a 6px radius.
+
+| Export | Builds | Semantics |
+|:---|:---|:---|
+| `<Text>` | `text` | none — and it cannot become a heading, which is the point |
+| `<Heading level={2}>` | `text` | `role="heading"` + level. A real `<h2>` on the web |
+| `<Button>` | `view` | `role="button"`, focusable. `as="link"` for a button that navigates |
+| `<Link href>` | `view` | `role="link"`, focusable. A real `<a href>` on the web |
+| `<Stack>` / `<Row>` | `view` | none — layout only, column and row |
+| `<List>` / `<ListItem>` | `view` | `role="list"` / `"listitem"` |
+
+Two things are worth knowing about it.
+
+**Write screens in these rather than in tags.** It is the highest-leverage habit in a cross-platform codebase, because it is what keeps every decision underneath reversible: write `<view role="button" focusable label={…}>` across two hundred screens and the vocabulary is load-bearing everywhere; write `<Button>` and it appears in about a dozen components, at which point the role layer, the event payloads, and even the choice of vocabulary can change without a screen being touched. The rule: *a screen file should contain almost no vocabulary tags.*
+
+**`<Button>Save</Button>` works even though `<view>Save</view>` does not compile.** A container refuses a bare text run because on a device a run outside a `text` element renders nothing; a component is different — it has an opinion about its own contents, and its label needs a `text` element on every target anyway. The wrap lives in the component layer and never in the runtime.
+
+Not here yet, each waiting on something specific: `size` and `tone` (they need a type scale resolved against a theme), `<Screen>` (safe-area insets, which no host can report yet), and the theme itself (context). The theme will be a **signal** rather than a value when it lands — a component runs exactly once and reads context exactly once, which is what makes a live dark-mode switch work here with no re-render.
+
 ### Hosts
 
 | Import | Target |
@@ -229,8 +250,9 @@ Not built yet:
 
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
 - **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
-- **No context, portal, or error boundary.**
-- **No safe-area, dimensions, or colour-scheme signals.**
+- **No context, portal, or error boundary.** Context is what a theme needs to reach `/ui` without every intermediate component growing a prop it does not use.
+- **No safe-area, dimensions, or colour-scheme signals.** `<Screen>` is waiting on them.
+- **No design tokens or type scale**, so `/ui` carries semantics and no appearance. Whether tokens resolve to style objects or to classes is genuinely open, and belongs with the layout reset in a note of its own.
 - **No router, forms, or query.** [`@amritk/mini`](../mini) has all three; forms and query are close to platform-free, and the router's matching half is pure — only navigation needs a native nav-stack shim rather than `window.history`.
 
 ---
