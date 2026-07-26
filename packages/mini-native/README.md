@@ -323,6 +323,52 @@ Implement `Host` and pass it to `setHost`. Read `src/hosts/create-memory-host.ts
 
 ---
 
+## Building for both targets
+
+The runtime ports for almost nothing — that is the whole finding of this package — so the risk in a cross-platform codebase is not architectural, it is behavioural:
+
+> **Whichever target you develop against daily is the one your code will work on. The other becomes a port.**
+
+The web is both the more permissive target and the more comfortable one to work in. Build in a browser and check the device on Fridays, and by month three you have a web app with a native build that does not work — not because anyone decided that, but because every mistake the browser forgave went uncorrected. Four things fight that, and three of them are habits rather than API.
+
+**1. Two entry points, both running, before the first screen.** This is the only line in an app that differs per target, and it is the sanctioned place for divergence — anything else calling `setHost` is a bug, and a cheap one to lint for.
+
+```ts
+// main.web.ts
+import { createDomHost, domRoot } from '@amritk/mini-native/hosts/dom'
+setHost(createDomHost())
+mount(domRoot(document.body), App)
+
+// main.lynx.ts
+import { createLynxHost, lynxRoot } from '@amritk/mini-native/hosts/lynx'
+setHost(createLynxHost())
+mount(lynxRoot(root), App)
+```
+
+If both are not running before the first screen exists, the project is web-first by default regardless of intent. If you can only watch one, watch the device — the browser will not tell you what you got wrong, and the device will.
+
+**2. Test against the memory host, in plain node.** A suite running in happy-dom will cheerfully pass code that only works in a browser. One running where `document` genuinely does not exist cannot.
+
+```ts
+const memory = createMemoryHost()
+setHost(memory.host)
+mount(memory.rootElement, App)
+expect(serializeMemoryTree(memory.root)).toContain('…')
+```
+
+**3. Write screens in components, never in primitives.** *A screen file should contain almost no vocabulary tags.* If the vocabulary lives in a dozen components rather than two hundred screens, the role layer, the event payloads, the theme — and even the choice of vocabulary — can change without a screen being touched. This is what buys the option to change your mind, and it costs nothing, because a design system was going to exist anyway.
+
+**4. Make divergence visible, and count it.** Split the file for anything structural, and keep `platform.select` for leaf values only — a padding, a duration, a line count:
+
+```ts
+// vite.config.ts — no runtime support needed, only resolution order
+resolve: { extensions: ['.web.tsx', '.web.ts', '.tsx', '.ts', '.jsx', '.js'] }
+```
+
+A whole file that is obviously platform-specific is reviewable, greppable, and countable. An inline OS branch in the middle of a component is invisible divergence, and it accumulates faster than anyone expects. **Count the platform-specific files** — it is the only honest measure of whether write-once is holding, and a number that climbs steadily means the abstraction is in the wrong place, not that the app genuinely needed the branches.
+
+---
+
 ## Known gaps
 
 Deliberate omissions and unbuilt work, listed so nobody has to rediscover them.
