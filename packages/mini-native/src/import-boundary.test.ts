@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform']
 
 /**
  * Drops comments before the specifiers are read.
@@ -137,6 +137,16 @@ describe('import-boundary', () => {
     const ui = walk(resolve(SRC, 'ui', 'index.ts'))
     expect(leaksFrom(ui.files, ['hosts'])).toEqual([])
     expect([...ui.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the platform subpath free of any host', () => {
+    // The one that would be easy to get backwards. `platform` reports which
+    // host is installed, and the tempting way to write that is to import the
+    // hosts and compare — which would make asking what target you are on pull
+    // in the renderer for every target you are not.
+    const platform = walk(resolve(SRC, 'platform', 'index.ts'))
+    expect(leaksFrom(platform.files, ['hosts'])).toEqual([])
+    expect([...platform.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

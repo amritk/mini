@@ -34,4 +34,20 @@ describe('merge-style', () => {
 
     expect((merged as () => object)()).toEqual({ display: 'flex' })
   })
+
+  it('keeps a reactive base reactive', () => {
+    let top = 59
+    const merged = mergeStyle(() => ({ paddingTop: top }), { background: '#fff' })
+
+    // `Screen` is why the base has a reactive form at all: its padding comes
+    // from the safe-area signal, which moves when a device rotates.
+    top = 0
+    expect((merged as () => object)()).toEqual({ paddingTop: 0, background: '#fff' })
+  })
+
+  it('returns a reactive base untouched when the caller said nothing', () => {
+    const base = (): { paddingTop: number } => ({ paddingTop: 59 })
+
+    expect(mergeStyle(base, undefined)).toBe(base)
+  })
 })

@@ -39,10 +39,6 @@
  *   The appearance half of that pair arrives with the type scale, resolved
  *   against a theme, and adding the props before there is anything to resolve
  *   them against would ship two names for nothing.
- * - **`Screen`.** It wants the device's safe-area insets, and the host has no
- *   way to report them yet. Applying insets is the thing every native screen
- *   needs and every web page ignores, so it belongs in one component rather
- *   than in every app — but it needs somewhere to read them from first.
  * - **A theme.** Tokens reach components through context, and context is not
  *   built. One consequence is already settled and worth knowing early: a
  *   component runs exactly once and therefore reads context exactly once, so
@@ -52,10 +48,10 @@
  *
  * @example
  * ```tsx
- * import { Button, Heading, List, ListItem, Row, Stack, Text } from '@amritk/mini-native/ui'
+ * import { Button, Heading, List, ListItem, Row, Screen, Text } from '@amritk/mini-native/ui'
  *
  * const Cart = (props: { items: () => Item[]; checkout: () => void }) => (
- *   <Stack>
+ *   <Screen>
  *     <Heading level={2}>Your cart</Heading>
  *     <List label="Cart items">
  *       <For each={props.items}>
@@ -70,7 +66,7 @@
  *       </For>
  *     </List>
  *     <Button onTap={props.checkout}>Check out</Button>
- *   </Stack>
+ *   </Screen>
  * )
  * ```
  */
@@ -81,5 +77,6 @@ export { Link, type LinkProps } from './link'
 export { List, type ListProps } from './list'
 export { ListItem, type ListItemProps } from './list-item'
 export { Row, type RowProps } from './row'
+export { Screen, type ScreenProps } from './screen'
 export { Stack, type StackProps } from './stack'
 export { Text, type TextProps } from './text'

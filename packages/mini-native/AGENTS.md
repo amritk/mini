@@ -40,10 +40,12 @@ src/
   warn.ts                 Recoverable-mistake reporting, without assuming a console
   bind/                   bind-text, bind-prop, bind-show, bind-value
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
-  ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem
+  ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
+  platform/               platform.os / platform.select, and the environment accessors
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
-    create-dom-host.ts    Web preview target (the ONLY file that knows about HTML)
+    create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the one below)
+    dom-environment.ts    Colour scheme, viewport and safe-area insets, read off the browser
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
@@ -238,6 +240,27 @@ permanent.
   three hosts — which is why they sit in `parity.test.tsx` beside the
   vocabulary. Keep it small: the more it carries, the more a design system built
   on it is version-coupled to this package.
+- **Prefer `Host.environment` to `Host.platform`.** Both exist and only one is
+  the good answer. An OS name is a proxy for the thing an app actually cares
+  about — is there a notch, does hover exist, is anything addressable — and
+  proxies rot: `os === 'web'` typechecks forever and is wrong the day a second
+  web-shaped target appears. Safe area, viewport, and colour scheme are exactly
+  what a name would otherwise be used to infer, so a good environment API is
+  what keeps `platform.select` rare. When a branch IS unavoidable, keep it to
+  leaf values; anything structural belongs in a `.web.tsx` / `.native.tsx` pair,
+  which is greppable and countable where an inline branch is invisible.
+- **A capability registry is NOT built, on purpose.** `canHover` /
+  `hasBackButton` / `isAddressable` would beat both of the above. Designing the
+  flag set before three real call sites exist is guesswork; revisit at three.
+- **A host reports only what its target genuinely knows.** Every field of
+  `HostEnvironment` is optional and so is the whole object, and the accessors
+  fill in a documented static value for whatever is absent — which is also what
+  keeps those fallbacks exercised on every run, since the memory host reports
+  nothing. The Lynx host takes its environment as an ARGUMENT rather than
+  reading engine globals: the PAPI subset it drives is element-level, the
+  system-information globals vary by engine version, and there is no fake to
+  test them against, so shipping plausible-but-wrong values per build would be
+  worse than asking the app, which knows exactly which engine it runs on.
 
 Still genuinely open, so do not treat either as decided: whether `role="button"`
 builds a real `<button>` (browser affordances, but a content model TypeScript
@@ -251,15 +274,15 @@ See the README's *Known gaps* for the full list. The short version: `bindClass`
 and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
 an animation seam, context/portal/error boundaries, and the router / forms /
 query subpaths are simply not built yet. Accessibility props are **done** — see
-`Role` in `elements.ts` and the two host mappings — and so is the component
-layer, `/ui`.
+`Role` in `elements.ts` and the two host mappings — and so are the component
+layer (`/ui`) and the platform layer (`/platform`).
 
-Three things are deliberately missing from `/ui`, each waiting on something
-specific rather than on someone getting to it. `size` and `tone` want a type
-scale resolved against a theme; `Screen` wants safe-area insets, which no host
-can report yet; and the theme itself wants context. Adding any of them early
-would mean shipping a prop with nothing behind it, which is the class of
-documented lie `vocabulary-coverage.test.tsx` exists to catch one layer down. `docs/mini-native-audit.md`
+Two things are still deliberately missing from `/ui`, each waiting on something
+specific rather than on someone getting to it: `size` and `tone` want a type
+scale resolved against a theme, and the theme itself wants context. Adding
+either early would mean shipping a prop with nothing behind it, which is the
+class of documented lie `vocabulary-coverage.test.tsx` exists to catch one layer
+down. `docs/mini-native-audit.md`
 at the repo root carries the reasoning and the priority order.
 
 Add a changeset for every change (`bunx changeset`).

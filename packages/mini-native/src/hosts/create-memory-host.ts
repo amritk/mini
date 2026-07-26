@@ -50,6 +50,12 @@ export const createMemoryHost = (): MemoryHost => {
   const root = element('root')
 
   const host: Host = {
+    platform: 'memory',
+
+    // No `environment`, on purpose. This host has no screen, so it has no
+    // colour scheme, no size, and no notch to report — and leaving the field
+    // off is what exercises the runtime's documented fallbacks on every test
+    // run rather than only when someone remembers to check them.
     createElement: (tag) => toHostElement(element(tag)),
 
     // Nothing in an object tree needs a layout escape hatch, so the flow

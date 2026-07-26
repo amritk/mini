@@ -112,11 +112,20 @@ the real target that native approximates.
 - **Subpaths, each its own module graph:** `@amritk/mini-native/flow` (`Show`,
   `Switch`/`Match`, `Dynamic`, `For`, `Index`), `@amritk/mini-native/ui` (the
   component layer — `Text`, `Heading`, `Button`, `Link`, `Stack`/`Row`,
-  `List`/`ListItem`), the three hosts, and `@amritk/mini-native/host` for the
-  contract on its own. `/ui` ships semantics and no appearance: it is pure
-  composition over the vocabulary's `role` prop, so it needs no host machinery,
-  and screens written in it keep the vocabulary confined to a dozen components
-  rather than spread across every screen.
+  `List`/`ListItem`, `Screen`), `@amritk/mini-native/platform`
+  (`platform.os`/`platform.select` plus `colorScheme`/`dimensions`/`safeArea` as
+  signals), the three hosts, and `@amritk/mini-native/host` for the contract on
+  its own. `/ui` ships semantics and no appearance: it is pure composition over
+  the vocabulary's `role` prop, so it needs no host machinery, and screens
+  written in it keep the vocabulary confined to a dozen components rather than
+  spread across every screen.
+- **`Host` carries two optional fields beyond its ~15 functions** — `platform`
+  (what the target calls itself) and `environment` (colour scheme, dimensions,
+  safe area, each an optional signal). Fields rather than methods on purpose:
+  the function count is the porting cost of a new target, and a string that
+  never changes should not be spent against it. Prefer the environment to the
+  name — a name is a proxy for the thing an app actually cares about, and
+  proxies rot.
 - **Depends on:** `alien-signals` only, re-exported from `src/signals.ts` so
   nothing else imports it.
 - **Build:** `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`, the

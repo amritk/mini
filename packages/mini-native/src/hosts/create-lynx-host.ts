@@ -1,4 +1,4 @@
-import type { Host, HostEventHandler } from '../host'
+import type { Host, HostEnvironment, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
@@ -23,10 +23,30 @@ import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
  * `flush` and lets the scheduler coalesce a whole tick of mutations into one
  * commit.
  *
+ * **The environment is passed IN rather than read from the engine**, which is
+ * worth explaining because it looks like a gap. This adapter drives the Element
+ * PAPI, and that subset is element-level: create a node, set an attribute,
+ * append a child. Colour scheme, viewport, and safe-area insets live on the
+ * engine's system-information globals, which are not part of it, vary by engine
+ * version, and — unlike the PAPI — this package has no way to exercise against
+ * a fake. Guessing at their names would mean shipping a host that reports
+ * plausible values on some builds and silently wrong ones on others, which is
+ * worse than asking the app, which knows exactly which engine it is running on.
+ * Omit it and the accessors report their documented static values.
+ *
+ * ```ts
+ * setHost(createLynxHost(undefined, {
+ *   safeArea: () => insetsFromYourEngine(),
+ * }))
+ * ```
+ *
  * @param api The Element PAPI. Defaults to the engine globals; pass a fake to
  *   exercise the adapter off-device.
+ * @param environment What the device can say about itself — colour scheme,
+ *   dimensions, safe-area insets. Supplied by the app rather than read from the
+ *   engine, and see below for why.
  */
-export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
+export const createLynxHost = (api: LynxElementApi = globalLynxApi(), environment?: HostEnvironment): Host => {
   /**
    * Handlers registered per element and event name.
    *
@@ -57,6 +77,14 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
   }
 
   return {
+    platform: 'lynx',
+
+    // Spread rather than assigned, because `exactOptionalPropertyTypes` draws a
+    // real distinction here: a host that omits the field and one that sets it to
+    // `undefined` should not be the same host, and only the first is "this
+    // target did not say".
+    ...(environment === undefined ? {} : { environment }),
+
     // A framework-owned tree does not participate in Lynx's own component
     // system, so every element is created under component ID 0.
     createElement: (tag) => toHostElement(api.__CreateElement(tag, 0, {})),

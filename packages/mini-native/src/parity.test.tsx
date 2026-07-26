@@ -9,7 +9,7 @@ import { createMemoryHost, type MemoryElement } from './hosts/create-memory-host
 import type { LynxElement, LynxElementApi } from './hosts/lynx-element-api'
 import type { HostElement } from './index'
 import { clearHost, mount, setHost } from './index'
-import { Button, Heading, List, ListItem } from './ui'
+import { Button, Heading, List, ListItem, Screen } from './ui'
 
 /**
  * The parity suite.
@@ -152,7 +152,45 @@ describe('component-layer parity', () => {
     // exactly the shape a `<ul>` could not have survived.
     expectAgreement(seen, { role: 'listitem', name: null, focusable: null, disabled: null })
   })
+
+  it('agrees on a Screen', () => {
+    const seen = renderEverywhere(() => <Screen />)
+
+    // The insets differ per target and that is the point of the component; what
+    // must not differ is that this is the main content region on all three.
+    expectAgreement(seen, { role: 'main', name: null, focusable: null, disabled: null })
+  })
 })
+
+/**
+ * Every shipped host has to say what it is.
+ *
+ * `platform.os` reading `unknown` is meant to describe a host somebody else
+ * wrote and did not annotate, never one of these — and a host that quietly
+ * stopped naming itself would take every `platform.select` in an app down to
+ * its default branch without failing anything.
+ */
+describe('host identity', () => {
+  it('names itself on every shipped host', () => {
+    expect(createDomHost().platform).toBe('web')
+    expect(createLynxHost(createFakeEngine().api).platform).toBe('lynx')
+    expect(createMemoryHost().host.platform).toBe('memory')
+  })
+
+  it('reports an environment only where there is something to report', () => {
+    // The memory host has no screen, so it says nothing — which is what keeps
+    // the runtime's documented fallbacks exercised on every run. The Lynx host
+    // says nothing either unless the app hands it something, because the PAPI
+    // subset it drives is element-level and guessing at the engine's system
+    // globals would mean reporting plausible values that are wrong per build.
+    expect(createDomHost().environment).toBeDefined()
+    expect(createMemoryHost().host.environment).toBeUndefined()
+    expect(createLynxHost(createFakeEngine().api).environment).toBeUndefined()
+    expect(createLynxHost(createFakeEngine().api, { safeArea: () => INSETS }).environment?.safeArea?.()).toEqual(INSETS)
+  })
+})
+
+const INSETS = { top: 59, right: 0, bottom: 34, left: 0 }
 
 describe('event parity', () => {
   it('agrees on the shape of a tap that carried a position', () => {

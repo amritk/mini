@@ -1,5 +1,6 @@
 import type { Host } from '../host'
 import type { HostElement, HostNode, HostText } from '../types'
+import { createDomEnvironment } from './dom-environment'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
 
@@ -250,6 +251,10 @@ export const createDomHost = (): Host => {
   }
 
   return {
+    platform: 'web',
+
+    environment: createDomEnvironment(),
+
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
       // A `scroll-view` scrolls whether or not anyone wrote a `direction`, so it

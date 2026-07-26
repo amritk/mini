@@ -201,6 +201,7 @@ The named things a screen is actually written in. **The package ships the semant
 | `<Link href>` | `view` | `role="link"`, focusable. A real `<a href>` on the web |
 | `<Stack>` / `<Row>` | `view` | none — layout only, column and row |
 | `<List>` / `<ListItem>` | `view` | `role="list"` / `"listitem"` |
+| `<Screen>` | `view` | `role="main"`, plus the safe-area insets |
 
 Two things are worth knowing about it.
 
@@ -208,7 +209,30 @@ Two things are worth knowing about it.
 
 **`<Button>Save</Button>` works even though `<view>Save</view>` does not compile.** A container refuses a bare text run because on a device a run outside a `text` element renders nothing; a component is different — it has an opinion about its own contents, and its label needs a `text` element on every target anyway. The wrap lives in the component layer and never in the runtime.
 
-Not here yet, each waiting on something specific: `size` and `tone` (they need a type scale resolved against a theme), `<Screen>` (safe-area insets, which no host can report yet), and the theme itself (context). The theme will be a **signal** rather than a value when it lands — a component runs exactly once and reads context exactly once, which is what makes a live dark-mode switch work here with no re-render.
+Not here yet, each waiting on something specific: `size` and `tone` (they need a type scale resolved against a theme), and the theme itself (context). The theme will be a **signal** rather than a value when it lands — a component runs exactly once and reads context exactly once, which is what makes a live dark-mode switch work here with no re-render.
+
+### Platform (`@amritk/mini-native/platform`)
+
+| Export | Purpose |
+|:---|:---|
+| `platform.os` | How the installed host names itself — `web`, `lynx`, `memory`, or `unknown`. |
+| `platform.select({ web, native, default })` | Picks a value per target: exact OS name first, then `native` for any named non-web target, then `default`. |
+| `colorScheme()` | `'light'` / `'dark'`, as a signal. |
+| `dimensions()` | The drawable area in density-independent pixels, as a signal. |
+| `safeArea()` | Insets from each edge, as a signal. What `<Screen>` is built on. |
+
+**Prefer the environment to the OS name.** A name is a proxy for the thing you actually care about — whether there is a notch, whether hover exists, whether anything is addressable — and proxies rot: `os === 'web'` typechecks forever and is wrong the day a second web-shaped target appears. There is deliberately no capability registry (`canHover`, `hasBackButton`) yet: designing the flag set before three real branches exist would be guesswork.
+
+Everything here is a **signal**, because a component runs exactly once — a plain value would be frozen at the moment the component was built, and the rotation or theme switch afterwards is the entire point.
+
+When a difference is *structural* rather than a leaf value, do not branch — split the file. `.web.tsx` / `.native.tsx` needs no runtime support, only resolution order in the bundler:
+
+```ts
+// vite.config.ts
+resolve: { extensions: ['.web.tsx', '.web.ts', '.tsx', '.ts', '.jsx', '.js'] }
+```
+
+A whole file that is obviously platform-specific is reviewable, greppable, and countable. An inline OS branch in the middle of a component is invisible divergence, and it accumulates faster than anyone expects.
 
 ### Hosts
 
@@ -251,8 +275,9 @@ Not built yet:
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
 - **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
 - **No context, portal, or error boundary.** Context is what a theme needs to reach `/ui` without every intermediate component growing a prop it does not use.
-- **No safe-area, dimensions, or colour-scheme signals.** `<Screen>` is waiting on them.
 - **No design tokens or type scale**, so `/ui` carries semantics and no appearance. Whether tokens resolve to style objects or to classes is genuinely open, and belongs with the layout reset in a note of its own.
+- **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
+- **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.
 - **No router, forms, or query.** [`@amritk/mini`](../mini) has all three; forms and query are close to platform-free, and the router's matching half is pure — only navigation needs a native nav-stack shim rather than `window.history`.
 
 ---
