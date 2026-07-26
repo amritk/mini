@@ -149,6 +149,35 @@ describe('apply-prop', () => {
 
     expect('disabled' in asElement(view).props).toBe(false)
   })
+
+  it('waits for the tree before honouring autoFocus', async () => {
+    const memory = createMemoryHost()
+    const focused: HostElement[] = []
+    setHost({ ...memory.host, focus: (element) => focused.push(element) })
+    const input = memory.host.createElement('input')
+
+    applyProp(input, 'autoFocus', true)
+
+    // Not yet: the element has no parent, and a detached node cannot take focus
+    // on any target — doing it here would leave the prop looking applied and
+    // silently never working.
+    expect(focused).toEqual([])
+
+    await Promise.resolve()
+
+    expect(focused).toEqual([input])
+  })
+
+  it('never reaches the element as a property', async () => {
+    const view = setup()
+
+    applyProp(view, 'autoFocus', false)
+    await Promise.resolve()
+
+    // The runtime consumes this one outright — no host ever sees it, which is
+    // why `vocabulary-coverage.test.tsx` samples it as `false`.
+    expect('autoFocus' in asElement(view).props).toBe(false)
+  })
 })
 
 /** Installs a fresh memory host and hands back an element to apply props to. */

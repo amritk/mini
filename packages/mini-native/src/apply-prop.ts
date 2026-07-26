@@ -38,6 +38,20 @@ export const applyProp = (element: HostElement, name: string, value: unknown): v
     return
   }
 
+  if (name === 'autoFocus') {
+    // Deferred to the end of the tick rather than applied here, because the
+    // element is not in the tree yet — its parent has not appended it, and on a
+    // batching target nothing has been committed at all. Focusing a detached
+    // node silently does nothing on every target, which is the worst possible
+    // shape for this bug: the prop looks applied and simply never works.
+    //
+    // The host is the one captured above rather than read late, because this
+    // element belongs to it: if another host is installed in between, that host
+    // has never seen this node and focusing through it would be meaningless.
+    if (value === true) void Promise.resolve().then(() => host.focus?.(element))
+    return
+  }
+
   if (name === 'show') {
     // Wrapping a static boolean in a getter means one code path covers both
     // forms, so a plain `show={false}` behaves exactly like a tracked one.

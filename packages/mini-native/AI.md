@@ -104,6 +104,7 @@ structurally, use the control-flow components.
 | `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey` |
 | `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags |
 | `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` as signals. Prefer the environment to the OS name |
+| `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
 | `@amritk/mini-native/host` | the `Host` contract, for writing a renderer |
 | `@amritk/mini-native/hosts/dom` | `createDomHost`, `domRoot` — web preview |
 | `@amritk/mini-native/hosts/lynx` | `createLynxHost`, `lynxRoot` — Lynx Element PAPI |

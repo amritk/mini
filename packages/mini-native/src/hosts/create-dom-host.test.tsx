@@ -445,4 +445,83 @@ describe('create-dom-host vocabulary', () => {
     const element = root.firstElementChild as HTMLElement
     expect(element.style.getPropertyValue('user-select')).toBe('none')
   })
+
+  it('asks the browser for the same confirm key a device shows', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input submitLabel="send" />)
+
+    // `enterkeyhint` is a real HTML attribute, which is the whole reason this
+    // prop needs no `form` element in the vocabulary: the soft keyboard shows
+    // the same confirm key on both targets.
+    expect((root.firstElementChild as HTMLElement).getAttribute('enterkeyhint')).toBe('send')
+  })
+
+  it('translates the autofill hint into the web spelling', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input autoComplete="phone" />)
+
+    // The vocabulary says `phone` everywhere so there is one word for one
+    // concept — the same call `keyboard="phone"` makes — and the host is where
+    // it becomes the platform's word.
+    expect((root.firstElementChild as HTMLElement).getAttribute('autocomplete')).toBe('tel')
+  })
+
+  it('reports a submit with the field value on it', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input value="ada" onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+
+    expect(submitted).toEqual(['ada'])
+  })
+
+  it('ignores keys that are not a submission', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+
+    // `submit` rides on `keydown`, so almost everything that arrives is not a
+    // submission and has to be dropped before the handler ever sees it.
+    expect(submitted).toEqual([])
+  })
+
+  it('does not treat the Enter that chooses an input-method candidate as a submission', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+
+    // Typing Japanese or Chinese ends nearly every word with an Enter that
+    // means "yes, that candidate". Submitting on it is the classic bug in this
+    // feature, and it is invisible to anyone testing in English.
+    expect(submitted).toEqual([])
+  })
+
+  it('leaves Enter alone in a multiline field, where it inserts a newline', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input multiline={true} onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+
+    // True on every target: a multiline field has no confirm key, so the
+    // vocabulary says `onSubmit` does not fire there rather than inventing one.
+    expect(submitted).toEqual([])
+  })
 })

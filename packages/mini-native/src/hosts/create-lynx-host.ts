@@ -23,30 +23,31 @@ import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
  * `flush` and lets the scheduler coalesce a whole tick of mutations into one
  * commit.
  *
- * **The environment is passed IN rather than read from the engine**, which is
- * worth explaining because it looks like a gap. This adapter drives the Element
- * PAPI, and that subset is element-level: create a node, set an attribute,
- * append a child. Colour scheme, viewport, and safe-area insets live on the
- * engine's system-information globals, which are not part of it, vary by engine
- * version, and — unlike the PAPI — this package has no way to exercise against
- * a fake. Guessing at their names would mean shipping a host that reports
- * plausible values on some builds and silently wrong ones on others, which is
- * worse than asking the app, which knows exactly which engine it is running on.
- * Omit it and the accessors report their documented static values.
+ * **Everything outside the element tree is passed IN rather than read from the
+ * engine**, which is worth explaining because it looks like a gap. This adapter
+ * drives the Element PAPI, and that subset is element-level: create a node, set
+ * an attribute, append a child. Colour scheme, viewport, safe-area insets, and
+ * moving focus all live elsewhere — on system-information globals and UI-method
+ * calls that are not part of the PAPI, vary by engine version, and, unlike the
+ * PAPI, this package has no way to exercise against a fake. Guessing at their
+ * names would mean shipping a host that behaves plausibly on some builds and
+ * silently wrongly on others, which is worse than asking the app, which knows
+ * exactly which engine it is running on. Omit them and the accessors report
+ * their documented static values and `focus` is a no-op.
  *
  * ```ts
  * setHost(createLynxHost(undefined, {
- *   safeArea: () => insetsFromYourEngine(),
+ *   environment: { safeArea: () => insetsFromYourEngine() },
+ *   focus: (element) => yourEngineFocus(element),
  * }))
  * ```
  *
  * @param api The Element PAPI. Defaults to the engine globals; pass a fake to
  *   exercise the adapter off-device.
- * @param environment What the device can say about itself — colour scheme,
- *   dimensions, safe-area insets. Supplied by the app rather than read from the
- *   engine, and see below for why.
+ * @param options What the engine can do beyond its element tree. See above for
+ *   why these are supplied rather than discovered.
  */
-export const createLynxHost = (api: LynxElementApi = globalLynxApi(), environment?: HostEnvironment): Host => {
+export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: LynxHostOptions = {}): Host => {
   /**
    * Handlers registered per element and event name.
    *
@@ -80,10 +81,12 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), environmen
     platform: 'lynx',
 
     // Spread rather than assigned, because `exactOptionalPropertyTypes` draws a
-    // real distinction here: a host that omits the field and one that sets it to
+    // real distinction here: a host that omits a field and one that sets it to
     // `undefined` should not be the same host, and only the first is "this
     // target did not say".
-    ...(environment === undefined ? {} : { environment }),
+    ...(options.environment === undefined ? {} : { environment: options.environment }),
+    ...(options.focus === undefined ? {} : { focus: options.focus }),
+    ...(options.blur === undefined ? {} : { blur: options.blur }),
 
     // A framework-owned tree does not participate in Lynx's own component
     // system, so every element is created under component ID 0.
@@ -224,6 +227,24 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), environmen
  * Wraps an element the engine already owns — typically the page — as a mount
  * target, so an app can attach to it without the runtime seeing a Lynx type.
  */
+/**
+ * What the engine can do that its Element PAPI does not cover.
+ *
+ * Every field is optional and the whole object may be omitted, so the ordinary
+ * `createLynxHost()` on a device is unchanged. Supplying one is how an app
+ * teaches this adapter about the parts of its own engine version that the PAPI
+ * subset cannot reach — see the note on {@link createLynxHost} for why they are
+ * asked for rather than guessed at.
+ */
+export type LynxHostOptions = {
+  /** Colour scheme, dimensions, and safe-area insets, as signals. */
+  environment?: HostEnvironment
+  /** Moves keyboard focus to an element. */
+  focus?: (element: HostElement) => void
+  /** Takes keyboard focus away from an element. */
+  blur?: (element: HostElement) => void
+}
+
 export const lynxRoot = (element: LynxElement): HostElement => toHostElement(element)
 
 /** What the host remembers per element so a style write cannot disturb visibility. */
@@ -260,6 +281,8 @@ const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
   axis: 'scroll-orientation',
   secure: 'secure-input',
+  submitLabel: 'confirm-type',
+  autoComplete: 'autofill-hint',
   selectable: 'text-selection',
   role: 'accessibility-role',
   level: 'accessibility-level',
@@ -306,7 +329,7 @@ const toNativeEvent = (name: string, event: unknown): unknown => {
     return { x: numberOr(source['scrollLeft']) ?? 0, y: numberOr(source['scrollTop']) ?? 0, raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'input' || name === 'change' || name === 'submit') {
     const detail = (source['detail'] ?? source) as Record<string, unknown>
     return { value: String(detail['value'] ?? ''), raw: event }
   }

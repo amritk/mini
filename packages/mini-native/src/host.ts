@@ -222,6 +222,29 @@ export type Host = {
   nextSibling: (node: HostNode) => HostNode | null
 
   /**
+   * Moves keyboard focus to an element, and takes it away again.
+   *
+   * These are the only METHODS the contract has grown since it was first
+   * written, and they earned it the hard way: no existing method can express
+   * them and every real app needs them — advancing to the next field in a form,
+   * trapping focus in a modal and restoring it afterwards, moving a screen
+   * reader to an error that has just appeared.
+   *
+   * Focusing cannot be a prop, which is the part worth understanding. A
+   * `focused={true}` prop has no correct meaning once the user taps somewhere
+   * else: the prop still says `true`, the element is not focused, and there is
+   * no honest way to reconcile the two. Focus is an EVENT — a thing that
+   * happens — not a state an element holds, so it is expressed as a call.
+   *
+   * Optional, because a target may genuinely have no notion of focus and should
+   * not have to fake one. The memory host does not implement them; `focus()`
+   * and `blur()` are no-ops there rather than errors.
+   */
+  focus?: (element: HostElement) => void
+
+  blur?: (element: HostElement) => void
+
+  /**
    * Commits pending mutations, for targets that batch rather than apply
    * immediately (Lynx, for instance, needs its element tree flushed). Hosts
    * that apply mutations eagerly leave this out and the scheduler skips it.

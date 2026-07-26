@@ -114,8 +114,9 @@ the real target that native approximates.
   component layer — `Text`, `Heading`, `Button`, `Link`, `Stack`/`Row`,
   `List`/`ListItem`, `Screen`), `@amritk/mini-native/platform`
   (`platform.os`/`platform.select` plus `colorScheme`/`dimensions`/`safeArea` as
-  signals), the three hosts, and `@amritk/mini-native/host` for the contract on
-  its own. `/ui` ships semantics and no appearance: it is pure composition over
+  signals), `@amritk/mini-native/composition` (`createContext`, `Portal`,
+  `ErrorBoundary`), the three hosts, and `@amritk/mini-native/host` for the
+  contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
   the vocabulary's `role` prop, so it needs no host machinery, and screens
   written in it keep the vocabulary confined to a dozen components rather than
   spread across every screen.

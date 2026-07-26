@@ -99,9 +99,11 @@ Effects run synchronously on write. The flush scheduler already collapses a burs
 | `text` | `lines` (line clamp), `selectable` — the only tag that accepts a text run |
 | `image` | `src`, `fit`, `onLoad`, `onError` — a leaf, no children. The accessible name is `label`, not `alt` |
 | `scroll-view` | `axis`, `onScroll` (element children only) |
-| `input` | `value`, `placeholder`, `readonly`, `multiline`, `keyboard`, `secure`, `onInput`, `onChange` — a leaf, no children |
+| `input` | `value`, `placeholder`, `readonly`, `multiline`, `keyboard`, `secure`, `submitLabel`, `autoComplete`, `onInput`, `onChange`, `onSubmit` — a leaf, no children |
 
-Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, and the gestures `onTap` / `onLongPress` / `onFocus` / `onBlur`. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
+`submitLabel` and `onSubmit` are the portable pair replacing the web's Enter-to-submit-inside-a-`<form>`: no form element in the vocabulary, and `enterkeyhint` on the web means the browser raises the same confirm key a device does. `onSubmit` does not fire on a multiline field, where the key inserts a newline on every target, nor on the Enter that chooses an input-method candidate.
+
+Common to all: `ref`, `show`, `class`, `style`, `id`, `testId`, `key`, `autoFocus`, and the gestures `onTap` / `onLongPress` / `onFocus` / `onBlur`. Event names are the native idiom — tapping is the gesture that actually exists on a device — and the DOM host maps them back onto mouse events. There is no delegation and no capture phase, because native targets have no bubbling to hook into.
 
 `children` is **per tag**, not common, because what a tag may contain differs sharply. Only `text` accepts a text run; `view` and `scroll-view` take elements only; `image` and `input` are leaves. That is not pedantry — Lynx will not render a text run outside a `<text>`, so `<view>hello</view>` builds a screen that silently comes up blank on a device while looking perfectly fine in the browser preview. It is a compile error instead.
 
@@ -171,6 +173,7 @@ interpose between a list and its items in the accessibility tree.
 | `list(container, items, key, create)` | The only reconciler — keyed collections over four host operations, move-minimal. |
 | `renderChild(wrapper, select)` | Reactive single-slot swap; the base of the control-flow components. |
 | `bindText` / `bindProp` / `bindShow` / `bindValue` | Imperative bindings for `ref` code. `bindValue` is two-way and holds writes during IME composition. |
+| `focus(element)` / `blur(element)` | Moves keyboard focus. A call rather than a prop, because `focused={true}` has no correct meaning once the user taps elsewhere. No-ops on a target with no focus concept. |
 | `ELEMENT_TAGS`, `ROLES`, `ElementProps`, `ElementTag`, `Role`, `NativeEventMap` | The element vocabulary and role set, at runtime and in types. Augment `NativeEventMap` to type your handlers. |
 | `Host`, `HostElement`, `HostNode`, `HostText`, `Component`, `MaybeReactive`, … | The renderer contract and the shared types. |
 
@@ -210,6 +213,22 @@ Two things are worth knowing about it.
 **`<Button>Save</Button>` works even though `<view>Save</view>` does not compile.** A container refuses a bare text run because on a device a run outside a `text` element renders nothing; a component is different — it has an opinion about its own contents, and its label needs a `text` element on every target anyway. The wrap lives in the component layer and never in the runtime.
 
 Not here yet, each waiting on something specific: `size` and `tone` (they need a type scale resolved against a theme), and the theme itself (context). The theme will be a **signal** rather than a value when it lands — a component runs exactly once and reads context exactly once, which is what makes a live dark-mode switch work here with no re-render.
+
+### Composition (`@amritk/mini-native/composition`)
+
+| Export | Purpose |
+|:---|:---|
+| `createContext(fallback)` | `provide(value, build)` / `use()`. `build` is a **function**, because JSX builds nodes eagerly — an element child would be constructed before the provider ever ran. |
+| `<Portal target>` | Renders a subtree into an element the app owns. Modals, sheets, toasts. |
+| `<ErrorBoundary fallback>` | Catches a throw while *building* the subtree, and offers a `retry`. |
+
+`@amritk/mini` refuses context on purpose and is right to — it prop-drills, and its consumer is a byte-budgeted widget. The calculus differs here **specifically because of cross-platform**: the things that vary by platform — theme, insets, navigation, locale, colour scheme — are exactly the things you do not want in a component's signature. Prop-drill them and every intermediate component grows a platform-shaped prop it does not use, which is write-once eroding one signature at a time.
+
+A component runs exactly once and therefore **reads context exactly once**, so a context whose value changes over time holds a *signal*, not a value. That is what makes a live dark-mode switch work with no re-render and no invalidation machinery at all.
+
+Context reaches subtrees that `Show`, `For`, and friends build *later* — those capture the ambient frame where they were written and restore it around every build. Without that a theme would reach everything except the parts of an app behind a conditional, and would fail silently to its default.
+
+`ErrorBoundary` catches construction, not everything. A throw inside an effect three seconds later, in a handler, or in a promise happens long after every component finished running, and belongs to the code that started it.
 
 ### Platform (`@amritk/mini-native/platform`)
 
@@ -274,7 +293,7 @@ Not built yet:
 
 - **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
 - **No gestures beyond tap and long-press** — no pan, swipe, or pinch — and no animation seam, so an animation is a bridge write per frame.
-- **No context, portal, or error boundary.** Context is what a theme needs to reach `/ui` without every intermediate component growing a prop it does not use.
+- **`ErrorBoundary` covers construction only.** A throw inside an effect, a handler, or a promise happens after every component has finished running, and belongs to whoever started it.
 - **No design tokens or type scale**, so `/ui` carries semantics and no appearance. Whether tokens resolve to style objects or to classes is genuinely open, and belongs with the layout reset in a note of its own.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
 - **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.

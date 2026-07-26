@@ -25,6 +25,8 @@ src/
   current-host.ts         setHost / requireHost / scheduleFlush (one host per context)
   types.ts                MaybeReactive, ClassValue, StyleValue, opaque node handles
   elements.ts             The element vocabulary (view/text/image/scroll-view/input) + roles
+  focus.ts                focus / blur — the only imperative pair in the contract
+  context-frame.ts        The ambient frame a lazily-built subtree is rebuilt inside
   events.ts               The event payloads the framework defines, so hosts normalise to them
   jsx-runtime.ts          The compilerless JSX runtime + the JSX type surface
   jsx-dev-runtime.ts      Dev entry point (same implementation)
@@ -42,6 +44,7 @@ src/
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
   ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
   platform/               platform.os / platform.select, and the environment accessors
+  composition/            createContext, Portal, ErrorBoundary
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
     create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the one below)
@@ -106,6 +109,16 @@ src/
   semantics layer on. The same rule is why a `list` role must not build a real
   `<ul>` — `<ul>` may only contain `<li>`, which is a parse-level content model
   no attribute can rescue once a wrapper sits between them.
+- **Anything that builds a subtree LATER must restore the context frame.**
+  `renderChild` and `list` capture `currentFrame()` when they are called — which
+  is during the component body, inside whatever provider wraps it — and run
+  every later build inside `withFrame`. Without that, a theme provided at the
+  app root reaches every component except the ones inside a conditional or a
+  list, and it fails silently by falling back to a plausible default. Core does
+  not know what a frame IS (it is `unknown` there); `/composition` decides the
+  shape, which is what keeps the feature out of the byte-budgeted entry. Any new
+  lazy-build path — `ErrorBoundary`'s retry was the third — owes the same two
+  lines.
 - **A bare text run gets its element in a COMPONENT, never in the runtime.**
   `ui/wrap-text-runs.ts` is why `<Button>Save</Button>` works while
   `<view>Save</view>` still does not compile, and the distinction is the whole
@@ -272,10 +285,11 @@ note.
 
 See the README's *Known gaps* for the full list. The short version: `bindClass`
 and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
-an animation seam, context/portal/error boundaries, and the router / forms /
-query subpaths are simply not built yet. Accessibility props are **done** — see
-`Role` in `elements.ts` and the two host mappings — and so are the component
-layer (`/ui`) and the platform layer (`/platform`).
+an animation seam, and the router / forms / query subpaths are simply not built
+yet. Accessibility props are **done** — see `Role` in `elements.ts` and the two
+host mappings — and so are the component layer (`/ui`), the platform layer
+(`/platform`), and the composition seams (`/composition`: context, portal, error
+boundaries).
 
 Two things are still deliberately missing from `/ui`, each waiting on something
 specific rather than on someone getting to it: `size` and `tone` want a type

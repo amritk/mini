@@ -255,6 +255,18 @@ export const createDomHost = (): Host => {
 
     environment: createDomEnvironment(),
 
+    focus: (element) => {
+      // `preventScroll` is deliberately NOT passed. Scrolling a focused element
+      // into view is the browser doing the right thing, and it is what a native
+      // target does too, so suppressing it here would be the DOM host inventing
+      // a difference rather than removing one.
+      fromHostElement(element).focus()
+    },
+
+    blur: (element) => {
+      fromHostElement(element).blur()
+    },
+
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
       // A `scroll-view` scrolls whether or not anyone wrote a `direction`, so it
@@ -319,6 +331,11 @@ export const createDomHost = (): Host => {
         return
       }
 
+      if (name === 'autoComplete' && typeof value === 'string') {
+        element.setAttribute(attribute, AUTOCOMPLETE_VALUES[value] ?? value)
+        return
+      }
+
       if (value === false || value === null || value === undefined) element.removeAttribute(attribute)
       else element.setAttribute(attribute, value === true ? '' : String(value))
     },
@@ -365,7 +382,12 @@ export const createDomHost = (): Host => {
       // handler is owed the framework's payload shape and not the browser's.
       // The wrapper is what `removeEventListener` has to be given back, hence
       // the local binding.
-      const listener = (event: Event): void => handler(toNativeEvent(name, event, element))
+      const listener = (event: Event): void => {
+        // `submit` rides on `keydown`, so most of what arrives is not a
+        // submission at all and has to be dropped before the handler sees it.
+        if (name === 'submit' && !isSubmit(event, element)) return
+        handler(toNativeEvent(name, event, element))
+      }
       element.addEventListener(domName, listener)
       return () => element.removeEventListener(domName, listener)
     },
@@ -502,12 +524,32 @@ const toNativeEvent = (name: string, event: Event, element: HTMLElement): unknow
     return { x: element.scrollLeft, y: element.scrollTop, raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'input' || name === 'change' || name === 'submit') {
     return { value: 'value' in element ? String((element as HTMLInputElement).value) : '', raw: event }
   }
 
   if (NAMED_EVENTS_WITHOUT_DATA.has(name)) return { raw: event }
   return event
+}
+
+/**
+ * Whether a keydown is the user confirming the field.
+ *
+ * Three things have to be true, and the last two are where this is usually got
+ * wrong. It has to be Enter. It must not be Enter inside a `<textarea>`, where
+ * the key inserts a newline on every target — a multiline field has no confirm
+ * key, which is why the vocabulary says `onSubmit` does not fire there. And it
+ * must not be the Enter that CHOOSES an input-method candidate: typing Japanese
+ * or Chinese ends nearly every word with an Enter that means "yes, that one",
+ * and submitting the form on it is the classic bug in this feature. The browser
+ * marks those with `isComposing`, which is the same signal the two-way input
+ * binding already holds writes for.
+ */
+const isSubmit = (event: Event, element: HTMLElement): boolean => {
+  if (element.tagName === 'TEXTAREA') return false
+  if (!('key' in event)) return false
+  const key = event as KeyboardEvent
+  return key.key === 'Enter' && !key.isComposing
 }
 
 /**
@@ -558,6 +600,21 @@ const HTML_TAGS: Record<string, string> = {
 /** Vocabulary prop names that have a different spelling in HTML. */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
+  // A real HTML attribute, which is the whole reason this prop needs no `form`
+  // element: the browser raises the same soft-keyboard confirm key a device does.
+  submitLabel: 'enterkeyhint',
+  autoComplete: 'autocomplete',
+}
+
+/**
+ * Autofill hints whose web spelling differs from the vocabulary's.
+ *
+ * One entry, for the same reason `keyboard="phone"` becomes `type="tel"`: the
+ * vocabulary says `phone` everywhere so there is one word for one concept, and
+ * translating it into the platform's word is the host's job.
+ */
+const AUTOCOMPLETE_VALUES: Record<string, string> = {
+  phone: 'tel',
 }
 
 /**
@@ -594,6 +651,10 @@ type InputTypeLayer = {
 const EVENTS: Record<string, string> = {
   tap: 'click',
   longpress: 'contextmenu',
+  // There is no `submit` on an input outside a `<form>`, and the vocabulary
+  // deliberately has no form element — a device has a return key, not a form.
+  // Enter on a keydown is the same gesture, filtered by `isSubmit`.
+  submit: 'keydown',
 }
 
 /** Converts a camelCase style key to its CSS spelling, leaving custom properties alone. */

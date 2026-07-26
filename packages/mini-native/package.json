@@ -82,6 +82,12 @@
       "import": "./dist/ui/index.js",
       "default": "./dist/ui/index.js"
     },
+    "./composition": {
+      "development": "./src/composition/index.ts",
+      "types": "./dist/composition/index.d.ts",
+      "import": "./dist/composition/index.js",
+      "default": "./dist/composition/index.js"
+    },
     "./platform": {
       "development": "./src/platform/index.ts",
       "types": "./dist/platform/index.d.ts",

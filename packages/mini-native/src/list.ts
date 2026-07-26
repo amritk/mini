@@ -1,5 +1,6 @@
 import { effect, effectScope } from 'alien-signals'
 
+import { currentFrame, withFrame } from './context-frame'
 import { requireHost, scheduleFlush } from './current-host'
 import type { Host } from './host'
 import { onCleanup } from './on-cleanup'
@@ -51,6 +52,10 @@ export const list = <T>(
 ): Dispose => {
   const host = requireHost()
   const live = new Map<string, Entry>()
+  // Rows are built inside the reconciliation effect, so whatever a provider set
+  // around this call is gone by then. Captured here and restored per row — see
+  // `context-frame.ts`.
+  const frame = currentFrame()
   // The key order rendered on the previous pass, in tree order — the old
   // sequence the diff walks against. Rebuilt from the new order every pass.
   let prev: string[] = []
@@ -87,7 +92,7 @@ export const list = <T>(
         // `runDetached` for the full explanation.
         const dispose = runDetached(() =>
           effectScope(() => {
-            node = create(item, created)
+            node = withFrame(frame, () => create(item, created))
           }),
         )
         live.set(k, { node, dispose })

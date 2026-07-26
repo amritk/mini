@@ -181,7 +181,7 @@ const toNativeEvent = (name: string, event: unknown): unknown => {
     return { x: numberOr(source['x']), y: numberOr(source['y']), raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'input' || name === 'change' || name === 'submit') {
     return { value: String(source['value'] ?? ''), raw: event }
   }
 

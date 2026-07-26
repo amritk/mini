@@ -186,7 +186,9 @@ describe('host identity', () => {
     expect(createDomHost().environment).toBeDefined()
     expect(createMemoryHost().host.environment).toBeUndefined()
     expect(createLynxHost(createFakeEngine().api).environment).toBeUndefined()
-    expect(createLynxHost(createFakeEngine().api, { safeArea: () => INSETS }).environment?.safeArea?.()).toEqual(INSETS)
+    expect(
+      createLynxHost(createFakeEngine().api, { environment: { safeArea: () => INSETS } }).environment?.safeArea?.(),
+    ).toEqual(INSETS)
   })
 })
 

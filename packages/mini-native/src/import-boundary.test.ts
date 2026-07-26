@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition']
 
 /**
  * Drops comments before the specifiers are read.
@@ -147,6 +147,12 @@ describe('import-boundary', () => {
     const platform = walk(resolve(SRC, 'platform', 'index.ts'))
     expect(leaksFrom(platform.files, ['hosts'])).toEqual([])
     expect([...platform.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the composition subpath free of any host', () => {
+    const composition = walk(resolve(SRC, 'composition', 'index.ts'))
+    expect(leaksFrom(composition.files, ['hosts'])).toEqual([])
+    expect([...composition.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {
