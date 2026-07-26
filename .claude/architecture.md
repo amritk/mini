@@ -186,6 +186,17 @@ bun run --filter='@amritk/mini' test
   a value is applied once. The classic bug is calling a signal in JSX
   (`disabled={streaming()}`), which freezes it — `check:reactivity` and the
   shipped Vite plugin both guard it.
+- **Compilerless means "no REQUIRED transform", and the ceiling differs per
+  package.** Both sit at the standard JSX transform for semantics and an
+  optional plugin for diagnostics. `mini` stops there: its consumer bundles into
+  somebody else's page against a byte budget, so a required build step is
+  friction on the whole point of the package. `mini-native` may go one level
+  further — an optional *optimising* plugin — because its consumer owns an app
+  toolchain, subject to one invariant: **an app that skips the plugin still
+  renders correctly**, just slower and larger. Neither may require a transform
+  to be correct. The reasoning, including why a cross-platform compiler costs one
+  plugin per target toolchain rather than one in total, is in
+  [`docs/mini-native-cross-platform.md`](../docs/mini-native-cross-platform.md) §18.
 - **Functional programming:** one exported thing per file, no classes.
 - **Type safety:** strict TypeScript throughout (`exactOptionalPropertyTypes`,
   `noUncheckedIndexedAccess`, …), with the platform boundary itself expressed as

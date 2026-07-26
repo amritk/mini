@@ -58,6 +58,26 @@ editing that package — the scope-ownership and reserved-`key` gotchas in
 particular have both bitten before and both have regression tests you should
 not "fix".
 
+## The other rule: no required build step, and the ceiling differs
+
+"Compilerless" means no transform is ever *required* for correctness. Both
+packages sit at the standard JSX transform plus an optional plugin for
+diagnostics (`@amritk/mini/vite`). Above that they diverge deliberately:
+
+- **`mini` stops at diagnostics.** Its consumer bundles into somebody else's
+  page against a byte budget a test enforces, so a required build step is
+  friction on the one thing the package is for.
+- **`mini-native` may add optional *optimisation*,** because its consumer owns a
+  whole app toolchain — under the invariant that **an app skipping the plugin
+  still renders correctly**, only slower and larger.
+
+Note what this protects that is easy to miss: the two packages are the same
+design re-derived, which is why a defect found in one is worth hunting in the
+other. A transform that changes semantics on one side ends that, and the
+cross-check is how both shipped gotchas above were found.
+[`docs/mini-native-cross-platform.md`](./docs/mini-native-cross-platform.md) §18
+has the full accounting.
+
 ## House rules
 
 - **Add a changeset with every PR.** Run `bunx changeset`, pick the affected
