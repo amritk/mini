@@ -7,6 +7,9 @@ well as a device screen, and in what order.
 **Style is deliberately out of scope here**, and §12 says why it is the harder
 half rather than the easier one.
 
+If you are starting a codebase rather than evolving this one, §17 is the
+practical conclusion and the rest is the reasoning behind it.
+
 ---
 
 ## 1. The shift
@@ -1062,7 +1065,135 @@ is a much larger commitment than this note is proposing.
 all trivial today and all breaking. They are listed at (5) in the order of work
 for that reason alone.
 
-## 17. Order of work
+## 17. If you are starting fresh: the strategy
+
+Everything above surveys the decision space. This is what to actually do, in the
+case that resolves most of it: a new codebase, both targets from day one, no
+existing web app to migrate. §15.4 said the vocabulary choice was downstream of
+which target you are migrating *from* — starting fresh answers that, and most of
+the rest follows.
+
+### 17.1 The strategy is mostly not an API decision
+
+The runtime ports for almost nothing; that is the whole finding of this package.
+So the risk in a fresh cross-platform codebase is not architectural, it is
+behavioural:
+
+> **Whichever target you develop against daily is the one your code will work
+> on. The other becomes a port.**
+
+The web is both the more permissive target and the more comfortable one to work
+in. Build in a browser and check the device on Fridays, and by month three you
+have a web app with a native build that does not work — not because anyone
+decided that, but because every mistake the browser forgave went uncorrected.
+The strict-by-design pieces of this package (`ContainerChildren`, the DOM-free
+type-check pass, the node-environment test suite) all exist to fight exactly
+that drift, and none of them helps if the daily loop is browser-only.
+
+So the first three items are tooling and discipline, not design.
+
+### 17.2 Run both targets before you write a screen
+
+Week one produces two entry points, both running, both hot-reloading, over the
+same `App`. Nothing else. If both targets are not running before the first
+screen exists, the project is web-first by default regardless of intent.
+
+Side by side on one machine if you can. If you can only watch one, watch the
+device — the browser will not tell you what you got wrong, and the device will.
+
+### 17.3 Test against the memory host
+
+Inherit this package's arrangement wholesale, for its stated reason:
+
+> Every suite except the DOM host runs against `createMemoryHost` in the default
+> node environment, where `document` genuinely does not exist — so a stray
+> platform dependency could not pass unnoticed.
+
+A suite running in happy-dom will cheerfully pass code that only works in a
+browser. One running in plain node cannot.
+
+### 17.4 The reset comes first — which reverses §12's sequencing
+
+Worth being explicit that new information changed the answer. For an existing
+package with existing users, semantics-first is right: additive, breaks nothing,
+and the reset has a fixed target once roles land. For a fresh codebase the order
+inverts.
+
+Until an empty `<view>` with two children lays out identically on both targets,
+nothing built on top can be trusted, and every screen written before the reset
+lands will need revisiting. §12's table *is* the divergence. It is a day of work
+at the start and a rewrite at the end.
+
+**Do the layout reset before the first screen.**
+
+### 17.5 Write screens in components, never in primitives
+
+The highest-leverage decision available, and the one that makes every other
+decision in this note reversible.
+
+If screens are written as `<view role="button" focusable label={…}>`, the
+vocabulary is load-bearing across two hundred files and every choice above is
+permanent. If screens are written as `<Button>`, the vocabulary appears in maybe
+twenty components, and:
+
+- the role layer can change without touching a screen,
+- the event-payload shape can change without touching a screen,
+- and the whole HTML-versus-native question in §15 becomes a rewrite of `/ui`
+  rather than a rewrite of the app.
+
+Given that §15 lands on "it depends on a question you may not be able to answer
+yet", **buying the option to change your mind is worth more than getting it
+right first time.** The component layer is that option, and it costs nothing
+extra, because a design system was going to exist anyway.
+
+The rule to hold: *a screen file should contain almost no vocabulary tags.*
+
+### 17.6 Make divergence visible, and count it
+
+Two escape hatches, for different jobs:
+
+- **`.web.tsx` / `.native.tsx`** for anything structural. A whole file that is
+  obviously platform-specific is reviewable, greppable, and countable.
+- **`platform.select`** for leaf values only — a padding, a duration, a line
+  count. Inline OS branching in the middle of a component is *invisible*
+  divergence, and it accumulates faster than anyone expects.
+
+Then count the platform-specific files. It is the only honest measure of whether
+write-once is holding, and a number that climbs steadily means the abstraction
+is in the wrong place — not that the app genuinely needed the branches.
+
+### 17.7 Build order for a fresh codebase
+
+Different from §18, which is the order for evolving *this package*:
+
+1. Two entry points, both running, hot reload on both.
+2. The layout reset, until an empty view matches on both targets.
+3. `/ui` primitives with semantics baked in — `Text`, `Heading`, `Button`,
+   `Link`, `Stack`, `List`. About a day, and every screen after it is cheaper.
+4. Tokens as signals in context, so dark mode and density work from the start
+   rather than being retrofitted through every component.
+5. Normalised event payloads (§4.2) — the first thing a real screen hits.
+6. `Host.environment`, at the first screen that needs a safe area.
+7. Screens.
+
+Steps 1 through 4 are about a week, and they are the entire difference between a
+cross-platform codebase and a web app with a native build target.
+
+### 17.8 Decide the compiler question once, up front
+
+Fresh is the only moment that choice is free — no toolchain to migrate, no build
+to unpick.
+
+Staying compilerless is what this package is for, and it is a real constraint
+with a known price: no static text wrapping, no authored CSS, no build-time
+content-model validation, no dead-style elimination (§15.3). Take a compiler and
+React Strict DOM or Tamagui are probably better answers than anything built
+here. Decline it and this design is close to the best available shape.
+
+What you should not do is leave it open, because at least half the decisions
+above resolve differently depending on it.
+
+## 18. Order of work
 
 1. **The semantics layer** — `role`, `level`, `label`, `hint`, `focusable`,
    state props; role-driven element construction in the DOM host; the native
