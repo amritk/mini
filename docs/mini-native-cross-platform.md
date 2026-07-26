@@ -1182,18 +1182,142 @@ cross-platform codebase and a web app with a native build target.
 ### 17.8 Decide the compiler question once, up front
 
 Fresh is the only moment that choice is free — no toolchain to migrate, no build
-to unpick.
+to unpick. And it is not a detail: at least half the decisions above resolve
+differently depending on it, so leaving it open is the one genuinely bad option.
 
-Staying compilerless is what this package is for, and it is a real constraint
-with a known price: no static text wrapping, no authored CSS, no build-time
-content-model validation, no dead-style elimination (§15.3). Take a compiler and
-React Strict DOM or Tamagui are probably better answers than anything built
-here. Decline it and this design is close to the best available shape.
+§18 is the analysis.
 
-What you should not do is leave it open, because at least half the decisions
-above resolve differently depending on it.
+## 18. The compiler question
 
-## 18. Order of work
+### 18.1 It is a spectrum, not a yes or no
+
+"Compilerless" collapses three distinct positions:
+
+| Level | What it is | Skip it and… | Where things sit |
+| ----- | ---------- | ------------ | ---------------- |
+| 1 | The standard JSX transform | nothing runs at all | both packages, today |
+| 2 | An optional diagnostic plugin | you lose warnings | `@amritk/mini/vite`, today |
+| 3 | An optional optimising plugin | it is slower or larger, still correct | nothing yet |
+| 4 | A required semantic compiler | the source is simply wrong | Svelte, StyleX, Solid's JSX |
+
+Worth noticing the repo is not at zero. It is at level 1 for semantics and level
+2 for diagnostics — `@amritk/mini/vite` already exists, already guards the
+called-signal footgun, and is already optional. **The seam is built.** The
+question is only how far along it to travel.
+
+The line that matters is 3 → 4: whether skipping the build step gives you
+something slower, or something wrong.
+
+### 18.2 The asymmetry is real
+
+`mini`'s consumer is a widget author bundling into somebody else's page against a
+gzipped budget a test enforces. A required plugin is adoption friction on a
+package whose whole pitch is "drop it in". Level 2 is the ceiling there and it is
+not a close call.
+
+`mini-native`'s consumer is an app team that already owns its entire toolchain,
+is not byte-budgeted the same way, and ships to a device where wrapper views and
+per-frame bridge writes cost real money. Materially different trade, and it is
+reasonable to reach a different answer.
+
+### 18.3 But a `mini-native` compiler costs about double what you would expect
+
+This is what cuts against the intuition. A web framework's compiler is one Vite
+plugin. A **cross-platform** framework's compiler has to exist for every target's
+toolchain — Vite for the web build, Lynx's Rspack-based pipeline for the device
+build, kept in lockstep, plus whatever a third target brings. Miss one and the
+semantics diverge per target, which is the precise failure this entire note
+exists to prevent.
+
+The mitigation is a shared transform core with thin per-bundler adapters, which
+is how everyone does it and is still two integration surfaces to own instead of
+one. So the package where a compiler is most affordable in principle is the one
+where it is most expensive in practice.
+
+### 18.4 What level 4 would buy, scored honestly
+
+**Tree flattening.** The strongest argument and the only one with no cheaper
+substitute. Fragments are deliberately absent, so every component costs a real
+container view — "exactly the flattening native performance work targets", as the
+README has it. A compiler can inline a component whose root is a single child.
+Genuinely compiler-only, genuinely valuable on device.
+
+**Authored CSS → style objects.** Real, and smaller than it looks. `StyleValue`
+plus tokens already covers the declarations. What a compiler adds is the cascade,
+selectors, and media queries — most of which you do not want cross-platform
+anyway, because the native target cannot express them.
+
+**Static text wrapping.** §15.3's problem, and it **evaporates** given the
+vocabulary decision already made: `ContainerChildren` makes bare text in a
+container a compile error for free. This benefit only exists in the HTML-first
+world.
+
+**Content-model validation.** Would catch §5.4's `<ul>` hazard mechanically — but
+so does a lint rule or a test, at a fraction of the cost. Not a reason to own a
+compiler.
+
+**Atomic style extraction and dead-style elimination.** A real web win, and it is
+level 3 rather than level 4: an optimisation with a runtime fallback, so skipping
+the plugin costs bytes, not correctness.
+
+**Auto-fixing the called-signal footgun.** Tempting — the compiler could wrap
+`disabled={streaming()}` rather than merely warn about it. Decline it anyway.
+The design principle is explicit:
+
+> Reactivity is decided by value shape at runtime. A function is a binding; a
+> value is applied once.
+
+A transform that silently changes shapes turns the one rule you can explain in a
+sentence into something you need the compiler to predict. Warn, do not rewrite.
+
+Tally: one durable win, one partial, one that evaporates, one available far
+cheaper elsewhere, one that is really level 3, and one that should be refused.
+
+### 18.5 What it would cost
+
+**The shipped source stops being the truth.** Both packages publish `src/`
+deliberately, so comments are part of the product. A semantic compiler makes
+shipped source a description of something other than what runs.
+
+**Every tool has to know.** Vitest, `tsgo`, the editor, the LSP, `test:dist`, and
+any consumer on esbuild, Bun, Rollup, or a plain module script. Today
+`vitest.config.ts` aliases the package names straight back to source and it all
+works; that stops being true.
+
+**It is permanent.** A compiler tracks TypeScript's syntax evolution, source
+maps, HMR interaction, and every bundler's plugin API, forever. On a repo this
+size that is roughly a doubling of maintained surface.
+
+**The two packages stop being comparable.** The architectural cost, and the easy
+one to miss. They are siblings that mirror each other on purpose:
+
+> When you fix a bug in one package, check the other for the same shape.
+
+That is not sentiment — it is how both the scope-ownership bug and the
+reserved-`key` hole were found. A semantic compiler on one side makes them two
+different designs sharing a name, and the cross-check quietly stops working.
+
+### 18.6 Recommendation
+
+**Level 3 as the ceiling for `mini-native`, level 2 for `mini`, and revisit level
+4 only on evidence.**
+
+Concretely: build the optional plugin, let it do diagnostics and optimisation,
+and hold one invariant — **an app that skips it still renders correctly.** Slower,
+larger, more wrapper views, but correct. That keeps every level-4 benefit
+available later, because a level-3 plugin is the same transform with a runtime
+fallback behind it.
+
+The trigger for reconsidering should be specific rather than aspirational: **a
+real screen where wrapper-view depth measurably hurts on device.** That is the
+one benefit with no cheaper substitute, and until it is measured, taking a
+compiler for it is speculation.
+
+Whatever the level, keep it a separate entry — `@amritk/mini-native/vite` and its
+Lynx counterpart — so the runtime never depends on it and the decision stays
+reversible.
+
+## 19. Order of work
 
 1. **The semantics layer** — `role`, `level`, `label`, `hint`, `focusable`,
    state props; role-driven element construction in the DOM host; the native
