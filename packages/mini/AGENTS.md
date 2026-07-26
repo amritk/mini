@@ -36,6 +36,16 @@ bun run --filter='@amritk/mini' types:check
   (`@amritk/runtime-validators`, `@tanstack/query-core`) — keep them optional.
   `hot` is why `mount` itself has no hot-reload branch: the widget ships one
   static bundle and must not pay for a dev-server feature.
+- **The compiler ceiling here is DIAGNOSTICS.** `@amritk/mini/vite` may warn,
+  guard, and wire hot updates; it must never be required for correctness and must
+  never rewrite semantics. This package's consumer bundles it into somebody
+  else's page against a byte budget a test enforces, so a required build step is
+  adoption friction on the one thing the package is for. In particular: do not
+  "fix" the called-signal footgun by transforming `disabled={streaming()}` into a
+  getter — reactivity is decided by value SHAPE at runtime, and a transform that
+  silently changes shapes turns a one-sentence rule into something you need the
+  compiler to predict. Sibling ceiling and the full reasoning:
+  [`docs/mini-native-cross-platform.md` §18](../../docs/mini-native-cross-platform.md).
 - **`show` and `style` share one inline `display` slot.** Applying a style bag
   replaces the inline style wholesale, so a style write would otherwise un-hide
   what `bindShow` hid — and which won came down to the order the attributes were

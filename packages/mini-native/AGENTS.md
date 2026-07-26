@@ -75,6 +75,25 @@ src/
 - **No raw-markup sink, ever.** There is deliberately no `bindHtml` equivalent
   anywhere in the host contract, so bound data cannot inject elements on any
   target.
+- **A wrapper the framework inserted is never visible to accessibility.**
+  `createFlowHost` builds the container every control-flow component swaps
+  inside, and the moment elements carry roles an interposed generic node breaks
+  the parent/child relationships assistive technology walks — `list`/`listitem`
+  first, then every richer pairing. Flow wrappers therefore carry
+  `role="presentation"`, and `display: contents` alone does NOT count: its
+  accessibility-tree treatment has never been consistent enough to bet a
+  semantics layer on. The same rule is why a `list` role must not build a real
+  `<ul>` — `<ul>` may only contain `<li>`, which is a parse-level content model
+  no attribute can rescue once a wrapper sits between them.
+- **The compiler ceiling here is an OPTIONAL OPTIMISING plugin**, one level above
+  `@amritk/mini`'s diagnostics-only ceiling, because this package's consumer owns
+  a whole app toolchain rather than embedding into someone else's page. The
+  invariant that makes it safe: **an app that skips the plugin still renders
+  correctly** — slower, larger, with more wrapper views, but correct. Nothing may
+  become a required build step without revisiting
+  [`docs/mini-native-cross-platform.md` §18](../../docs/mini-native-cross-platform.md),
+  and note that a cross-platform compiler costs double — one plugin per target
+  toolchain, kept in lockstep, or the semantics diverge per target.
 - This package **ships its `src/`** too (see `files`), so source comments are
   shipped — keep them accurate.
 
@@ -122,6 +141,44 @@ directly. Only `create-dom-host.test.tsx` carries the
 The Lynx host takes its PAPI as an argument specifically so
 `create-lynx-host.test.tsx` can verify the whole mapping against a fake engine —
 no device, no emulator.
+
+## Settled decisions on the cross-platform story
+
+[`docs/mini-native-cross-platform.md`](../../docs/mini-native-cross-platform.md)
+is the reasoning. These are the conclusions, so nobody relitigates them from
+scratch — each one has a stated trigger for reopening rather than being
+permanent.
+
+- **The web is a peer target, not a preview.** `hosts/dom` is expected to produce
+  a page you would ship: real semantics, keyboard operability, an accessible
+  name. That is a raising of the bar, not a change of direction — the vocabulary
+  is still native and the browser is still the guest.
+- **The native vocabulary stays; HTML-first was considered and declined.** The
+  element half of an HTML-first design is genuinely compilerless (§15), so the
+  usual "it needs a compiler" dismissal is wrong. It was declined because the
+  subset problem relocates rather than disappearing, HTML's permissiveness cannot
+  be honoured natively without inserting nodes nobody wrote, and a `div` that
+  does not cascade and defaults to `column` is a false friend. *Reopen if* the
+  driving use case becomes migrating an existing web app — at which point
+  evaluate React Strict DOM before building anything.
+- **Semantics arrive as a `role` prop, not as new tags.** Static, like
+  `multiline`, because it decides what the host builds. Keeps the vocabulary at
+  five tags and needs no new `Host` methods.
+- **`as` accepts a role or a component — never an HTML tag.** A tag is not a
+  portable concept, so accepting one would make the override the hole through
+  which web-only code re-enters a write-once component. `ContainerProps.as` on
+  `For`/`Index` already follows this: same meaning, narrowed to what is coherent
+  there.
+- **Screens should be written in components, not in vocabulary tags.** This is
+  the thing that keeps every decision above reversible: if the vocabulary lives
+  in twenty components rather than two hundred screens, changing any of it is a
+  rewrite of the component layer instead of the app.
+
+Still genuinely open, so do not treat either as decided: whether `role="button"`
+builds a real `<button>` (browser affordances, but a content model TypeScript
+cannot enforce) or a `div` with the role and synthesised activation; and whether
+design tokens resolve to style objects or to classes. Both belong with the style
+note.
 
 ## Known gaps
 

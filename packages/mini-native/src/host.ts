@@ -37,6 +37,23 @@ export type Host = {
    * per target: the DOM host returns a `display: contents` div so the wrapper
    * vanishes from layout, while a native host returns an ordinary container
    * view, which is idiomatic there anyway.
+   *
+   * The wrapper MUST be invisible to accessibility — `role="presentation"` on
+   * the web, whatever excludes a node from the tree natively. Nobody wrote this
+   * element, so it must not appear to have been written.
+   *
+   * That is easy to skip while the vocabulary carries no roles, and it breaks
+   * the moment it does: a list built as `<view role="list"><For …/></view>` puts
+   * this wrapper between the list and its items, severing the ownership
+   * relationship assistive technology walks. Vanishing from LAYOUT is not the
+   * same as vanishing from the accessibility tree, and `display: contents` has
+   * never been consistent enough across browsers to rely on for the second.
+   *
+   * The same rule constrains what a role may build at all: a `list` role must
+   * not become a real `<ul>`, because `<ul>` accepts only `<li>` and that is a
+   * parse-level content model no attribute can rescue once a wrapper sits
+   * between them. Roles whose element has a restrictive content model are
+   * expressed as a generic element carrying the role instead.
    */
   createFlowHost: () => HostElement
 
