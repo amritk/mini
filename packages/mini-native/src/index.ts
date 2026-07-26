@@ -45,6 +45,8 @@ export {
   type ElementTag,
   type NativeEventHandler,
   type NativeEventMap,
+  ROLES,
+  type Role,
 } from './elements'
 export type { Host, HostEventHandler } from './host'
 export { list } from './list'

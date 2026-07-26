@@ -183,9 +183,10 @@ note.
 ## Known gaps
 
 See the README's *Known gaps* for the full list. The short version: `bindClass`
-and fragments are deliberate omissions; accessibility props, a virtualised list,
-gestures beyond tap, an animation seam, context/portal/error boundaries, and the
-router / forms / query subpaths are simply not built yet. `docs/mini-native-audit.md`
+and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
+an animation seam, context/portal/error boundaries, and the router / forms /
+query subpaths are simply not built yet. Accessibility props are **done** — see
+`Role` in `elements.ts` and the two host mappings. `docs/mini-native-audit.md`
 at the repo root carries the reasoning and the priority order.
 
 Add a changeset for every change (`bunx changeset`).

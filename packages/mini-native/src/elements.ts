@@ -77,6 +77,121 @@ type EventHandlers = {
 }
 
 /**
+ * What an element IS, as opposed to what it looks like.
+ *
+ * This is the one piece of information both targets need and neither can infer.
+ * A native host turns it into an accessibility role; the DOM host turns it into
+ * an actual element, so `role="button"` builds a `<button>` and inherits focus
+ * order, Enter and Space activation, and form submission rather than
+ * re-synthesising all three onto a `<div>`.
+ *
+ * The set is closed and small on purpose: every entry has a real mapping on
+ * both sides, and a role neither target can honour would be a promise the
+ * runtime cannot keep.
+ *
+ * Two of them deliberately do NOT get their obvious HTML element. `list` and
+ * `listitem` build a generic element carrying the ARIA role instead of `<ul>`
+ * and `<li>`, because `<ul>` accepts only `<li>` — a parse-level content model
+ * — and the control-flow components put a wrapper in between:
+ *
+ * ```tsx
+ * <view role="list">
+ *   <For each={rows}>{(row) => <view role="listitem">…</view>}</For>
+ * </view>
+ * ```
+ *
+ * See the invariant on `Host.createFlowHost`.
+ */
+export type Role =
+  | 'button'
+  | 'link'
+  | 'heading'
+  | 'list'
+  | 'listitem'
+  /** The page or screen header. Spelled the ARIA way; the DOM host builds `<header>`. */
+  | 'banner'
+  | 'navigation'
+  | 'main'
+  /** The page or screen footer. Spelled the ARIA way; the DOM host builds `<footer>`. */
+  | 'contentinfo'
+  /** Strips the element's semantics and hides it from assistive technology. */
+  | 'none'
+
+/**
+ * The roles above as a runtime set, for hosts that want to validate one.
+ *
+ * Every name here is an ARIA role rather than an HTML tag, which is the same
+ * rule the `as` override follows: a tag is not a portable concept, and letting
+ * one in through a prop meant to describe SEMANTICS is how web-only thinking
+ * re-enters a component written for both targets. It is why the landmarks are
+ * `banner` and `contentinfo` rather than the friendlier `header` and `footer` —
+ * those two are elements, and these two are what the element MEANS.
+ */
+export const ROLES = [
+  'button',
+  'link',
+  'heading',
+  'list',
+  'listitem',
+  'banner',
+  'navigation',
+  'main',
+  'contentinfo',
+  'none',
+] as const
+
+/**
+ * The accessibility surface, shared by every tag.
+ *
+ * It is not a web feature with a native counterpart, it is one fact per element
+ * that both targets need — which is why it lives on the vocabulary rather than
+ * in a host. Adding it cost the `Host` contract nothing: `role` and `level`
+ * arrive through `createElement`'s existing props parameter, the rest through
+ * `setProperty`.
+ */
+type AccessibilityProps = {
+  /**
+   * What this element is. STATIC, with no reactive form, because on the DOM it
+   * decides which element gets built and a node cannot change what it is — the
+   * same constraint `input multiline` lives under. A getter here is reported by
+   * {@link warn} rather than silently read once.
+   */
+  role?: Role
+  /**
+   * Heading depth, alongside `role="heading"`. Static for the same reason
+   * `role` is; the DOM host builds `<h1>`…`<h6>` from it. Defaults to 2, on the
+   * grounds that a page's single `<h1>` should be deliberate.
+   */
+  level?: 1 | 2 | 3 | 4 | 5 | 6
+  /**
+   * The accessible name — what a screen reader announces. This is the ONLY
+   * spelling of it: `image` has no separate `alt`, because two names for one
+   * concept is exactly the drift a five-tag vocabulary exists to avoid. The DOM
+   * host still emits `alt` on an `<img>`, which is where that spelling belongs.
+   */
+  label?: MaybeReactive<string>
+  /** Supplementary description, announced after the name. */
+  hint?: MaybeReactive<string>
+  /**
+   * Whether the element takes part in focus order. The semantic roles are
+   * focusable already; this is for the elements that are interactive without
+   * looking it.
+   */
+  focusable?: MaybeReactive<boolean>
+  /** Unavailable for interaction, and announced as such rather than merely greyed. */
+  disabled?: MaybeReactive<boolean>
+  selected?: MaybeReactive<boolean>
+  checked?: MaybeReactive<boolean>
+  expanded?: MaybeReactive<boolean>
+  /**
+   * Where a `role="link"` points. Hosts with nothing addressable ignore it;
+   * the DOM host puts it on a real `<a>`, so middle-click, open-in-new-tab, and
+   * a crawler all work without the app doing anything.
+   */
+  href?: MaybeReactive<string>
+}
+
+/**
  * Props accepted by every element in the vocabulary.
  *
  * `children` is NOT here, even though every element has some. It belongs to the
@@ -104,7 +219,8 @@ type CommonProps = {
   id?: MaybeReactive<string>
   /** A stable handle for UI tests, passed straight through to the host. */
   testId?: MaybeReactive<string>
-} & EventHandlers
+} & EventHandlers &
+  AccessibilityProps
 
 /** Per-tag props, layered on top of {@link CommonProps}. */
 type TagProps = {
@@ -126,8 +242,6 @@ type TagProps = {
     /** An image is a leaf: there is nothing a target could render inside one. */
     children?: never
     src?: MaybeReactive<string>
-    /** Accessible description. Native targets surface this to screen readers. */
-    alt?: MaybeReactive<string>
     /** How the image fills its box. The names match the CSS `object-fit` values the DOM host maps onto. */
     fit?: MaybeReactive<'cover' | 'contain' | 'fill' | 'none'>
     onLoad?: NativeEventHandler<'load'>
@@ -145,7 +259,6 @@ type TagProps = {
     children?: never
     value?: MaybeReactive<string>
     placeholder?: MaybeReactive<string>
-    disabled?: MaybeReactive<boolean>
     readonly?: MaybeReactive<boolean>
     /**
      * Grows to multiple lines. Unlike every other prop this one is STRUCTURAL

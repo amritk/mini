@@ -62,7 +62,15 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
     // A native container view is the idiomatic wrapper for a swapped subtree,
     // so unlike the web there is no layout trick needed here — the wrapper is
     // simply part of the view hierarchy, which is how native trees are built.
-    createFlowHost: () => toHostElement(api.__CreateElement('view', 0, {})),
+    createFlowHost: () => {
+      const wrapper = api.__CreateElement('view', 0, {})
+      // Nobody wrote this element, so it must not appear in the accessibility
+      // tree between a `role="list"` and its items. Being an ordinary container
+      // view is exactly why that would otherwise happen here. See the invariant
+      // on `Host.createFlowHost`.
+      api.__SetAttribute(wrapper, 'accessibility-element', false)
+      return toHostElement(wrapper)
+    },
 
     // Text in Lynx lives in a `raw-text` element carrying a `text` attribute,
     // nested inside a `<text>` element that provides the styling.
@@ -201,9 +209,29 @@ const DEFAULT_DISPLAY = 'flex'
  * engine does not recognise, so a UI test would have nothing to select on. The
  * DOM host already emits `data-testid`, and matching it here means one selector
  * finds the element in the browser preview and on the device alike.
+ *
+ * The accessibility entries follow Lynx's `accessibility-*` attribute
+ * convention. Unlike the DOM host there is no element to choose — a native tree
+ * has one container view and the role is an attribute on it — so this stays a
+ * flat rename rather than the two-spellings-per-prop arrangement the web needs.
+ *
+ * This table is the part of the host most likely to need adjusting for a given
+ * engine version, and it is deliberately the cheapest thing to adjust: the
+ * mapping is asserted in `create-lynx-host.test.tsx` against a fake engine, so
+ * correcting an attribute name is a one-line edit with a test that says whether
+ * it took.
  */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
+  role: 'accessibility-role',
+  level: 'accessibility-level',
+  label: 'accessibility-label',
+  hint: 'accessibility-hint',
+  focusable: 'focusable',
+  disabled: 'accessibility-disabled',
+  selected: 'accessibility-selected',
+  checked: 'accessibility-checked',
+  expanded: 'accessibility-expanded',
 }
 
 /**

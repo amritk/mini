@@ -53,7 +53,17 @@ export const createMemoryHost = (): MemoryHost => {
     // Nothing in an object tree needs a layout escape hatch, so the flow
     // wrapper is just an ordinary element — the same choice a native host
     // makes, where a container view is the idiomatic wrapper anyway.
-    createFlowHost: () => toHostElement(element('flow')),
+    //
+    // It still carries the presentational marker both real hosts set, so a test
+    // asserting that a framework-inserted wrapper stays out of the
+    // accessibility tree can be written against this host too. That matters
+    // more than it looks: the memory host missing a distinction is exactly how
+    // the visibility bug survived its own test suite.
+    createFlowHost: () => {
+      const wrapper = element('flow')
+      wrapper.props['role'] = 'presentation'
+      return toHostElement(wrapper)
+    },
 
     createText: (value) => toHostText({ kind: 'text', value, parent: null }),
 

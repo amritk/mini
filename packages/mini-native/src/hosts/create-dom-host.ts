@@ -121,6 +121,95 @@ export const createDomHost = (): Host => {
     return false
   }
 
+  /**
+   * Applies one accessibility prop, and reports whether it took it.
+   *
+   * Most of these have two spellings on the web and the right one depends on
+   * what was actually built: `disabled` is a real attribute on a `<button>` and
+   * `aria-disabled` on anything else, `label` is `alt` on an `<img>` and
+   * `aria-label` elsewhere. Picking per element is the point — the native prop
+   * says what the element IS, and how that is spelled is the host's problem.
+   */
+  const applyAccessibilityProp = (element: HTMLElement, name: string, value: unknown): boolean => {
+    const unset = value === false || value === null || value === undefined
+
+    if (name === 'role') {
+      // `role` already chose the element back in `createElement`. Most roles are
+      // therefore implicit in the tag and emitting the attribute as well would
+      // be noise, so only the two that build a generic element carry one.
+      if (value === 'none') attribute(element, 'aria-hidden', unset ? null : 'true')
+      else attribute(element, 'role', typeof value === 'string' && GENERIC_ROLES.has(value) ? value : null)
+      return true
+    }
+
+    // The heading element carries its own depth, so `aria-level` would only
+    // repeat what `<h2>` already says. Swallowed rather than emitted.
+    if (name === 'level') return true
+
+    if (name === 'label') {
+      // An `<img>` spells its accessible name `alt`, and an empty `alt` is
+      // meaningfully different from a missing one — it marks the image as
+      // decorative — so the attribute is left in place rather than removed.
+      if (element.tagName === 'IMG') attribute(element, 'alt', unset ? '' : String(value))
+      else attribute(element, 'aria-label', unset ? null : String(value))
+      return true
+    }
+
+    if (name === 'hint') {
+      attribute(element, 'aria-description', unset ? null : String(value))
+      return true
+    }
+
+    // The tri-state props below deliberately break the contract's general rule
+    // that `false` means "unset it", because for these three `false` and absent
+    // are different facts rather than the same one. `aria-expanded="false"` is a
+    // collapsed disclosure; no attribute at all is something that does not
+    // expand. Collapsing the two would announce the wrong thing, so `false` is
+    // written out and only `null`/`undefined` remove.
+    const absent = value === null || value === undefined
+
+    if (name === 'focusable') {
+      // `-1` rather than removal, because an element that asked NOT to be
+      // focusable may still be natively focusable — a `<button>` being the
+      // obvious case — and only an explicit `-1` takes it back out of the tab
+      // order. Removing the attribute would leave the prop apparently doing
+      // nothing.
+      attribute(element, 'tabindex', absent ? null : value === true ? '0' : '-1')
+      return true
+    }
+
+    if (name === 'disabled') {
+      // Genuinely binary, unlike the three below: a real `disabled` attribute is
+      // present or it is not, so this one does follow the usual convention.
+      if (SUPPORTS_DISABLED.has(element.tagName)) attribute(element, 'disabled', unset ? null : '')
+      else attribute(element, 'aria-disabled', unset ? null : 'true')
+      return true
+    }
+
+    if (name === 'checked' && 'checked' in element) {
+      // Through the property, not the attribute, so `getProperty` reads back
+      // what the user actually did rather than the initial value — the same
+      // reason `value` is handled that way below.
+      ;(element as HTMLInputElement).checked = value === true
+      return true
+    }
+
+    if (name === 'selected' || name === 'checked' || name === 'expanded') {
+      attribute(element, `aria-${name}`, absent ? null : String(value === true))
+      return true
+    }
+
+    if (name === 'href') {
+      // Only an anchor can be navigated to. Anywhere else this would render as
+      // an attribute the browser ignores, which is the preview quietly stopping
+      // matching the device.
+      if (element.tagName === 'A') attribute(element, 'href', unset ? null : String(value))
+      return true
+    }
+
+    return false
+  }
+
   return {
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
@@ -128,6 +217,12 @@ export const createDomHost = (): Host => {
       // is created as though the prop were already set to its default. A later
       // `direction` write simply replaces these.
       if (tag === 'scroll-view') applyLayoutProp(element, 'direction', undefined)
+      // A bare `<button>` defaults to `type="submit"`, so the same component
+      // that behaves correctly on its own would submit the form the moment
+      // someone nested it in one — and native targets have no such concept for
+      // the behaviour to have come from. Stating the type keeps a button a
+      // button wherever it lands.
+      if (element.tagName === 'BUTTON') element.setAttribute('type', 'button')
       return toHostElement(element)
     },
 
@@ -140,6 +235,12 @@ export const createDomHost = (): Host => {
       // layout.
       const wrapper = document.createElement('div')
       own(wrapper, 'display', 'contents')
+      // Vanishing from LAYOUT is not vanishing from the accessibility tree, and
+      // the two are easy to conflate. Nobody wrote this element, so it must not
+      // interpose between a `role="list"` and its items — and `display: contents`
+      // has never been consistent enough across browsers to rely on for that.
+      // See the invariant on `Host.createFlowHost`.
+      wrapper.setAttribute('role', 'presentation')
       return toHostElement(wrapper)
     },
 
@@ -151,6 +252,7 @@ export const createDomHost = (): Host => {
 
     setProperty: (target, name, value) => {
       const element = fromHostElement(target)
+      if (applyAccessibilityProp(element, name, value)) return
       if (applyLayoutProp(element, name, value)) return
 
       const attribute = ATTRIBUTES[name] ?? name
@@ -262,17 +364,76 @@ type DomStyleLayer = {
 /**
  * Picks the HTML element to build.
  *
- * `multiline` is read here because the DOM offers no way to turn an `<input>`
- * into a `<textarea>` afterwards — the node's identity is fixed the moment it
- * exists. That makes it a STATIC prop: a getter would have to rebuild the
- * element to take effect, so rather than half-honouring one, a function value is
- * treated as "not supported here" and the input stays single-line. Writing
- * `multiline` as a plain boolean is the supported form.
+ * Two props are read here rather than applied afterwards, because both decide
+ * what the node IS and the DOM offers no way to change that once it exists —
+ * there is no turning an `<input>` into a `<textarea>`, or a `<div>` into a
+ * `<button>`. That makes them STATIC: a getter would have to rebuild the element
+ * to take effect, so rather than half-honouring one, a function value is treated
+ * as "not supported here" and the plain form is the supported one. `applyProp`
+ * warns about the getter separately, so the mistake is not silent.
+ *
+ * Building the real element rather than a `<div>` with an ARIA role is the whole
+ * point: a `<button>` arrives with focus order, Enter and Space activation, and
+ * form submission already correct, and none of the three has to be
+ * re-synthesised from keydown handlers that would be subtly wrong.
  */
 const htmlTag = (tag: string, props?: Readonly<Record<string, unknown>>): string => {
   const multiline = props?.['multiline']
   if (tag === 'input' && typeof multiline !== 'function' && Boolean(multiline)) return 'textarea'
+
+  const role = props?.['role']
+  if (typeof role === 'string') {
+    if (role === 'heading') return `h${headingLevel(props?.['level'])}`
+    const roleTag = ROLE_TAGS[role]
+    if (roleTag !== undefined) return roleTag
+  }
+
   return HTML_TAGS[tag] ?? 'div'
+}
+
+/**
+ * Clamps a heading depth to one that exists.
+ *
+ * Defaulting to 2 rather than 1 is deliberate: a page's single `<h1>` should be
+ * something an author chose, not something they got by leaving a prop off.
+ */
+const headingLevel = (level: unknown): number =>
+  typeof level === 'number' && level >= 1 && level <= 6 ? Math.trunc(level) : 2
+
+/**
+ * Roles that build a real element, and the element each builds.
+ *
+ * `heading` is absent because its element depends on `level`, and `list` and
+ * `listitem` are absent on purpose — see {@link GENERIC_ROLES}.
+ */
+const ROLE_TAGS: Record<string, string> = {
+  button: 'button',
+  link: 'a',
+  banner: 'header',
+  navigation: 'nav',
+  main: 'main',
+  contentinfo: 'footer',
+}
+
+/**
+ * Roles that stay a generic element carrying the ARIA role instead.
+ *
+ * `<ul>` accepts only `<li>`, and that is a parse-level content model rather
+ * than a convention — the browser reshapes the tree and no attribute rescues it.
+ * The control-flow components put a wrapper between a list and its items, so a
+ * real `<ul>` would be invalid on the most ordinary list anyone would write. An
+ * ARIA role has no content model, so a presentational wrapper in between is
+ * survivable. See the invariant on `Host.createFlowHost`.
+ */
+const GENERIC_ROLES = new Set(['list', 'listitem'])
+
+/** Elements with a real `disabled` attribute, which beats `aria-disabled` where it exists. */
+const SUPPORTS_DISABLED = new Set(['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT'])
+
+/** Sets an attribute, or removes it when the value is `null`. */
+const attribute = (element: HTMLElement, name: string, value: string | null): void => {
+  if (value === null) element.removeAttribute(name)
+  else element.setAttribute(name, value)
 }
 
 /**

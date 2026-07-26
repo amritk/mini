@@ -2,6 +2,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { For } from '../flow'
 import { clearHost, mount, setHost, signal } from '../index'
 import { createDomHost, domRoot } from './create-dom-host'
 
@@ -121,5 +122,174 @@ describe('create-dom-host', () => {
     dispose()
 
     expect(root.innerHTML).toBe('')
+  })
+})
+
+/**
+ * The semantics layer. These assert what an element MEANS rather than what it
+ * looks like, which is the difference between a preview and a page you would
+ * ship — a `<div>` with a tap handler is unreachable by keyboard no matter how
+ * convincing it looks.
+ */
+describe('create-dom-host accessibility', () => {
+  it('builds the real element a role implies', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <view role="button" onTap={() => {}} />
+        <view role="link" href="/pricing" />
+        <view role="navigation" />
+        <view role="main" />
+      </view>
+    ))
+
+    // Not a div with an ARIA role: a real button and a real anchor, so focus
+    // order, Enter and Space activation, and middle-click come from the
+    // browser rather than being re-synthesised.
+    expect(root.innerHTML).toBe(
+      '<div><button type="button"></button><a href="/pricing"></a><nav></nav><main></main></div>',
+    )
+  })
+
+  it('builds a heading at the requested depth, defaulting to 2', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <text role="heading" level={1}>
+          title
+        </text>
+        <text role="heading">section</text>
+      </view>
+    ))
+
+    // The default is 2 rather than 1 because a page's single h1 should be
+    // something an author chose, not something they got by omission.
+    expect(root.innerHTML).toBe('<div><h1>title</h1><h2>section</h2></div>')
+  })
+
+  it('keeps list roles generic, so a flow wrapper cannot invalidate them', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view role="list">
+        <view role="listitem" />
+      </view>
+    ))
+
+    // A real <ul> accepts only <li>, which is a parse-level content model — and
+    // the control-flow components put a wrapper in between. An ARIA role has no
+    // content model, so this survives what <ul> would not.
+    expect(root.innerHTML).toBe('<div role="list"><div role="listitem"></div></div>')
+  })
+
+  it('keeps the flow wrapper out of the accessibility tree', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view role="list">
+        <For each={[1, 2]}>{(n) => <view role="listitem" testId={`row-${n}`} />}</For>
+      </view>
+    ))
+
+    const wrapper = root.querySelector('[role="list"]')?.firstElementChild
+    // Vanishing from layout is not vanishing from the accessibility tree, and
+    // an interposed generic element severs list-owns-listitem for a screen
+    // reader. `display: contents` alone has never been reliable for this.
+    expect(wrapper?.getAttribute('role')).toBe('presentation')
+    expect(wrapper?.getAttribute('style')).toContain('contents')
+  })
+
+  it('spells the accessible name per element', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <image src="/puck.png" label="a puck" />
+        <view role="button" label="save" />
+      </view>
+    ))
+
+    // Same prop, two spellings — `alt` is what an <img> uses and `aria-label`
+    // is what everything else uses. Which one is the host's problem, not the
+    // component author's.
+    expect(root.innerHTML).toBe(
+      '<div><img src="/puck.png" alt="a puck"><button type="button" aria-label="save"></button></div>',
+    )
+  })
+
+  it('prefers a real disabled attribute where one exists', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => (
+      <view>
+        <view role="button" disabled={true} />
+        <view disabled={true} />
+      </view>
+    ))
+
+    // A real <button disabled> is genuinely unclickable; `aria-disabled` only
+    // announces it. Each element gets whichever it can actually honour.
+    expect(root.innerHTML).toBe(
+      '<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>',
+    )
+  })
+
+  it('tracks reactive accessibility state', () => {
+    setHost(createDomHost())
+    const root = container()
+    const open = signal(false)
+
+    mount(domRoot(root), () => <view role="button" expanded={open} />)
+    const button = root.firstElementChild as HTMLElement
+
+    // `false` is written out rather than removing the attribute, which is the
+    // one place these props break the contract's usual false-means-unset rule.
+    // A collapsed disclosure is `aria-expanded="false"`; no attribute at all is
+    // something that does not expand, and announcing the second for the first
+    // is a different sentence.
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    open(true)
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    open(false)
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('takes an element out of the tab order with an explicit -1', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view role="button" focusable={false} />)
+
+    // Removing the attribute would leave a <button> natively focusable, so the
+    // prop would appear to do nothing. Only an explicit -1 takes it back out.
+    expect((root.firstElementChild as HTMLElement).getAttribute('tabindex')).toBe('-1')
+  })
+
+  it('does not leak href onto an element that cannot navigate', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view href="/pricing" />)
+
+    // An attribute the browser ignores is the preview quietly stopping matching
+    // the device, which is the bug class this host exists to avoid.
+    expect(root.innerHTML).toBe('<div></div>')
+  })
+
+  it('hides a role="none" element from assistive technology', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view role="none" />)
+
+    expect(root.innerHTML).toBe('<div aria-hidden="true"></div>')
   })
 })
