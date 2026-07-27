@@ -34,7 +34,14 @@ The root `bun run build` and `bun run types:check` include this app.
 | `/gestures` | `@amritk/mini-native/gestures` | `pan`, `swipe`, and the raw `onPointer` stream |
 | `/platform` | `@amritk/mini-native/platform` | `colorScheme`, `dimensions`, `safeArea`, `platform.os`/`select` |
 | `/composition` | `@amritk/mini-native/composition` | `createContext`, `Portal`, `ErrorBoundary`, plus a live host swap to `hosts/memory` |
+| `/forms` | `@amritk/mini-native/forms` | `createForm`, `Field`, `schemaToValidator`, plus `focus`/`blur` and the binding chosen by a value's type |
+| `/data` | `@amritk/mini-native/query` | `createQuery` over `@tanstack/query-core` — every state, a reactive key, dedup and invalidation |
+| `/motion` | `@amritk/mini-native/animate` | `animate`, `cancel`/`finish`, endless timelines, and `reduceMotion` honoured |
+| `/lynx` | `@amritk/mini-native/hosts/lynx` | The real Lynx host driving a fake Element PAPI: the device tree, the call log, event normalisation and flush coalescing |
 | `/routing` | `@amritk/mini-native/router` | `createRouter`, `RouteView`, `RouteLink`, `createBrowserHistory`, `createMemoryHistory`, `matchRoute` |
+
+Every public entry point of the package appears above, and that is the bar this
+app is held to: a new subpath is not finished until a screen here exercises it.
 
 ## The two conventions the app follows, on purpose
 
@@ -43,6 +50,18 @@ component in `src/lib/ui.tsx`, which is what the `/ui` docs ask for and what
 would make changing the vocabulary a rewrite of one directory rather than of the
 app. `Action` there is the clearest illustration of the line the layer draws:
 `<Button>` brings the semantics, the app brings the 8px radius.
+
+**The Lynx screen is the one that earns the rest of them.** `/composition`
+shows the same components rendered through a second host; `/lynx` shows them
+rendered through the host that is actually shipping — `createLynxHost`, the real
+one, against a fake Element PAPI in `src/lib/fake-lynx.ts`. That is possible only
+because the host takes its PAPI as an argument rather than reading the engine
+globals, and it is what turns "porting is one file" from a claim into something
+you can read the output of. It found two device-only defects on the way in, both
+fixed in `packages/mini-native`: inline styles and animation keyframes were
+handed the camelCase key a style bag was written with, which the engine parses as
+CSS and drops in silence, and `LynxElementApi` was not exported, so an app could
+not supply a PAPI without a cast.
 
 **Styling is `style` bags of density-independent pixels.** A bare number means
 dp and the host adds the unit, so the same bag means the same thing on every

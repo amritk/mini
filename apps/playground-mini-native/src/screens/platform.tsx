@@ -1,5 +1,5 @@
 import type { HostElement } from '@amritk/mini-native'
-import { colorScheme, dimensions, platform, safeArea } from '@amritk/mini-native/platform'
+import { colorScheme, dimensions, platform, reduceMotion, safeArea } from '@amritk/mini-native/platform'
 import { Stack, Text } from '@amritk/mini-native/ui'
 
 import { Chip, Panel, Readout } from '../lib/ui'
@@ -28,21 +28,28 @@ const Environment = (): HostElement => {
   const scheme = colorScheme()
   const size = dimensions()
   const insets = safeArea()
+  const still = reduceMotion()
 
   return (
     <Panel
-      title="colorScheme · dimensions · safeArea"
+      title="colorScheme · dimensions · safeArea · reduceMotion"
       blurb="Resize the window, or flip your OS between light and dark — these update with no re-render and no invalidation pass, because they were signals all along. A host that cannot tell reports a documented fallback rather than a guess."
     >
       <Chip tone={() => (scheme() === 'dark' ? 'good' : 'neutral')}>{() => `colorScheme: ${scheme()}`}</Chip>
       <Readout>
         {() =>
           [
-            `dimensions: ${Math.round(size().width)} × ${Math.round(size().height)}`,
-            `safeArea:   top ${insets().top}  right ${insets().right}  bottom ${insets().bottom}  left ${insets().left}`,
+            `dimensions:   ${Math.round(size().width)} × ${Math.round(size().height)}`,
+            `safeArea:     top ${insets().top}  right ${insets().right}  bottom ${insets().bottom}  left ${insets().left}`,
+            `reduceMotion: ${still()}`,
           ].join('\n')
         }
       </Readout>
+      <Text size="sm" tone="muted">
+        `reduceMotion` is the fourth accessor and the one with a consumer already: `/animate` reads it and skips a
+        non-essential timeline outright, so honouring the preference costs an app nothing. A host that cannot tell
+        reports `false` forever — the same shape of documented assumption the other three make.
+      </Text>
       <Text size="sm" tone="muted">
         A host that cannot measure reports zeroes deliberately: a guessed 375×667 would read as a real phone and be
         wrong in a way nobody would notice. Zeroes are a value no layout accidentally looks right against.

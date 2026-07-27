@@ -13,7 +13,9 @@
     "deploy:dry": "bun run build && wrangler deploy --dry-run"
   },
   "dependencies": {
-    "@amritk/mini-native": "workspace:*"
+    "@amritk/mini-native": "workspace:*",
+    "@amritk/runtime-validators": "^0.9.0",
+    "@tanstack/query-core": "^5.101.2"
   },
   "devDependencies": {
     "typescript": "^5",

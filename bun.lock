@@ -35,6 +35,8 @@
       "version": "0.0.0",
       "dependencies": {
         "@amritk/mini-native": "workspace:*",
+        "@amritk/runtime-validators": "^0.9.0",
+        "@tanstack/query-core": "^5.101.2",
       },
       "devDependencies": {
         "typescript": "^5",

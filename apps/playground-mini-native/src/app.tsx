@@ -113,8 +113,14 @@ const TabBar = (): HostElement => {
     return current === path || (path !== '/' && current.startsWith(`${path}/`))
   }
 
+  // A horizontal `scroll-view` rather than eleven flexed tabs, because at this
+  // count an evenly divided bar gives each label about thirty pixels — which
+  // reads as broken on a phone rather than as dense. Scrolling is what a native
+  // tab bar does when it outgrows the screen, and using the vocabulary's own
+  // scroll container means the behaviour comes from the host on both targets.
   return (
-    <view
+    <scroll-view
+      axis="horizontal"
       role="navigation"
       label="Sections"
       style={() => ({
@@ -133,11 +139,13 @@ const TabBar = (): HostElement => {
           navigate={router.navigate}
           label={route.label}
           style={() => ({
-            flex: 1,
+            minWidth: 62,
             alignItems: 'center',
             gap: 2,
             paddingTop: 6,
             paddingBottom: 6,
+            paddingLeft: 4,
+            paddingRight: 4,
             borderRadius: RADIUS.sm,
             background: isActive(route.path) ? palette().surfaceAlt : 'transparent',
           })}
@@ -150,7 +158,7 @@ const TabBar = (): HostElement => {
           </text>
         </RouteLink>
       ))}
-    </view>
+    </scroll-view>
   )
 }
 

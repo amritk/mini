@@ -1,6 +1,7 @@
 import type { AnimationEnd, AnimationTiming, Host, HostAnimation, Keyframes } from '../host'
 import type { HostElement, StyleValue } from '../types'
 import type { LynxElement, LynxElementApi } from './lynx-element-api'
+import { toCssName } from './to-css-name'
 import { toStyleText } from './to-style-text'
 
 /**
@@ -164,11 +165,17 @@ export const createTransitionAnimator = (
  * Property by property rather than wholesale, so the element's own style bag
  * survives underneath and only the properties the animation actually mentions
  * are disturbed. `release` clears the lot by rewriting the bag.
+ *
+ * Keys take their CSS spelling, exactly as `setStyle` does — `__AddInlineStyle`
+ * names one declaration, which is why this host calls it with `display` and
+ * `transition` elsewhere. A keyframe written `{ backgroundColor: 'red' }` would
+ * otherwise be dropped by the parser, and dropped silently: the animation would
+ * still run its timers and resolve `finished`, having moved nothing.
  */
 const applyFrame = (api: LynxElementApi, element: LynxElement, frame: StyleValue): void => {
   for (const [key, value] of Object.entries(frame)) {
     if (value === null || value === undefined || value === false) continue
-    api.__AddInlineStyle(element, key, toStyleText(key, value))
+    api.__AddInlineStyle(element, toCssName(key), toStyleText(key, value))
   }
 }
 

@@ -218,6 +218,26 @@ describe('create-lynx-host', () => {
     expect(asFake(element).events.get('bindEvent:tap')).toBeNull()
   })
 
+  it('hands the engine CSS property names, not the camelCase key a style bag was written with', () => {
+    const engine = setup()
+    mount(lynxRoot(toLynx(engine.root)), () => (
+      <view style={{ fontSize: 16, backgroundColor: 'red', 'border-radius': 8, '--brand': 'blue' }} />
+    ))
+
+    const view = engine.root.children[0]
+    // `__SetInlineStyles` is handed declarations that the engine parses as CSS,
+    // where `fontSize` has never been a property — so passing the key through
+    // dropped it in silence, on the device only. Both spellings are legal in a
+    // style bag and both have to arrive as the same declaration; a custom
+    // property is whatever its author named it and must not be case-folded.
+    expect(view?.styles).toEqual({
+      'font-size': '16px',
+      'background-color': 'red',
+      'border-radius': '8px',
+      '--brand': 'blue',
+    })
+  })
+
   it('hides an element by setting display none and restores it to flex', () => {
     const engine = setup()
     const visible = signal(true)

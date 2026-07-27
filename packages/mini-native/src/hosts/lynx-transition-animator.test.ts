@@ -112,14 +112,18 @@ describe('lynx-transition-animator', () => {
     expect(engine.released()).toBe(1)
   })
 
-  it('adds the unit a bare number implies', async () => {
+  it('adds the unit a bare number implies, under the property CSS calls it', async () => {
     const engine = createFakeEngine()
-    animatorFor(engine)(engine.element, [{ translateY: 40 }, { translateY: 0 }], { duration: 100 })
+    animatorFor(engine)(engine.element, [{ marginTop: 40 }, { marginTop: 0 }], { duration: 100 })
 
     await vi.runAllTimersAsync()
 
-    expect(engine.log).toContain('translateY: 40px')
-    expect(engine.log).toContain('translateY: 0px')
+    // Two conversions, both the host's job and both silent when skipped: a bare
+    // number is density-independent pixels, and `__AddInlineStyle` names one
+    // declaration — so a keyframe key has to arrive spelled the way CSS spells
+    // it or the engine drops it while the timers run out anyway.
+    expect(engine.log).toContain('margin-top: 40px')
+    expect(engine.log).toContain('margin-top: 0px')
   })
 
   it('waits out the delay before touching the element', async () => {

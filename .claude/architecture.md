@@ -151,12 +151,24 @@ in `history` mode survives a hard reload).
 that is what they are for rather than a side effect. The suites test the
 packages from the inside, against source, one primitive at a time; a playground
 composes the whole surface into a running app and is therefore where the
-composition-level defects show up. Three did, on the way in, and all three are
-fixed in `packages/` with regression tests: `renderChild` subscribing the branch
-swap to signals a component body read while building, the DOM host reading
-`lineHeight` as CSS's multiplier rather than as dp, and `pan` measuring the end
-velocity across the lift rather than across the last movement — which meant
-`swipe` could not fire in a browser at all.
+composition-level defects show up. Five have, and all five are fixed in
+`packages/` with regression tests: `renderChild` subscribing the branch swap to
+signals a component body read while building, the DOM host reading `lineHeight`
+as CSS's multiplier rather than as dp, `pan` measuring the end velocity across
+the lift rather than across the last movement — which meant `swipe` could not
+fire in a browser at all — the Lynx host handing the engine the camelCase key a
+style bag was written with, which it parses as CSS and drops in silence, and
+`/forms`' `Field` arriving from `@amritk/mini` with only the web's `class`
+styling channel and none of the portable one.
+
+The fourth is the one worth dwelling on, because it is the shape of defect this
+repository is otherwise blind to: the DOM host translated the key, the memory
+host stores the bag verbatim, so the browser preview and all 569 tests agreed
+with each other and disagreed with the only target that mattered. What caught it
+was the `/lynx` playground screen driving the REAL Lynx host against a fake
+Element PAPI and printing the tree — which the host's PAPI-as-an-argument design
+is what makes possible. A target nobody can look at is a target nobody is
+checking.
 
 Two conventions keep them honest, and both are worth preserving:
 
