@@ -49,7 +49,15 @@ export {
   type Role,
 } from './elements'
 export type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
-export type { Host, HostEventHandler } from './host'
+export { blur, focus } from './focus'
+export type {
+  ColorScheme,
+  Dimensions,
+  Host,
+  HostEnvironment,
+  HostEventHandler,
+  Insets,
+} from './host'
 export { list } from './list'
 export { mount } from './mount'
 export { onCleanup } from './on-cleanup'

@@ -30,6 +30,12 @@
     "node_modules",
     "src/hosts/create-dom-host.ts",
     "src/hosts/create-dom-host.test.tsx",
+    "src/hosts/dom-environment.ts",
+    "src/hosts/dom-reset.ts",
+    "src/hosts/dom-reset.test.ts",
+    "src/router/create-browser-history.ts",
+    "src/router/create-browser-history.test.ts",
+    "src/hosts/dom-environment.test.ts",
     "src/parity.test.tsx",
     "src/vocabulary-coverage.test.tsx"
   ]

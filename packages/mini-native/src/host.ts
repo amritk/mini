@@ -1,4 +1,56 @@
+import type { ReadonlySignal } from './signals'
 import type { Dispose, HostElement, HostNode, HostText, StyleValue } from './types'
+
+/** Whether the target is currently presenting light or dark surfaces. */
+export type ColorScheme = 'light' | 'dark'
+
+/** The size of the area the app is being drawn into, in density-independent pixels. */
+export type Dimensions = {
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * How far in from each edge it is safe to draw, in density-independent pixels.
+ *
+ * This is the field that has no web equivalent worth the name and is
+ * unavoidable on a device: a notch, a rounded corner, a home indicator, and a
+ * status bar all eat into the screen, and content drawn underneath them is
+ * simply not visible.
+ */
+export type Insets = {
+  readonly top: number
+  readonly right: number
+  readonly bottom: number
+  readonly left: number
+}
+
+/**
+ * What the target can say about itself, beyond the tree it renders.
+ *
+ * Every field is a SIGNAL rather than a value, and that is the whole reason
+ * this is expressible at all: a component runs exactly once here, so anything
+ * read as a plain value would be frozen at the moment the component was built.
+ * A signal means a rotation, a theme switch, or a keyboard appearing updates
+ * whatever read it, with no re-render and no invalidation machinery — the same
+ * rule as every other reactive value in the package.
+ *
+ * Every field is also OPTIONAL, and so is the whole object. A host reports what
+ * its target actually knows and the runtime fills in a documented static value
+ * for the rest, so the memory host stays a dozen lines and no existing host
+ * broke when this was added.
+ *
+ * This matters more than its size suggests. Safe area, viewport, and colour
+ * scheme are precisely what an app would otherwise branch on by OS name — and
+ * an OS name is a proxy for the thing you actually care about, which is why
+ * this exists and why a good version of it is what keeps `platform.select` from
+ * being reached for.
+ */
+export type HostEnvironment = {
+  readonly colorScheme?: ReadonlySignal<ColorScheme>
+  readonly dimensions?: ReadonlySignal<Dimensions>
+  readonly safeArea?: ReadonlySignal<Insets>
+}
 
 /**
  * The renderer contract — the entire platform surface this framework needs.
@@ -16,6 +68,30 @@ import type { Dispose, HostElement, HostNode, HostText, StyleValue } from './typ
  * every attribute write would become a whole-tree commit.
  */
 export type Host = {
+  /**
+   * How this target names itself: `web`, `lynx`, `memory`, or whatever a new
+   * host calls its own platform. Absent means nobody said, which reads back as
+   * `unknown`.
+   *
+   * A FIELD rather than a function, deliberately — the porting cost of a new
+   * target is the number of functions in this contract, and a string that never
+   * changes should not be spent against that budget.
+   *
+   * Reach for {@link HostEnvironment} before reaching for this. An OS name is a
+   * proxy for the thing an app actually cares about (is there a notch, does
+   * hover exist, is anything addressable), and proxies rot: code branching on
+   * `os === 'web'` is wrong the day a second web-shaped target appears. A
+   * capability registry would be the better answer and is not built, because
+   * designing the flag set before three real branches exist would be guesswork.
+   */
+  readonly platform?: string
+
+  /**
+   * What this target can say about itself — colour scheme, size, safe area.
+   * Optional in full and optional per field; see {@link HostEnvironment}.
+   */
+  readonly environment?: HostEnvironment
+
   /**
    * Creates an element for one of the tags in the element vocabulary. Hosts map
    * the vocabulary onto whatever they actually render — the DOM host turns
@@ -144,6 +220,29 @@ export type Host = {
   firstChild: (element: HostElement) => HostNode | null
 
   nextSibling: (node: HostNode) => HostNode | null
+
+  /**
+   * Moves keyboard focus to an element, and takes it away again.
+   *
+   * These are the only METHODS the contract has grown since it was first
+   * written, and they earned it the hard way: no existing method can express
+   * them and every real app needs them — advancing to the next field in a form,
+   * trapping focus in a modal and restoring it afterwards, moving a screen
+   * reader to an error that has just appeared.
+   *
+   * Focusing cannot be a prop, which is the part worth understanding. A
+   * `focused={true}` prop has no correct meaning once the user taps somewhere
+   * else: the prop still says `true`, the element is not focused, and there is
+   * no honest way to reconcile the two. Focus is an EVENT — a thing that
+   * happens — not a state an element holds, so it is expressed as a call.
+   *
+   * Optional, because a target may genuinely have no notion of focus and should
+   * not have to fake one. The memory host does not implement them; `focus()`
+   * and `blur()` are no-ops there rather than errors.
+   */
+  focus?: (element: HostElement) => void
+
+  blur?: (element: HostElement) => void
 
   /**
    * Commits pending mutations, for targets that batch rather than apply

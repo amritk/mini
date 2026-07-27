@@ -1,4 +1,4 @@
-import type { Host, HostEventHandler } from '../host'
+import type { Host, HostEnvironment, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
@@ -23,10 +23,31 @@ import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
  * `flush` and lets the scheduler coalesce a whole tick of mutations into one
  * commit.
  *
+ * **Everything outside the element tree is passed IN rather than read from the
+ * engine**, which is worth explaining because it looks like a gap. This adapter
+ * drives the Element PAPI, and that subset is element-level: create a node, set
+ * an attribute, append a child. Colour scheme, viewport, safe-area insets, and
+ * moving focus all live elsewhere — on system-information globals and UI-method
+ * calls that are not part of the PAPI, vary by engine version, and, unlike the
+ * PAPI, this package has no way to exercise against a fake. Guessing at their
+ * names would mean shipping a host that behaves plausibly on some builds and
+ * silently wrongly on others, which is worse than asking the app, which knows
+ * exactly which engine it is running on. Omit them and the accessors report
+ * their documented static values and `focus` is a no-op.
+ *
+ * ```ts
+ * setHost(createLynxHost(undefined, {
+ *   environment: { safeArea: () => insetsFromYourEngine() },
+ *   focus: (element) => yourEngineFocus(element),
+ * }))
+ * ```
+ *
  * @param api The Element PAPI. Defaults to the engine globals; pass a fake to
  *   exercise the adapter off-device.
+ * @param options What the engine can do beyond its element tree. See above for
+ *   why these are supplied rather than discovered.
  */
-export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
+export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: LynxHostOptions = {}): Host => {
   /**
    * Handlers registered per element and event name.
    *
@@ -57,6 +78,16 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
   }
 
   return {
+    platform: 'lynx',
+
+    // Spread rather than assigned, because `exactOptionalPropertyTypes` draws a
+    // real distinction here: a host that omits a field and one that sets it to
+    // `undefined` should not be the same host, and only the first is "this
+    // target did not say".
+    ...(options.environment === undefined ? {} : { environment: options.environment }),
+    ...(options.focus === undefined ? {} : { focus: options.focus }),
+    ...(options.blur === undefined ? {} : { blur: options.blur }),
+
     // A framework-owned tree does not participate in Lynx's own component
     // system, so every element is created under component ID 0.
     createElement: (tag) => toHostElement(api.__CreateElement(tag, 0, {})),
@@ -129,17 +160,24 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
       const byName = handlers.get(element) ?? new Map<string, Set<HostEventHandler>>()
       handlers.set(element, byName)
 
+      // Most vocabulary events are one engine event; `pointer` is four, because
+      // a gesture is a sequence and one handler for all its phases is what
+      // makes a recogniser writable without reassembling the stream.
+      const engineNames = EVENT_GROUPS[name] ?? [name]
+
       const existing = byName.get(name)
       if (existing) {
         existing.add(handler)
       } else {
         const set = new Set<HostEventHandler>([handler])
         byName.set(name, set)
-        // Iterate a copy so a handler detaching itself cannot disturb the walk.
-        api.__AddEvent(element, 'bindEvent', name, (event) => {
-          const native = toNativeEvent(name, event)
-          for (const listener of [...set]) listener(native)
-        })
+        for (const engineName of engineNames) {
+          // Iterate a copy so a handler detaching itself cannot disturb the walk.
+          api.__AddEvent(element, 'bindEvent', engineName, (event) => {
+            const native = toNativeEvent(name, event, engineName)
+            for (const listener of [...set]) listener(native)
+          })
+        }
       }
 
       return () => {
@@ -150,7 +188,7 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
         // left calling into an empty set for every gesture.
         if (set.size === 0) {
           byName.delete(name)
-          api.__AddEvent(element, 'bindEvent', name, null)
+          for (const engineName of engineNames) api.__AddEvent(element, 'bindEvent', engineName, null)
         }
       }
     },
@@ -196,6 +234,24 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi()): Host => {
  * Wraps an element the engine already owns — typically the page — as a mount
  * target, so an app can attach to it without the runtime seeing a Lynx type.
  */
+/**
+ * What the engine can do that its Element PAPI does not cover.
+ *
+ * Every field is optional and the whole object may be omitted, so the ordinary
+ * `createLynxHost()` on a device is unchanged. Supplying one is how an app
+ * teaches this adapter about the parts of its own engine version that the PAPI
+ * subset cannot reach — see the note on {@link createLynxHost} for why they are
+ * asked for rather than guessed at.
+ */
+export type LynxHostOptions = {
+  /** Colour scheme, dimensions, and safe-area insets, as signals. */
+  environment?: HostEnvironment
+  /** Moves keyboard focus to an element. */
+  focus?: (element: HostElement) => void
+  /** Takes keyboard focus away from an element. */
+  blur?: (element: HostElement) => void
+}
+
 export const lynxRoot = (element: LynxElement): HostElement => toHostElement(element)
 
 /** What the host remembers per element so a style write cannot disturb visibility. */
@@ -228,10 +284,32 @@ const DEFAULT_DISPLAY = 'flex'
  * correcting an attribute name is a one-line edit with a test that says whether
  * it took.
  */
+/**
+ * Vocabulary events that need several engine listeners rather than one.
+ *
+ * Hover is deliberately absent, and its absence is the feature: a device has no
+ * hover, so `onHoverIn` never fires here. A hover-only affordance is a design
+ * bug rather than a platform difference to smooth over, and synthesising one
+ * from a touch would hide it until somebody used the app.
+ */
+const EVENT_GROUPS: Record<string, readonly string[]> = {
+  pointer: ['touchstart', 'touchmove', 'touchend', 'touchcancel'],
+}
+
+/** Which phase each of those engine events reports. */
+const POINTER_PHASES: Record<string, 'down' | 'move' | 'up' | 'cancel'> = {
+  touchstart: 'down',
+  touchmove: 'move',
+  touchend: 'up',
+  touchcancel: 'cancel',
+}
+
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
   axis: 'scroll-orientation',
   secure: 'secure-input',
+  submitLabel: 'confirm-type',
+  autoComplete: 'autofill-hint',
   selectable: 'text-selection',
   role: 'accessibility-role',
   level: 'accessibility-level',
@@ -261,8 +339,25 @@ const ATTRIBUTES: Record<string, string> = {
  * most likely to need adjusting per engine version, and are asserted against the
  * fake engine for exactly that reason.
  */
-const toNativeEvent = (name: string, event: unknown): unknown => {
+const toNativeEvent = (name: string, event: unknown, engineName: string = name): unknown => {
   const source = (event ?? {}) as Record<string, unknown>
+
+  if (name === 'pointer') {
+    // The engine reports a touch under `detail`, or as a `touches` list when
+    // more than one finger is down. Reading both is the same defensiveness the
+    // rest of this function applies: these field names are the part most likely
+    // to differ per engine version, which is why the fake engine asserts them.
+    const detail = (source['detail'] ?? source) as Record<string, unknown>
+    const touches = source['touches']
+    const touch = (Array.isArray(touches) && touches.length > 0 ? touches[0] : detail) as Record<string, unknown>
+    return {
+      id: numberOr(touch['identifier']) ?? numberOr(touch['id']) ?? 0,
+      x: numberOr(touch['x']) ?? 0,
+      y: numberOr(touch['y']) ?? 0,
+      phase: POINTER_PHASES[engineName] ?? 'move',
+      raw: event,
+    }
+  }
 
   if (name === 'tap' || name === 'longpress') {
     const detail = (source['detail'] ?? source) as Record<string, unknown>
@@ -278,7 +373,7 @@ const toNativeEvent = (name: string, event: unknown): unknown => {
     return { x: numberOr(source['scrollLeft']) ?? 0, y: numberOr(source['scrollTop']) ?? 0, raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'input' || name === 'change' || name === 'submit') {
     const detail = (source['detail'] ?? source) as Record<string, unknown>
     return { value: String(detail['value'] ?? ''), raw: event }
   }

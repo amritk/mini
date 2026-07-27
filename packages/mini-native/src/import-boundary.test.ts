@@ -18,6 +18,10 @@ import { describe, expect, it } from 'vitest'
  * `flow/` may be reachable either, since the control-flow components are an
  * opt-in subpath rather than part of the runtime everyone pays for.
  *
+ * Nothing under `ui/` may be reachable for the same reason as `flow/`: the
+ * component layer is an opt-in subpath, and an app that writes its own
+ * components should not pay for the ones shipped here.
+ *
  * Today the only thing enforcing any of this is the tsconfig's missing DOM lib,
  * which catches a stray `document` but is perfectly happy with an import that
  * merely drags a host's bytes along. This walks the source graph from
@@ -27,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router']
 
 /**
  * Drops comments before the specifiers are read.
@@ -123,6 +127,51 @@ describe('import-boundary', () => {
     const flow = walk(resolve(SRC, 'flow', 'index.ts'))
     expect(leaksFrom(flow.files, ['hosts'])).toEqual([])
     expect([...flow.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the component layer free of any host', () => {
+    // `/ui` is pure composition over the vocabulary — it names things, it does
+    // not render them — so a host reaching it would mean a component had
+    // learned what platform it was on, which is the one thing this layer exists
+    // to prevent.
+    const ui = walk(resolve(SRC, 'ui', 'index.ts'))
+    expect(leaksFrom(ui.files, ['hosts'])).toEqual([])
+    expect([...ui.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the platform subpath free of any host', () => {
+    // The one that would be easy to get backwards. `platform` reports which
+    // host is installed, and the tempting way to write that is to import the
+    // hosts and compare — which would make asking what target you are on pull
+    // in the renderer for every target you are not.
+    const platform = walk(resolve(SRC, 'platform', 'index.ts'))
+    expect(leaksFrom(platform.files, ['hosts'])).toEqual([])
+    expect([...platform.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the composition subpath free of any host', () => {
+    const composition = walk(resolve(SRC, 'composition', 'index.ts'))
+    expect(leaksFrom(composition.files, ['hosts'])).toEqual([])
+    expect([...composition.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the gestures subpath free of any host', () => {
+    // The recognisers are arithmetic over a stream the host already normalised.
+    // If one of them reached for a host, it would mean the normalisation had
+    // not actually been done and the maths was compensating for a platform.
+    const gestures = walk(resolve(SRC, 'gestures', 'index.ts'))
+    expect(leaksFrom(gestures.files, ['hosts'])).toEqual([])
+    expect([...gestures.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the router free of the browser it can drive', () => {
+    // The whole reason `createBrowserHistory` is on its own entry. Matching a
+    // path is arithmetic and ports for nothing; only navigation has a
+    // per-target answer, and it arrives as an argument. A device build that
+    // imports the router must not pull `window` along with it.
+    const router = walk(resolve(SRC, 'router', 'index.ts'))
+    expect(leaksFrom(router.files, ['hosts'])).toEqual([])
+    expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

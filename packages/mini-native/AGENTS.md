@@ -25,6 +25,8 @@ src/
   current-host.ts         setHost / requireHost / scheduleFlush (one host per context)
   types.ts                MaybeReactive, ClassValue, StyleValue, opaque node handles
   elements.ts             The element vocabulary (view/text/image/scroll-view/input) + roles
+  focus.ts                focus / blur — the only imperative pair in the contract
+  context-frame.ts        The ambient frame a lazily-built subtree is rebuilt inside
   events.ts               The event payloads the framework defines, so hosts normalise to them
   jsx-runtime.ts          The compilerless JSX runtime + the JSX type surface
   jsx-dev-runtime.ts      Dev entry point (same implementation)
@@ -40,9 +42,16 @@ src/
   warn.ts                 Recoverable-mistake reporting, without assuming a console
   bind/                   bind-text, bind-prop, bind-show, bind-value
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
+  ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
+  platform/               platform.os / platform.select, and the environment accessors
+  composition/            createContext, Portal, ErrorBoundary
+  gestures/               pan, swipe — arithmetic over the normalised pointer stream
+  router/                 Pattern matching (pure) + a pluggable history; the browser one is its own entry
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
-    create-dom-host.ts    Web preview target (the ONLY file that knows about HTML)
+    create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)
+    dom-environment.ts    Colour scheme, viewport and safe-area insets, read off the browser
+    dom-reset.ts          The stylesheet that makes a browser lay out like Yoga
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
@@ -103,6 +112,27 @@ src/
   semantics layer on. The same rule is why a `list` role must not build a real
   `<ul>` — `<ul>` may only contain `<li>`, which is a parse-level content model
   no attribute can rescue once a wrapper sits between them.
+- **Anything that builds a subtree LATER must restore the context frame.**
+  `renderChild` and `list` capture `currentFrame()` when they are called — which
+  is during the component body, inside whatever provider wraps it — and run
+  every later build inside `withFrame`. Without that, a theme provided at the
+  app root reaches every component except the ones inside a conditional or a
+  list, and it fails silently by falling back to a plausible default. Core does
+  not know what a frame IS (it is `unknown` there); `/composition` decides the
+  shape, which is what keeps the feature out of the byte-budgeted entry. Any new
+  lazy-build path — `ErrorBoundary`'s retry was the third — owes the same two
+  lines.
+- **A bare text run gets its element in a COMPONENT, never in the runtime.**
+  `ui/wrap-text-runs.ts` is why `<Button>Save</Button>` works while
+  `<view>Save</view>` still does not compile, and the distinction is the whole
+  point. A container refusing a text run is a compile error because there is no
+  correct reading of it — on Lynx that screen comes up blank. A component is
+  different: it has an opinion about its own contents, its label needs a `text`
+  element on every target anyway, and the wrap is one visible line in one file.
+  `appendChildren` must never grow this behaviour — that is
+  [`docs/mini-native-cross-platform.md` §15.3](../../docs/mini-native-cross-platform.md)'s
+  rejected option 1, inserting nodes nobody wrote on the target where node count
+  is the performance problem.
 - **The compiler ceiling here is an OPTIONAL OPTIMISING plugin**, one level above
   `@amritk/mini`'s diagnostics-only ceiling, because this package's consumer owns
   a whole app toolchain rather than embedding into someone else's page. The
@@ -216,21 +246,108 @@ permanent.
 - **Screens should be written in components, not in vocabulary tags.** This is
   the thing that keeps every decision above reversible: if the vocabulary lives
   in twenty components rather than two hundred screens, changing any of it is a
-  rewrite of the component layer instead of the app.
+  rewrite of the component layer instead of the app. `/ui` is that layer.
+- **`/ui` ships the semantics; the app ships the taste.** `<Button>` knows a
+  button is a button on both targets, is reachable by keyboard on both, and is
+  unavailable rather than greyed. It does not know your buttons are 44px tall.
+  Two things follow and both are load-bearing: the layer needs **no host
+  machinery at all**, so it grows the `Host` contract by nothing, and because it
+  has no appearance every component has an assertable semantic outcome on all
+  three hosts — which is why they sit in `parity.test.tsx` beside the
+  vocabulary. Keep it small: the more it carries, the more a design system built
+  on it is version-coupled to this package.
+- **Prefer `Host.environment` to `Host.platform`.** Both exist and only one is
+  the good answer. An OS name is a proxy for the thing an app actually cares
+  about — is there a notch, does hover exist, is anything addressable — and
+  proxies rot: `os === 'web'` typechecks forever and is wrong the day a second
+  web-shaped target appears. Safe area, viewport, and colour scheme are exactly
+  what a name would otherwise be used to infer, so a good environment API is
+  what keeps `platform.select` rare. When a branch IS unavoidable, keep it to
+  leaf values; anything structural belongs in a `.web.tsx` / `.native.tsx` pair,
+  which is greppable and countable where an inline branch is invisible.
+- **A capability registry is NOT built, on purpose.** `canHover` /
+  `hasBackButton` / `isAddressable` would beat both of the above. Designing the
+  flag set before three real call sites exist is guesswork; revisit at three.
+- **A host reports only what its target genuinely knows.** Every field of
+  `HostEnvironment` is optional and so is the whole object, and the accessors
+  fill in a documented static value for whatever is absent — which is also what
+  keeps those fallbacks exercised on every run, since the memory host reports
+  nothing. The Lynx host takes its environment as an ARGUMENT rather than
+  reading engine globals: the PAPI subset it drives is element-level, the
+  system-information globals vary by engine version, and there is no fake to
+  test them against, so shipping plausible-but-wrong values per build would be
+  worse than asking the app, which knows exactly which engine it runs on.
 
-Still genuinely open, so do not treat either as decided: whether `role="button"`
+- **Gestures are two layers, and the split is the whole design.** The HOST
+  normalises a browser's Pointer Events and an engine's touch events into one
+  `PointerEvent` — id, element-relative position, phase. That is the only part
+  that cannot be written once, and it needed no new host method. The
+  RECOGNISERS in `/gestures` are then pure arithmetic and know no platform at
+  all, which is why they are portable by construction rather than by anyone
+  maintaining two versions. A recogniser that reaches for a host means the
+  normalisation was not actually done and the maths is compensating.
+- **Hover never fires on a touch, deliberately.** A browser synthesises
+  `pointerenter`/`pointerleave` around a tap and the DOM host filters those out.
+  A hover-only affordance is a design bug — content nobody on a phone will see —
+  not a platform difference to smooth over, so nothing synthesises a fake hover.
+- **`onPointer` is one prop for four phases.** A gesture is a sequence; four
+  props would only mean reassembling it at every call site.
+
+## Settled decisions on style
+
+[`docs/mini-native-style.md`](../../docs/mini-native-style.md) is the reasoning.
+
+- **The reset is the floor, not a nicety.** An unstyled container with two
+  children stacks vertically on a device and horizontally on the web. Everything
+  else in the cross-platform story is additive; this is not, and no amount of
+  careful component authoring above it papers over it.
+- **The reset never outranks the app.** Every rule is `:where()`-wrapped, so
+  specificity is zero and a single class or a `style` prop beats it. A reset that
+  wins arguments is one people work around, and the workarounds are worse than
+  the divergence.
+- **Scoped by `data-mn`, not by tag.** An app embedding this runtime keeps its
+  own page. Flow wrappers are deliberately unstamped — `display: contents` means
+  no box to reset, and a `display: flex` rule would fight the one thing the
+  wrapper must be.
+- **Text inheritance stops at a container**, matching Yoga rather than CSS, and
+  the base is `--mn-font` / `--mn-color` rather than `initial` — `font: initial`
+  is a serif face, so an app that had never heard of the reset would come up in
+  Times.
+- **Overflow is NOT clipped.** It looks like a missing row in the divergence
+  table and is left out on purpose: the two native platforms disagree with each
+  other, and clipping every container on the web breaks shadows, focus rings,
+  and popovers. *Reopen if* a real screen shows the difference is structural
+  rather than cosmetic.
+- **Tokens resolve to STYLE OBJECTS, not classes.** Classes are cheaper on the
+  web and meaningless on a headless host. A style object is the only shape every
+  target already consumes, and class extraction stays available later as a
+  web-only optimisation behind the optional plugin — where skipping it costs
+  bytes rather than correctness. Choosing classes first would have made the
+  other two hosts carry a translation layer that could never be removed.
+- **`size` and `level` are two props, always.** Couple them and authors pick
+  heading levels by how big they want the text. `Text` has no `role` or `level`
+  on its surface at all, which enforces it rather than documenting it.
+
+Still genuinely open, so do not treat it as decided: whether `role="button"`
 builds a real `<button>` (browser affordances, but a content model TypeScript
-cannot enforce) or a `div` with the role and synthesised activation; and whether
-design tokens resolve to style objects or to classes. Both belong with the style
-note.
+cannot enforce) or a `div` with the role and synthesised activation.
 
 ## Known gaps
 
 See the README's *Known gaps* for the full list. The short version: `bindClass`
 and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
-an animation seam, context/portal/error boundaries, and the router / forms /
-query subpaths are simply not built yet. Accessibility props are **done** — see
-`Role` in `elements.ts` and the two host mappings. `docs/mini-native-audit.md`
+an animation seam, and the router / forms / query subpaths are simply not built
+yet. Accessibility props are **done** — see `Role` in `elements.ts` and the two
+host mappings — and so are the component layer (`/ui`), the platform layer
+(`/platform`), and the composition seams (`/composition`: context, portal, error
+boundaries).
+
+Two things are still deliberately missing from `/ui`, each waiting on something
+specific rather than on someone getting to it: `size` and `tone` want a type
+scale resolved against a theme, and the theme itself wants context. Adding
+either early would mean shipping a prop with nothing behind it, which is the
+class of documented lie `vocabulary-coverage.test.tsx` exists to catch one layer
+down. `docs/mini-native-audit.md`
 at the repo root carries the reasoning and the priority order.
 
 Add a changeset for every change (`bunx changeset`).

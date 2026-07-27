@@ -50,6 +50,12 @@ export const createMemoryHost = (): MemoryHost => {
   const root = element('root')
 
   const host: Host = {
+    platform: 'memory',
+
+    // No `environment`, on purpose. This host has no screen, so it has no
+    // colour scheme, no size, and no notch to report — and leaving the field
+    // off is what exercises the runtime's documented fallbacks on every test
+    // run rather than only when someone remembers to check them.
     createElement: (tag) => toHostElement(element(tag)),
 
     // Nothing in an object tree needs a layout escape hatch, so the flow
@@ -175,7 +181,21 @@ const toNativeEvent = (name: string, event: unknown): unknown => {
     return { x: numberOr(source['x']), y: numberOr(source['y']), raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'pointer') {
+    // `phase` defaults to `move` rather than `down`, so a test that forgets it
+    // describes the phase a gesture spends most of its time in instead of
+    // silently starting a new one.
+    const phase = source['phase']
+    return {
+      id: numberOr(source['id']),
+      x: numberOr(source['x']),
+      y: numberOr(source['y']),
+      phase: typeof phase === 'string' ? phase : 'move',
+      raw: event,
+    }
+  }
+
+  if (name === 'input' || name === 'change' || name === 'submit') {
     return { value: String(source['value'] ?? ''), raw: event }
   }
 

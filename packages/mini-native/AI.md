@@ -28,7 +28,9 @@ will be — the DOM is a *preview target* here, not the real one. Writing
 
 **3. Only `<text>` may hold a text run.** `<view>hello</view>` does not compile
 either. A native view tree has no loose text inside a container — on Lynx that
-screen comes up blank — so containers take element children only.
+screen comes up blank — so containers take element children only. The
+label-carrying components in `/ui` are the exception and they wrap it for you:
+`<Button>Save</Button>` is fine.
 
 ## Setup — a host must be installed first
 
@@ -100,6 +102,12 @@ structurally, use the control-flow components.
 |---|---|
 | `@amritk/mini-native` | signals, `mount`, `list`, binds, `setHost`, JSX types |
 | `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey` |
+| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags |
+| `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` as signals. Prefer the environment to the OS name |
+| `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
+| `@amritk/mini-native/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |
+| `@amritk/mini-native/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` — platform-free |
+| `@amritk/mini-native/router/browser` | `createBrowserHistory` — the web's session history, on its own entry so `/router` stays platform-free |
 | `@amritk/mini-native/host` | the `Host` contract, for writing a renderer |
 | `@amritk/mini-native/hosts/dom` | `createDomHost`, `domRoot` — web preview |
 | `@amritk/mini-native/hosts/lynx` | `createLynxHost`, `lynxRoot` — Lynx Element PAPI |

@@ -1,4 +1,4 @@
-import type { InputEvent, NativeEvent, ScrollEvent, TapEvent } from './events'
+import type { InputEvent, NativeEvent, PointerEvent, ScrollEvent, TapEvent } from './events'
 import type { ClassValue, ContainerChildren, HostElement, MaybeReactive, MiniChildren, StyleValue } from './types'
 
 /**
@@ -72,6 +72,10 @@ export interface NativeEventMap {
   error: NativeEvent
   input: InputEvent
   change: InputEvent
+  submit: InputEvent
+  pointer: PointerEvent
+  hoverin: NativeEvent
+  hoverout: NativeEvent
 }
 
 /** A handler for one of the events in {@link NativeEventMap}. */
@@ -90,6 +94,27 @@ type EventHandlers = {
   onLongPress?: NativeEventHandler<'longpress'>
   onFocus?: NativeEventHandler<'focus'>
   onBlur?: NativeEventHandler<'blur'>
+  /**
+   * Every phase of every pointer over this element — down, move, up, cancel.
+   *
+   * The raw material rather than a gesture. One handler covers all four phases
+   * because a gesture is a sequence and splitting it across four props would
+   * mean reassembling it at every call site. Reach for the recognisers in
+   * `@amritk/mini-native/gestures` before reaching for this: `pan` and `swipe`
+   * are pure arithmetic over exactly this stream, which is why they are
+   * portable by construction.
+   */
+  onPointer?: NativeEventHandler<'pointer'>
+  /**
+   * A pointer that can hover entered or left this element.
+   *
+   * These never fire on a touch-only target, and the API is shaped to make that
+   * obvious rather than to smooth it over. A hover-only affordance is a design
+   * bug — content nobody on a phone will ever see — not a platform difference
+   * to be papered over, so nothing here synthesises a fake hover from a touch.
+   */
+  onHoverIn?: NativeEventHandler<'hoverin'>
+  onHoverOut?: NativeEventHandler<'hoverout'>
 }
 
 /**
@@ -194,6 +219,21 @@ type AccessibilityProps = {
    * looking it.
    */
   focusable?: MaybeReactive<boolean>
+  /**
+   * Take focus as soon as this element is built.
+   *
+   * A plain boolean with no reactive form, because focusing is an EVENT rather
+   * than a state: once the user taps elsewhere, a getter that still returns
+   * `true` would describe something that is not true, and there is no honest
+   * way to reconcile that. Use {@link focus} for anything after the first
+   * moment.
+   *
+   * The focus is applied once the tree has been committed rather than during
+   * construction, which is not a detail: an element that is not yet in the tree
+   * cannot take focus on any target, so doing it eagerly would silently do
+   * nothing.
+   */
+  autoFocus?: boolean
   /** Unavailable for interaction, and announced as such rather than merely greyed. */
   disabled?: MaybeReactive<boolean>
   selected?: MaybeReactive<boolean>
@@ -319,8 +359,45 @@ type TagProps = {
      * exactly why the conflation was invisible until this ran on a device.
      */
     secure?: MaybeReactive<boolean>
+    /**
+     * What the keyboard's confirm key should say.
+     *
+     * The web gives you Enter-to-submit inside a `<form>` for free and a device
+     * does not — it has a return key with a configurable label and a callback.
+     * The portable pair is this and {@link onSubmit}, and it needs no `form`
+     * element in the vocabulary: `enterkeyhint` is a real HTML attribute, so
+     * the browser raises the same soft keyboard affordance a device does.
+     */
+    submitLabel?: MaybeReactive<'done' | 'go' | 'next' | 'search' | 'send'>
+    /**
+     * What this field is for, so the platform can fill it in.
+     *
+     * Painful to retrofit, free to design in, and the one input feature users
+     * notice immediately. The set is the subset that maps onto web
+     * `autocomplete` tokens, iOS `textContentType`, and Android autofill hints
+     * at once — anything only one platform understands would be a promise the
+     * others cannot keep.
+     *
+     * `phone` rather than the web's `tel`, to match {@link keyboard}. Two
+     * spellings of one concept is exactly the drift a small vocabulary exists
+     * to avoid, and translating it is the DOM host's job — the same job it does
+     * turning `keyboard="phone"` into `type="tel"`.
+     */
+    autoComplete?: MaybeReactive<
+      'off' | 'username' | 'password' | 'new-password' | 'email' | 'phone' | 'name' | 'one-time-code'
+    >
     onInput?: NativeEventHandler<'input'>
     onChange?: NativeEventHandler<'change'>
+    /**
+     * The user confirmed the field — Enter on the web, the return key on a
+     * device. Carries the value, so the common case needs nothing else.
+     *
+     * Does not fire on a {@link multiline} field, where the confirm key inserts
+     * a newline instead on every target, and does not fire while an input
+     * method is composing — pressing Enter to choose a candidate is not a
+     * submission, and treating it as one is the classic bug in this feature.
+     */
+    onSubmit?: NativeEventHandler<'submit'>
   }
 }
 

@@ -88,6 +88,10 @@ const COINCIDES_WITH_HTML = new Set([
   'readonly',
   'href',
   'role',
+  // Lowercased, the vocabulary's `autoComplete` IS the HTML attribute, so
+  // finding it here is the host having done its job — including translating
+  // `phone` into `tel`, which `create-dom-host.test.tsx` pins separately.
+  'autoComplete',
   // On an `<input>` this is the real attribute and the host is doing the right
   // thing; on a `<view>` the same prop becomes `aria-disabled` and never
   // appears under this name. One allowlist entry covers both, because the check
@@ -121,11 +125,20 @@ const COMMON = {
   onLongPress: NOOP,
   onFocus: NOOP,
   onBlur: NOOP,
+  onPointer: NOOP,
+  onHoverIn: NOOP,
+  onHoverOut: NOOP,
   role: 'button',
   level: 2,
   label: 'Save',
   hint: 'writes to disk',
   focusable: true,
+  // Deliberately `false`. `autoFocus` is consumed by the runtime rather than by
+  // a host — it defers a `focus` call to the end of the tick — so the check
+  // this suite performs is that it never reaches the element as an attribute,
+  // and `true` would additionally queue a focus against a node the test never
+  // put in a document.
+  autoFocus: false,
   disabled: true,
   selected: true,
   checked: true,
@@ -143,6 +156,9 @@ const SAMPLES: { [Tag in ElementTag]: PropSamples<Tag> } = {
     value: 'sam',
     placeholder: 'name',
     readonly: true,
+    submitLabel: 'send',
+    autoComplete: 'email',
+    onSubmit: NOOP,
     multiline: false,
     keyboard: 'email',
     secure: true,

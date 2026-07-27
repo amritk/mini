@@ -9,6 +9,7 @@ import { createMemoryHost, type MemoryElement } from './hosts/create-memory-host
 import type { LynxElement, LynxElementApi } from './hosts/lynx-element-api'
 import type { HostElement } from './index'
 import { clearHost, mount, setHost } from './index'
+import { Button, Heading, List, ListItem, Screen } from './ui'
 
 /**
  * The parity suite.
@@ -111,12 +112,102 @@ describe('host parity', () => {
   })
 })
 
+/**
+ * The component layer, held to the same standard as the vocabulary.
+ *
+ * `/ui` has no appearance by design — it ships semantics and leaves taste to
+ * the app — which means every component in it has an outcome that can be
+ * asserted on all three hosts. That is not a happy accident; it is the reason
+ * the line between the two was drawn where it was.
+ */
+describe('component-layer parity', () => {
+  it('agrees that a Button can be reached', () => {
+    const seen = renderEverywhere(() => <Button label="Save" />)
+
+    // The finding that made the component worth having. Without the stated
+    // `focusable`, all three hosts would report `null` here and the suite would
+    // call that agreement — while a real <button> sat in the focus order and a
+    // Lynx view with a button role sat outside it. Both hosts would be right;
+    // the component is what makes them the same.
+    expectAgreement(seen, { role: 'button', name: 'Save', focusable: true, disabled: null })
+  })
+
+  it('agrees on a Heading', () => {
+    const seen = renderEverywhere(() => <Heading level={3}>Pricing</Heading>)
+
+    expectAgreement(seen, { role: 'heading', name: null, focusable: null, disabled: null })
+  })
+
+  it('agrees on a List built the way a screen would build one', () => {
+    const seen = renderEverywhere(
+      () => (
+        <List>
+          <For each={[1]}>{() => <ListItem>Milk</ListItem>}</For>
+        </List>
+      ),
+      { depth: 2 },
+    )
+
+    // Two levels in — past the flow wrapper — is where the item sits, which is
+    // exactly the shape a `<ul>` could not have survived.
+    expectAgreement(seen, { role: 'listitem', name: null, focusable: null, disabled: null })
+  })
+
+  it('agrees on a Screen', () => {
+    const seen = renderEverywhere(() => <Screen />)
+
+    // The insets differ per target and that is the point of the component; what
+    // must not differ is that this is the main content region on all three.
+    expectAgreement(seen, { role: 'main', name: null, focusable: null, disabled: null })
+  })
+})
+
+/**
+ * Every shipped host has to say what it is.
+ *
+ * `platform.os` reading `unknown` is meant to describe a host somebody else
+ * wrote and did not annotate, never one of these — and a host that quietly
+ * stopped naming itself would take every `platform.select` in an app down to
+ * its default branch without failing anything.
+ */
+describe('host identity', () => {
+  it('names itself on every shipped host', () => {
+    expect(createDomHost().platform).toBe('web')
+    expect(createLynxHost(createFakeEngine().api).platform).toBe('lynx')
+    expect(createMemoryHost().host.platform).toBe('memory')
+  })
+
+  it('reports an environment only where there is something to report', () => {
+    // The memory host has no screen, so it says nothing — which is what keeps
+    // the runtime's documented fallbacks exercised on every run. The Lynx host
+    // says nothing either unless the app hands it something, because the PAPI
+    // subset it drives is element-level and guessing at the engine's system
+    // globals would mean reporting plausible values that are wrong per build.
+    expect(createDomHost().environment).toBeDefined()
+    expect(createMemoryHost().host.environment).toBeUndefined()
+    expect(createLynxHost(createFakeEngine().api).environment).toBeUndefined()
+    expect(
+      createLynxHost(createFakeEngine().api, { environment: { safeArea: () => INSETS } }).environment?.safeArea?.(),
+    ).toEqual(INSETS)
+  })
+})
+
+const INSETS = { top: 59, right: 0, bottom: 34, left: 0 }
+
 describe('event parity', () => {
   it('agrees on the shape of a tap that carried a position', () => {
     expect(tapEverywhere({ x: 12, y: 34 })).toEqual([
       { x: 12, y: 34 },
       { x: 12, y: 34 },
       { x: 12, y: 34 },
+    ])
+  })
+
+  it('agrees on the shape of a pointer going down', () => {
+    expect(pointerEverywhere()).toEqual([
+      { id: 1, x: 12, y: 34, phase: 'down' },
+      { id: 1, x: 12, y: 34, phase: 'down' },
+      { id: 1, x: 12, y: 34, phase: 'down' },
     ])
   })
 
@@ -203,6 +294,45 @@ const tapEverywhere = (point: { x: number; y: number } | null): Record<string, u
   mount(memory.rootElement, () => <view onTap={seen} />)
   for (const listener of (memory.root.children[0] as MemoryElement).listeners.get('tap') ?? []) {
     listener(point ?? {})
+  }
+  clearHost()
+
+  return results
+}
+
+/**
+ * Puts one pointer down on each host and reports the portable fields.
+ *
+ * This is the shape every gesture recogniser is built on, so a divergence here
+ * would not show up as a broken pointer handler — it would show up as `pan` and
+ * `swipe` quietly misbehaving on one target, several layers away from the cause.
+ */
+const pointerEverywhere = (): Record<string, unknown>[] => {
+  const results: Record<string, unknown>[] = []
+  const seen = (event: unknown): void => {
+    const { raw: _raw, ...portable } = event as Record<string, unknown>
+    results.push(portable)
+  }
+
+  setHost(createDomHost())
+  const domRootElement = document.createElement('div')
+  mount(domRoot(domRootElement), () => <view onPointer={seen} />)
+  const domElement = domRootElement.firstElementChild as HTMLElement
+  domElement.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect
+  domElement.dispatchEvent(new PointerEvent('pointerdown', { clientX: 12, clientY: 34, pointerId: 1 }))
+  clearHost()
+
+  const engine = createFakeEngine()
+  setHost(createLynxHost(engine.api))
+  mount(lynxRoot(engine.root as unknown as LynxElement), () => <view onPointer={seen} />)
+  engine.root.children[0]?.events.get('bindEvent:touchstart')?.({ detail: { identifier: 1, x: 12, y: 34 } })
+  clearHost()
+
+  const memory = createMemoryHost()
+  setHost(memory.host)
+  mount(memory.rootElement, () => <view onPointer={seen} />)
+  for (const listener of (memory.root.children[0] as MemoryElement).listeners.get('pointer') ?? []) {
+    listener({ id: 1, x: 12, y: 34, phase: 'down' })
   }
   clearHost()
 

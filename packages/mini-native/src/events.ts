@@ -65,3 +65,29 @@ export type ScrollEvent = NativeEvent & {
 export type InputEvent = NativeEvent & {
   readonly value: string
 }
+
+/**
+ * One moment in a pointer's life: a finger, a mouse, or a pen.
+ *
+ * This is the raw material every gesture is made of, and it is the only part of
+ * gesture handling that cannot be written once — a browser has Pointer Events
+ * and an engine has touch events, and reconciling them is exactly what a host
+ * is for. Everything above it is arithmetic, which is why the recognisers in
+ * `/gestures` are portable by construction rather than by effort.
+ *
+ * `id` is what makes multi-touch expressible at all: two fingers are two
+ * streams, and without an identity to key them by there is no way to tell a
+ * pinch from a fast pan. It is stable for the life of one pointer and is
+ * reused afterwards, so it identifies a stream rather than a finger.
+ *
+ * `cancel` is not a failure. It is the target taking the gesture away — a
+ * scroll container claiming the drag, a phone call arriving — and a recogniser
+ * that treats it as an `up` will commit gestures the user did not make.
+ */
+export type PointerEvent = NativeEvent & {
+  readonly id: number
+  /** Position in the element's own box, like every other coordinate here. */
+  readonly x: number
+  readonly y: number
+  readonly phase: 'down' | 'move' | 'up' | 'cancel'
+}

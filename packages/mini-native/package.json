@@ -76,6 +76,42 @@
       "import": "./dist/flow/index.js",
       "default": "./dist/flow/index.js"
     },
+    "./ui": {
+      "development": "./src/ui/index.ts",
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js",
+      "default": "./dist/ui/index.js"
+    },
+    "./router": {
+      "development": "./src/router/index.ts",
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js",
+      "default": "./dist/router/index.js"
+    },
+    "./router/browser": {
+      "development": "./src/router/create-browser-history.ts",
+      "types": "./dist/router/create-browser-history.d.ts",
+      "import": "./dist/router/create-browser-history.js",
+      "default": "./dist/router/create-browser-history.js"
+    },
+    "./gestures": {
+      "development": "./src/gestures/index.ts",
+      "types": "./dist/gestures/index.d.ts",
+      "import": "./dist/gestures/index.js",
+      "default": "./dist/gestures/index.js"
+    },
+    "./composition": {
+      "development": "./src/composition/index.ts",
+      "types": "./dist/composition/index.d.ts",
+      "import": "./dist/composition/index.js",
+      "default": "./dist/composition/index.js"
+    },
+    "./platform": {
+      "development": "./src/platform/index.ts",
+      "types": "./dist/platform/index.d.ts",
+      "import": "./dist/platform/index.js",
+      "default": "./dist/platform/index.js"
+    },
     "./hosts/dom": {
       "development": "./src/hosts/create-dom-host.ts",
       "types": "./dist/hosts/create-dom-host.d.ts",

@@ -1,5 +1,6 @@
 import { computed, effect, effectScope } from 'alien-signals'
 
+import { currentFrame, withFrame } from './context-frame'
 import { requireHost, scheduleFlush } from './current-host'
 import { onCleanup } from './on-cleanup'
 import { runDetached } from './run-detached'
@@ -45,6 +46,13 @@ export const renderChild = (wrapper: HostElement, select: () => ChildFactory | n
   const host = requireHost()
   let dispose: Dispose | null = null
 
+  // Captured HERE, while the component that wrote this is still running, and
+  // restored around every build below — which happen later, inside an effect,
+  // where whatever a provider had set around this call is long gone. See
+  // `context-frame.ts`; without it a theme would reach everything except the
+  // subtrees inside a conditional.
+  const frame = currentFrame()
+
   // The selection, memoised on the factory reference. The effect below tracks
   // this rather than `select` itself, so an unrelated signal the condition
   // happens to read cannot force a rebuild.
@@ -63,7 +71,7 @@ export const renderChild = (wrapper: HostElement, select: () => ChildFactory | n
     // above. Owning the branch outright keeps the lifetime obvious.
     dispose = runDetached(() =>
       effectScope(() => {
-        node = factory ? factory() : null
+        node = factory ? withFrame(frame, factory) : null
       }),
     )
     host.clear(wrapper)

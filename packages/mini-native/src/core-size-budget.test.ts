@@ -39,7 +39,7 @@ const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const GZIP_BUDGET = 3300
 
 /** Subpath directories whose sources must never enter the core graph. */
-const SUBPATH_DIRS = ['hosts/', 'flow/']
+const SUBPATH_DIRS = ['hosts/', 'flow/', 'ui/', 'platform/', 'composition/', 'gestures/', 'router/']
 
 const built = await build({
   entryPoints: ['src/index.ts'],

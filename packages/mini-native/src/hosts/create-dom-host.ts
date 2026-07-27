@@ -1,5 +1,7 @@
 import type { Host } from '../host'
 import type { HostElement, HostNode, HostText } from '../types'
+import { createDomEnvironment } from './dom-environment'
+import { installDomReset, RESET_CONTAINER_MARKER, RESET_MARKER } from './dom-reset'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
 
@@ -15,8 +17,17 @@ import { toStyleText } from './to-style-text'
  *
  * Mutations apply immediately, so there is no `flush` and the scheduler skips
  * the commit step entirely.
+ *
+ * @param options.reset Whether to install the layout reset that makes a browser
+ *   behave like Yoga. On by default, because without it an unstyled container
+ *   with two children stacks vertically on a device and horizontally here —
+ *   which is write-once being a slogan rather than a fact. Turn it off when
+ *   this runtime is a guest in a page whose styling you do not own, and read
+ *   `dom-reset.ts` for exactly what you are then responsible for.
  */
-export const createDomHost = (): Host => {
+export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
+  if (reset) installDomReset()
+
   /**
    * The host's own style layer, kept per element.
    *
@@ -249,9 +260,62 @@ export const createDomHost = (): Host => {
     element.setAttribute('type', layer.secure ? 'password' : (INPUT_TYPES[layer.keyboard ?? ''] ?? 'text'))
   }
 
+  /**
+   * The element's box, remembered for the length of one pointer stream.
+   *
+   * Coordinates have to be element-relative on every target, which on the web
+   * means subtracting the element's box — and `getBoundingClientRect` forces
+   * layout. Taps can afford that per event because they are rare; a
+   * `pointermove` fires as fast as the display refreshes, and reading layout on
+   * each one is how a drag turns janky. So the box is read once when the
+   * gesture starts and reused until it ends.
+   *
+   * A gesture whose element genuinely moves mid-drag reports against where it
+   * started, which is what a drag wants anyway: the offset from the point the
+   * finger went down.
+   */
+  const pointerBoxes = new WeakMap<HTMLElement, DOMRect>()
+
+  const toPointerEvent = (event: PointerEvent, element: HTMLElement): unknown => {
+    const phase = POINTER_PHASES[event.type] ?? 'move'
+    if (phase === 'down') pointerBoxes.set(element, element.getBoundingClientRect())
+    const box = pointerBoxes.get(element) ?? element.getBoundingClientRect()
+    if (phase === 'up' || phase === 'cancel') pointerBoxes.delete(element)
+
+    return {
+      id: event.pointerId,
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+      phase,
+      raw: event,
+    }
+  }
+
   return {
+    platform: 'web',
+
+    environment: createDomEnvironment(),
+
+    focus: (element) => {
+      // `preventScroll` is deliberately NOT passed. Scrolling a focused element
+      // into view is the browser doing the right thing, and it is what a native
+      // target does too, so suppressing it here would be the DOM host inventing
+      // a difference rather than removing one.
+      fromHostElement(element).focus()
+    },
+
+    blur: (element) => {
+      fromHostElement(element).blur()
+    },
+
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
+      if (reset) {
+        element.setAttribute(RESET_MARKER, '')
+        // Everything except a text run is a container, and a container is where
+        // text inheritance stops — the rule Yoga follows and CSS does not.
+        if (tag !== 'text') element.setAttribute(RESET_CONTAINER_MARKER, '')
+      }
       // A `scroll-view` scrolls whether or not anyone wrote a `direction`, so it
       // is created as though the prop were already set to its default. A later
       // `direction` write simply replaces these.
@@ -314,6 +378,11 @@ export const createDomHost = (): Host => {
         return
       }
 
+      if (name === 'autoComplete' && typeof value === 'string') {
+        element.setAttribute(attribute, AUTOCOMPLETE_VALUES[value] ?? value)
+        return
+      }
+
       if (value === false || value === null || value === undefined) element.removeAttribute(attribute)
       else element.setAttribute(attribute, value === true ? '' : String(value))
     },
@@ -355,14 +424,33 @@ export const createDomHost = (): Host => {
 
     addEventListener: (target, name, handler) => {
       const element = fromHostElement(target)
-      const domName = EVENTS[name] ?? name
+      // Most vocabulary events are one DOM event; `pointer` is four, because a
+      // gesture is a sequence and splitting it across four props would only
+      // mean reassembling it at every call site.
+      const domNames = EVENT_GROUPS[name] ?? [EVENTS[name] ?? name]
       // The listener is wrapped rather than passed straight through, because the
       // handler is owed the framework's payload shape and not the browser's.
       // The wrapper is what `removeEventListener` has to be given back, hence
       // the local binding.
-      const listener = (event: Event): void => handler(toNativeEvent(name, event, element))
-      element.addEventListener(domName, listener)
-      return () => element.removeEventListener(domName, listener)
+      const listener = (event: Event): void => {
+        // `submit` rides on `keydown`, so most of what arrives is not a
+        // submission at all and has to be dropped before the handler sees it.
+        if (name === 'submit' && !isSubmit(event, element)) return
+        // Hover is mouse and pen only. A browser synthesises enter and leave
+        // from a touch, and passing those through would make a hover-only
+        // affordance look like it worked on a phone — the exact design bug the
+        // prop's absence on a device is meant to surface.
+        if ((name === 'hoverin' || name === 'hoverout') && !canHover(event)) return
+        if (name === 'pointer') {
+          handler(toPointerEvent(event as PointerEvent, element))
+          return
+        }
+        handler(toNativeEvent(name, event, element))
+      }
+      for (const domName of domNames) element.addEventListener(domName, listener)
+      return () => {
+        for (const domName of domNames) element.removeEventListener(domName, listener)
+      }
     },
 
     insert: (parent, node, anchor) => {
@@ -395,6 +483,12 @@ export const createDomHost = (): Host => {
  * mount(domRoot(document.body), App)
  * ```
  */
+/** Options for {@link createDomHost}. */
+export type DomHostOptions = {
+  /** Install the Yoga-shaped layout reset. Defaults to `true`; see {@link createDomHost}. */
+  reset?: boolean
+}
+
 export const domRoot = (element: Element): HostElement => toHostElement(element)
 
 /**
@@ -497,12 +591,32 @@ const toNativeEvent = (name: string, event: Event, element: HTMLElement): unknow
     return { x: element.scrollLeft, y: element.scrollTop, raw: event }
   }
 
-  if (name === 'input' || name === 'change') {
+  if (name === 'input' || name === 'change' || name === 'submit') {
     return { value: 'value' in element ? String((element as HTMLInputElement).value) : '', raw: event }
   }
 
   if (NAMED_EVENTS_WITHOUT_DATA.has(name)) return { raw: event }
   return event
+}
+
+/**
+ * Whether a keydown is the user confirming the field.
+ *
+ * Three things have to be true, and the last two are where this is usually got
+ * wrong. It has to be Enter. It must not be Enter inside a `<textarea>`, where
+ * the key inserts a newline on every target — a multiline field has no confirm
+ * key, which is why the vocabulary says `onSubmit` does not fire there. And it
+ * must not be the Enter that CHOOSES an input-method candidate: typing Japanese
+ * or Chinese ends nearly every word with an Enter that means "yes, that one",
+ * and submitting the form on it is the classic bug in this feature. The browser
+ * marks those with `isComposing`, which is the same signal the two-way input
+ * binding already holds writes for.
+ */
+const isSubmit = (event: Event, element: HTMLElement): boolean => {
+  if (element.tagName === 'TEXTAREA') return false
+  if (!('key' in event)) return false
+  const key = event as KeyboardEvent
+  return key.key === 'Enter' && !key.isComposing
 }
 
 /**
@@ -553,6 +667,21 @@ const HTML_TAGS: Record<string, string> = {
 /** Vocabulary prop names that have a different spelling in HTML. */
 const ATTRIBUTES: Record<string, string> = {
   testId: 'data-testid',
+  // A real HTML attribute, which is the whole reason this prop needs no `form`
+  // element: the browser raises the same soft-keyboard confirm key a device does.
+  submitLabel: 'enterkeyhint',
+  autoComplete: 'autocomplete',
+}
+
+/**
+ * Autofill hints whose web spelling differs from the vocabulary's.
+ *
+ * One entry, for the same reason `keyboard="phone"` becomes `type="tel"`: the
+ * vocabulary says `phone` everywhere so there is one word for one concept, and
+ * translating it into the platform's word is the host's job.
+ */
+const AUTOCOMPLETE_VALUES: Record<string, string> = {
+  phone: 'tel',
 }
 
 /**
@@ -586,9 +715,38 @@ type InputTypeLayer = {
  * Anything unmapped passes through unchanged, which is what lets the composition
  * events the two-way input binding listens for reach the element directly.
  */
+/** Vocabulary events that need several DOM listeners rather than one. */
+const EVENT_GROUPS: Record<string, readonly string[]> = {
+  pointer: ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'],
+}
+
+/** Which phase each of those DOM events reports. */
+const POINTER_PHASES: Record<string, 'down' | 'move' | 'up' | 'cancel'> = {
+  pointerdown: 'down',
+  pointermove: 'move',
+  pointerup: 'up',
+  pointercancel: 'cancel',
+}
+
+/**
+ * Whether an enter or leave came from something that can actually hover.
+ *
+ * A browser fires `pointerenter` and `pointerleave` for a touch too, as a pair
+ * around the tap. Letting those through would make a hover-only affordance
+ * appear to work on a phone, which is precisely the design bug that the prop
+ * never firing on a device is supposed to expose.
+ */
+const canHover = (event: Event): boolean => (event as PointerEvent).pointerType !== 'touch'
+
 const EVENTS: Record<string, string> = {
   tap: 'click',
   longpress: 'contextmenu',
+  hoverin: 'pointerenter',
+  hoverout: 'pointerleave',
+  // There is no `submit` on an input outside a `<form>`, and the vocabulary
+  // deliberately has no form element — a device has a return key, not a form.
+  // Enter on a keydown is the same gesture, filtered by `isSubmit`.
+  submit: 'keydown',
 }
 
 /** Converts a camelCase style key to its CSS spelling, leaving custom properties alone. */

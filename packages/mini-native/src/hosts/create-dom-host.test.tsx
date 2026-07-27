@@ -26,6 +26,16 @@ afterEach(() => {
 /** Builds a fresh container element to mount into. */
 const container = (): Element => document.createElement('div')
 
+/**
+ * The rendered markup, without the attributes the layout reset is scoped by.
+ *
+ * These cases are about the vocabulary landing on the right HTML, and every
+ * element the host builds carries `data-mn` so the reset can find it — real,
+ * asserted in `dom-reset.test.ts`, and pure noise in an assertion about which
+ * tag a role produces. Stripping it here keeps each suite about one thing.
+ */
+const markup = (root: Element): string => root.innerHTML.replace(/ data-mn(-container)?=""/g, '')
+
 describe('create-dom-host', () => {
   it('maps the element vocabulary onto HTML tags', () => {
     setHost(createDomHost())
@@ -40,7 +50,7 @@ describe('create-dom-host', () => {
 
     // `view` is a div and `text` is a span — the browser is the guest here,
     // rendering a native vocabulary rather than defining it.
-    expect(root.innerHTML).toBe('<div><span>hello</span><img src="/puck.png"></div>')
+    expect(markup(root)).toBe('<div><span>hello</span><img src="/puck.png"></div>')
   })
 
   it('maps native gesture names onto DOM events', () => {
@@ -121,7 +131,7 @@ describe('create-dom-host', () => {
     const dispose = mount(domRoot(root), () => <view />)
     dispose()
 
-    expect(root.innerHTML).toBe('')
+    expect(markup(root)).toBe('')
   })
 })
 
@@ -148,7 +158,7 @@ describe('create-dom-host accessibility', () => {
     // Not a div with an ARIA role: a real button and a real anchor, so focus
     // order, Enter and Space activation, and middle-click come from the
     // browser rather than being re-synthesised.
-    expect(root.innerHTML).toBe(
+    expect(markup(root)).toBe(
       '<div><button type="button"></button><a href="/pricing"></a><nav></nav><main></main></div>',
     )
   })
@@ -168,7 +178,7 @@ describe('create-dom-host accessibility', () => {
 
     // The default is 2 rather than 1 because a page's single h1 should be
     // something an author chose, not something they got by omission.
-    expect(root.innerHTML).toBe('<div><h1>title</h1><h2>section</h2></div>')
+    expect(markup(root)).toBe('<div><h1>title</h1><h2>section</h2></div>')
   })
 
   it('keeps list roles generic, so a flow wrapper cannot invalidate them', () => {
@@ -184,7 +194,7 @@ describe('create-dom-host accessibility', () => {
     // A real <ul> accepts only <li>, which is a parse-level content model — and
     // the control-flow components put a wrapper in between. An ARIA role has no
     // content model, so this survives what <ul> would not.
-    expect(root.innerHTML).toBe('<div role="list"><div role="listitem"></div></div>')
+    expect(markup(root)).toBe('<div role="list"><div role="listitem"></div></div>')
   })
 
   it('keeps the flow wrapper out of the accessibility tree', () => {
@@ -219,7 +229,7 @@ describe('create-dom-host accessibility', () => {
     // Same prop, two spellings — `alt` is what an <img> uses and `aria-label`
     // is what everything else uses. Which one is the host's problem, not the
     // component author's.
-    expect(root.innerHTML).toBe(
+    expect(markup(root)).toBe(
       '<div><img src="/puck.png" alt="a puck"><button type="button" aria-label="save"></button></div>',
     )
   })
@@ -237,9 +247,7 @@ describe('create-dom-host accessibility', () => {
 
     // A real <button disabled> is genuinely unclickable; `aria-disabled` only
     // announces it. Each element gets whichever it can actually honour.
-    expect(root.innerHTML).toBe(
-      '<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>',
-    )
+    expect(markup(root)).toBe('<div><button type="button" disabled=""></button><div aria-disabled="true"></div></div>')
   })
 
   it('tracks reactive accessibility state', () => {
@@ -281,7 +289,7 @@ describe('create-dom-host accessibility', () => {
 
     // An attribute the browser ignores is the preview quietly stopping matching
     // the device, which is the bug class this host exists to avoid.
-    expect(root.innerHTML).toBe('<div></div>')
+    expect(markup(root)).toBe('<div></div>')
   })
 
   it('hides a role="none" element from assistive technology', () => {
@@ -290,7 +298,7 @@ describe('create-dom-host accessibility', () => {
 
     mount(domRoot(root), () => <view role="none" />)
 
-    expect(root.innerHTML).toBe('<div aria-hidden="true"></div>')
+    expect(markup(root)).toBe('<div aria-hidden="true"></div>')
   })
 })
 
@@ -373,6 +381,79 @@ describe('create-dom-host events', () => {
     // the platform-specific code it is.
     expect((seen as unknown as { raw: unknown }).raw).toBe(click)
   })
+
+  it('reports every phase of a pointer through one handler', () => {
+    setHost(createDomHost())
+    const root = container()
+    const phases: string[] = []
+
+    mount(domRoot(root), () => <view onPointer={(event) => phases.push(event.phase)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect
+    for (const type of ['pointerdown', 'pointermove', 'pointerup']) {
+      element.dispatchEvent(new PointerEvent(type, { clientX: 5, clientY: 5, pointerId: 1 }))
+    }
+
+    // A gesture is a sequence, so one handler covers all four phases —
+    // splitting it across four props would only mean reassembling it at every
+    // call site.
+    expect(phases).toEqual(['down', 'move', 'up'])
+  })
+
+  it('measures a pointer against the element rather than the viewport', () => {
+    setHost(createDomHost())
+    const root = container()
+    const points: { x: number; y: number }[] = []
+
+    mount(domRoot(root), () => <view onPointer={(event) => points.push({ x: event.x, y: event.y })} />)
+    const element = root.firstElementChild as HTMLElement
+    element.getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect
+    element.dispatchEvent(new PointerEvent('pointerdown', { clientX: 35, clientY: 50, pointerId: 1 }))
+
+    expect(points[0]).toEqual({ x: 25, y: 30 })
+  })
+
+  it('reads the element box once per gesture rather than once per move', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <view onPointer={() => {}} />)
+    const element = root.firstElementChild as HTMLElement
+    let reads = 0
+    element.getBoundingClientRect = () => {
+      reads++
+      return { left: 0, top: 0 } as DOMRect
+    }
+
+    element.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1 }))
+    for (let step = 0; step < 20; step++) {
+      element.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1 }))
+    }
+
+    // `getBoundingClientRect` forces layout, and a `pointermove` fires as fast
+    // as the display refreshes. Reading it on every one is how a drag turns
+    // janky, so the box is read when the gesture starts and reused until it
+    // ends.
+    expect(reads).toBe(1)
+  })
+
+  it('never reports a hover from a touch', () => {
+    setHost(createDomHost())
+    const root = container()
+    let hovers = 0
+
+    mount(domRoot(root), () => <view onHoverIn={() => hovers++} />)
+    const element = root.firstElementChild as HTMLElement
+    element.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'touch' }))
+
+    // A browser synthesises enter and leave around a tap. Letting those through
+    // would make a hover-only affordance appear to work on a phone, which is
+    // exactly the design bug that the prop never firing on a device exposes.
+    expect(hovers).toBe(0)
+
+    element.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }))
+    expect(hovers).toBe(1)
+  })
 })
 
 /**
@@ -444,5 +525,84 @@ describe('create-dom-host vocabulary', () => {
     // that says nothing behaves differently on each.
     const element = root.firstElementChild as HTMLElement
     expect(element.style.getPropertyValue('user-select')).toBe('none')
+  })
+
+  it('asks the browser for the same confirm key a device shows', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input submitLabel="send" />)
+
+    // `enterkeyhint` is a real HTML attribute, which is the whole reason this
+    // prop needs no `form` element in the vocabulary: the soft keyboard shows
+    // the same confirm key on both targets.
+    expect((root.firstElementChild as HTMLElement).getAttribute('enterkeyhint')).toBe('send')
+  })
+
+  it('translates the autofill hint into the web spelling', () => {
+    setHost(createDomHost())
+    const root = container()
+
+    mount(domRoot(root), () => <input autoComplete="phone" />)
+
+    // The vocabulary says `phone` everywhere so there is one word for one
+    // concept — the same call `keyboard="phone"` makes — and the host is where
+    // it becomes the platform's word.
+    expect((root.firstElementChild as HTMLElement).getAttribute('autocomplete')).toBe('tel')
+  })
+
+  it('reports a submit with the field value on it', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input value="ada" onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+
+    expect(submitted).toEqual(['ada'])
+  })
+
+  it('ignores keys that are not a submission', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+
+    // `submit` rides on `keydown`, so almost everything that arrives is not a
+    // submission and has to be dropped before the handler ever sees it.
+    expect(submitted).toEqual([])
+  })
+
+  it('does not treat the Enter that chooses an input-method candidate as a submission', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLInputElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+
+    // Typing Japanese or Chinese ends nearly every word with an Enter that
+    // means "yes, that candidate". Submitting on it is the classic bug in this
+    // feature, and it is invisible to anyone testing in English.
+    expect(submitted).toEqual([])
+  })
+
+  it('leaves Enter alone in a multiline field, where it inserts a newline', () => {
+    setHost(createDomHost())
+    const root = container()
+    const submitted: string[] = []
+
+    mount(domRoot(root), () => <input multiline={true} onSubmit={(event) => submitted.push(event.value)} />)
+    const element = root.firstElementChild as HTMLElement
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+
+    // True on every target: a multiline field has no confirm key, so the
+    // vocabulary says `onSubmit` does not fire there rather than inventing one.
+    expect(submitted).toEqual([])
   })
 })
