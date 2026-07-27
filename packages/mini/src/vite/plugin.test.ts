@@ -137,6 +137,16 @@ describe('catch-called-signals plugin', () => {
     expect(reports.warnings).toEqual([])
   })
 
+  it('scans a jsx module, where there is no type checker to fall back on', () => {
+    const reports: Reports = { warnings: [], errors: [] }
+    const plugin = catchCalledSignals()
+    resolveConfig(plugin, 'serve')
+
+    runTransform(plugin, reports, FOOTGUN, '/app/widget.jsx')
+
+    expect(reports.warnings).toHaveLength(1)
+  })
+
   it('ignores virtual modules', () => {
     const reports: Reports = { warnings: [], errors: [] }
     const plugin = catchCalledSignals()

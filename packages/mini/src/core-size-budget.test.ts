@@ -31,6 +31,17 @@ import { describe, expect, it } from 'vitest'
  *   list stops disposing every rendered row whenever the collection changes;
  *   the arbitration that keeps a style write from un-hiding what `show` hid;
  *   and pixel units for bare numeric style values, which were silently dropped.
+ *
+ * ## The second budget: what a JSX app actually ships
+ *
+ * `.` is not the whole bill. A widget written in JSX also imports
+ * `@amritk/mini/jsx-runtime` — the transform emits that import itself — and
+ * those bytes went unmeasured for a long time while being roughly 40% of the
+ * total. So the second entry below bundles BOTH, which is the graph a consumer
+ * really ships, deduplicated (both entries pull `alien-signals`, and
+ * `jsx-runtime` pulls `bind`, so the sum of the two entries measured separately
+ * would double-count them). The `.` budget still stands on its own for the
+ * non-JSX consumer that calls `template` + `bind*`.
  */
 
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -38,11 +49,32 @@ const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 /** Gzipped-byte ceiling for the bundled `.` entry. */
 const GZIP_BUDGET = 3200
 
+/** Gzipped-byte ceiling for `.` + `/jsx-runtime` bundled together. */
+const WIDGET_GZIP_BUDGET = 4200
+
 /** Feature directories whose sources must never enter the core graph. */
 const SUBPATH_DIRS = ['flow/', 'router/', 'forms/', 'query/', 'hot/', 'internal/']
 
 const built = await build({
   entryPoints: ['src/index.ts'],
+  absWorkingDir: PKG_ROOT,
+  bundle: true,
+  format: 'esm',
+  minify: true,
+  write: false,
+  metafile: true,
+  platform: 'browser',
+  target: 'es2022',
+})
+
+// One output, not two: `stdin` re-exports both entries so esbuild resolves the
+// shared modules once, exactly as a consumer's bundler does.
+const widget = await build({
+  stdin: {
+    contents: "export * from './src/index.ts'\nexport * from './src/jsx-runtime.ts'\n",
+    resolveDir: PKG_ROOT,
+    loader: 'ts',
+  },
   absWorkingDir: PKG_ROOT,
   bundle: true,
   format: 'esm',
@@ -67,6 +99,25 @@ describe('core-size-budget', () => {
     const output = built.outputFiles[0]?.contents ?? new Uint8Array()
     const gzipped = gzipSync(output).length
     expect(gzipped).toBeLessThanOrEqual(GZIP_BUDGET)
+  })
+
+  it('keeps the core plus the JSX runtime — what a JSX app ships — under budget', () => {
+    expect(widget.outputFiles).toHaveLength(1)
+    const output = widget.outputFiles[0]?.contents ?? new Uint8Array()
+    expect(output.length).toBeGreaterThan(0)
+    expect(gzipSync(output).length).toBeLessThanOrEqual(WIDGET_GZIP_BUDGET)
+  })
+
+  it('keeps the JSX runtime out of the subpath features too', () => {
+    // The same boundary the `.` entry holds, applied to the graph the transform
+    // drags in: `jsx-runtime` reaching `/flow` would put a control-flow module
+    // in every JSX app whether it imported one or not.
+    const offenders = Object.keys(widget.metafile.inputs).filter((input) => {
+      if (input.includes('alien-signals') || input === '<stdin>') return false
+      if (input.startsWith('src/') && !SUBPATH_DIRS.some((dir) => input.startsWith(`src/${dir}`))) return false
+      return true
+    })
+    expect(offenders).toEqual([])
   })
 
   it('bundles only core sources and alien-signals', () => {

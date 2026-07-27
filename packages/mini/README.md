@@ -101,11 +101,13 @@ In a style object a **bare number means pixels**, as it does in React, Preact, a
 
 `show` and `style` can be used on the same element without fighting over `display`: hiding wins while it is in effect, and showing the element again restores whatever its own style asked for.
 
+`value`, `checked`, and `selected` are written through the DOM **property**, not the attribute, and applied after the element's children exist. The attribute only seeds a control's default, so an attribute write stops reaching the field the moment the user types in it — and on a `<select>` it never selects anything at all. Writing the property means `<input value={draft} />` keeps tracking after the first keystroke and `<select value={picked}>…</select>` selects the matching `<option>`. Two-way binding is still `bindValue`/`bindChecked`/`bindSelect`; these props are the one-way half.
+
 ---
 
 ## Layered modules (subpath exports)
 
-The `.` entry above is the whole story for the bundle-size-sensitive embed widget: its only runtime dependency is `alien-signals`, and it imports **no** subpath module. The dashboards — which are not bundle-constrained — opt into more through tree-shakeable subpath exports. Each is its own module graph with its own README section below; importing one pulls in **none** of the others, and the widget that imports only `.` pays zero bytes for any of them. Two tests enforce this: a core import-boundary walk (`src/import-boundary.test.ts`) and a gzipped size budget on the bundled `.` entry (`src/core-size-budget.test.ts`).
+The `.` entry above is the whole story for the bundle-size-sensitive embed widget: its only runtime dependency is `alien-signals`, and it imports **no** subpath module. The dashboards — which are not bundle-constrained — opt into more through tree-shakeable subpath exports. Each is its own module graph with its own README section below; importing one pulls in **none** of the others, and the widget that imports only `.` pays zero bytes for any of them. Two tests enforce this: a core import-boundary walk (`src/import-boundary.test.ts`) and a gzipped size budget (`src/core-size-budget.test.ts`) on the bundled `.` entry — and on `.` plus `/jsx-runtime` together, which is what a JSX app really ships once the transform's own import is counted.
 
 Composition is by **explicit import** in the consuming app — there is no runtime plugin registry and no `mini.use()`, because a registry would defeat tree-shaking. Dependencies are prop-drilled, not injected through a context.
 
@@ -117,7 +119,7 @@ A small client-side router for the dashboards, in history or hash mode.
 |:---|:---|
 | `createRouter({ routes, mode?, base? })` | Matches the URL against a route table into a reactive `route` signal; returns `{ route, navigate, stop }`. Attaches its location listener immediately. The `route` state includes a parsed `query` record alongside the raw `search`. |
 | `matchRoute(pattern, path)` | Matches a `/users/:id` pattern (with an optional trailing `*` catch-all) against a pathname, returning captured params or `null`. |
-| `Link` | An `<a href>` that intercepts a plain left-click and calls `navigate` — modified clicks, non-primary buttons, and `preventDefault`ed events are left to the browser. Takes `navigate` as a prop (`navigate={router.navigate}`); `to` may be reactive. Pass `active` (plus `activeClass`) to mark the current link — it toggles the class and sets `aria-current="page"` — and `target`/`rel`/`title`/`id`/`style` pass through to the anchor. |
+| `Link` | An `<a href>` that intercepts a plain left-click and calls `navigate` — modified clicks, non-primary buttons, and `preventDefault`ed events are left to the browser. Takes `navigate` as a prop (`navigate={router.navigate}`); `to` may be reactive. Pass `active` to mark the current link — it sets `aria-current="page"`, and appends `activeClass` on top of `class` when you supply one — and `target`/`rel`/`title`/`id`/`style` pass through to the anchor. |
 | `RouterView` | Renders the matched route's view (the `view` key by default) and swaps it on navigation — the outlet that replaces a hand-written `route().route?.['view']` cast. Takes `router={router}`. |
 | `Route`, `RouterMode`, `RouterOptions`, `RouteState`, `Router`, `NavigateOptions`, `RouteParams`, `LinkProps`, `RouterViewProps` | Exported types. |
 

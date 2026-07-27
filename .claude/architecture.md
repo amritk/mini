@@ -63,8 +63,10 @@ reactivity is decided by value shape.
   `src/import-boundary.test.ts` walks the `.` source graph (must be
   `alien-signals` only, and each feature must stay free of the others), and
   `src/core-size-budget.test.ts` bundles the `.` entry with an esbuild metafile
-  and asserts the gzipped size stays under budget. `"sideEffects": false` keeps
-  everything tree-shakeable.
+  and asserts the gzipped size stays under budget. It holds a second budget on
+  `.` plus `/jsx-runtime` bundled together, because the JSX transform emits that
+  import itself — measuring only `.` leaves out roughly a third of what a JSX
+  app actually ships. `"sideEffects": false` keeps everything tree-shakeable.
 - **Layered subpath exports** grow it into a framework for apps that are not
   bundle-constrained, each its own module graph so importing one pulls in none
   of the others: `@amritk/mini/router` (history/hash client router —
