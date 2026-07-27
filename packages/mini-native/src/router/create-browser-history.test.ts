@@ -80,19 +80,69 @@ describe('create-browser-history', () => {
     expect(createBrowserHistory({ mode: 'hash' }).location()).toEqual({ path: '/', search: '' })
   })
 
+  /**
+   * Simulates the browser traversing to an entry it had already stored.
+   *
+   * A real back or forward restores that entry's state BEFORE dispatching the
+   * event, which is the whole mechanism the depth is read through — so a test
+   * that only fires the event is testing a state the browser never presents.
+   */
+  const traverseTo = (state: unknown, url: string): void => {
+    window.history.replaceState(state, '', url)
+    window.dispatchEvent(new Event('popstate'))
+  }
+
   it('tells subscribers about back and forward, and unwinds the count', () => {
     const history = createBrowserHistory()
     let changes = 0
     history.subscribe(() => changes++)
 
     history.push({ path: '/a', search: '' })
-    window.dispatchEvent(new Event('popstate'))
+    // Back to the entry the app started on, which carries no stamp of ours.
+    traverseTo(null, '/')
 
     // The browser answers `back()` asynchronously with a popstate, which is why
-    // the count moves here rather than in `back` — doing both would take it
+    // the count moves there rather than in `back` — doing both would take it
     // down twice.
     expect(changes).toBe(1)
     expect(history.depth()).toBe(0)
+  })
+
+  it('counts a forward back UP again', () => {
+    const history = createBrowserHistory()
+
+    history.push({ path: '/a', search: '' })
+    traverseTo(null, '/')
+    // Forward, into the entry that was pushed — the case a step counter gets
+    // backwards, because it only ever knows how to subtract.
+    traverseTo({ __mnDepth: 1 }, '/a')
+
+    expect(history.depth()).toBe(1)
+  })
+
+  it('lands on the right depth after a multi-step jump', () => {
+    const history = createBrowserHistory()
+
+    history.push({ path: '/a', search: '' })
+    history.push({ path: '/a/b', search: '' })
+    history.push({ path: '/a/b/c', search: '' })
+    expect(history.depth()).toBe(3)
+
+    // Three entries back in one go, which a step counter would read as one.
+    traverseTo(null, '/')
+
+    expect(history.depth()).toBe(0)
+  })
+
+  it('leaves state the page already stored alone', () => {
+    window.history.replaceState({ app: 'kept' }, '', '/')
+    const history = createBrowserHistory()
+
+    history.push({ path: '/a', search: '' })
+
+    // `history.state` is shared with whatever else the page does with it, so
+    // the depth is stamped alongside rather than over.
+    expect(window.history.state).toEqual({ app: 'kept', __mnDepth: 1 })
   })
 
   it('never counts below the entry point', () => {

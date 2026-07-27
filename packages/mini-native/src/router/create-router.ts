@@ -1,8 +1,9 @@
 import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
 
 import { onCleanup } from '../on-cleanup'
-import { type ReadonlySignal, signal } from '../signals'
+import { batch, type ReadonlySignal, signal } from '../signals'
 import type { Dispose, HostElement } from '../types'
+import { untrack } from '../untrack'
 import type { RouterHistory, RouterLocation } from './history'
 
 /**
@@ -64,6 +65,18 @@ export type Router<R extends Route> = {
   /** Go back one entry. A no-op at the root. */
   back: () => void
   /**
+   * How many entries deep the app is, as a signal — `0` is where it started.
+   *
+   * This is what separates a push from a redirect for anything watching, and
+   * `RouteView` is the reason it has to be exposed rather than staying the
+   * private counter behind {@link Router.canGoBack}: the single-slot view can
+   * tell the two apart by the matched route alone, but a STACK cannot.
+   * `/users/1` → `/users/2` is one route and two screens when it was pushed,
+   * and one route and one screen when it was replaced. Nothing in `route`
+   * distinguishes those, and the depth does.
+   */
+  depth: ReadonlySignal<number>
+  /**
    * Whether there is anywhere to go back TO within this app, as a signal — so a
    * back chevron can be shown only where it would do something.
    */
@@ -100,9 +113,27 @@ export const createRouter = <R extends Route>(options: RouterOptions<R>): Router
   const route = signal<RouteState<R>>(read())
   const depth = signal(history.depth())
 
+  // Batched because they are one fact about where the app is, not two. Written
+  // separately, anything reading both — a stack, above all — would see a state
+  // that never actually existed: the new location at the old depth, which reads
+  // as a redirect onto the pushed route and swaps the screen that was about to
+  // be pushed over.
+  //
+  // And skipped entirely when nothing moved, because `read()` builds a fresh
+  // object every time and a fresh object always propagates. `back()` reaches
+  // here twice for one navigation — once because an in-memory history notifies
+  // (a hardware back gesture calls it from outside, so it must), once because
+  // this router refreshes after calling it (a browser answers asynchronously,
+  // so it must) — and the second pass would otherwise re-announce a location
+  // the app is already at, restarting whatever the first one started.
   const refresh = (): void => {
-    route(read())
-    depth(history.depth())
+    const next = read()
+    const nextDepth = history.depth()
+    if (untrack(() => depth() === nextDepth && settled(route(), next))) return
+    batch(() => {
+      route(next)
+      depth(nextDepth)
+    })
   }
 
   // Fires for changes that came from OUTSIDE — a browser back button, a deep
@@ -126,11 +157,23 @@ export const createRouter = <R extends Route>(options: RouterOptions<R>): Router
       refresh()
     },
 
+    depth,
+
     canGoBack: () => depth() > 0,
 
     stop,
   }
 }
+
+/**
+ * Whether two states describe the same place.
+ *
+ * Path, query string, and matched route are the whole comparison: `params` and
+ * `query` are derived from the first two by pure functions, so two states that
+ * agree on these agree on everything.
+ */
+const settled = <R extends Route>(current: RouteState<R>, next: RouteState<R>): boolean =>
+  current.path === next.path && current.search === next.search && current.route === next.route
 
 /** Splits a `to` string into its path and query halves. */
 const splitLocation = (to: string): RouterLocation => {

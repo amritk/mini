@@ -29,13 +29,23 @@
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
  *
- * ## What is deliberately not here
+ * ## One slot or a stack
  *
- * **A navigation stack.** `RouteView` renders one slot: `/users/1` → `/users/2`
- * keeps the screen and updates its params, and a different route swaps the
- * subtree. A native stack — where the second user PUSHES a screen over the
- * first and animates between them — is a layer above this, needs an animation
- * seam that does not exist yet, and would be the wrong default for the web.
+ * Two views over the same router, and the choice is about what the app is
+ * rather than about which target it runs on.
+ *
+ * `RouteView` renders ONE slot: `/users/1` → `/users/2` keeps the screen and
+ * updates its params, and a different route swaps the subtree. That is what a
+ * web page wants and what a tab's root wants.
+ *
+ * `RouteStack` renders a STACK: the second user pushes a screen over the first,
+ * a back gesture pops it, and every screen underneath stays built — so a scroll
+ * position and a half-filled form are still there on the way back. It reads
+ * {@link Router.depth} to tell a push from a redirect, which is a distinction
+ * the matched route cannot make, and it takes a {@link StackTransition} to
+ * animate between screens.
+ *
+ * ## What is deliberately not here
  *
  * **The web-only obligations.** Document title, scroll restoration, and keeping
  * the URL continuously correct are real work that only one target owes, and
@@ -62,4 +72,11 @@ export {
 } from './create-router'
 export type { RouterHistory, RouterLocation } from './history'
 export { RouteLink, type RouteLinkProps } from './route-link'
+export { RouteStack, type RouteStackProps } from './route-stack'
 export { RouteView, type RouteViewProps } from './route-view'
+export {
+  fadeTransition,
+  type StackChange,
+  type StackTransition,
+  type StackTransitionContext,
+} from './stack-transition'
