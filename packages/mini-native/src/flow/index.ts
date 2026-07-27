@@ -15,6 +15,11 @@
  * answer for collections whose values can repeat. `defaultKey` is exported
  * alongside them so a caller can reuse the default keying policy rather than
  * reimplement it.
+ *
+ * `VirtualFor` is the third, and the one to reach for once a collection is long
+ * enough that a node per row is the wrong trade. It builds a screenful and
+ * recycles it — which turns out to be `Index`'s slot model applied to a moving
+ * window, so it needs nothing from the host that the others do not.
  */
 
 export { defaultKey } from './default-key'
@@ -24,3 +29,4 @@ export { Index, type IndexProps } from './index-rows'
 export { Match, type MatchProps } from './match'
 export { Show, type ShowProps } from './show'
 export { Switch, type SwitchProps } from './switch'
+export { VirtualFor, type VirtualForProps } from './virtual-for'
