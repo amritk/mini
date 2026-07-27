@@ -11,7 +11,9 @@ afterEach(() => {
 })
 
 /** The three parts a field renders: the visible label, the control, and the error. */
-const partsOf = (root: MemoryElement): { label?: MemoryElement; input: MemoryElement; error: MemoryElement } => {
+const partsOf = (
+  root: MemoryElement,
+): { label: MemoryElement | undefined; input: MemoryElement; error: MemoryElement } => {
   const wrapper = root.children[0] as MemoryElement
   const children = wrapper.children as MemoryElement[]
   const input = children.find((child) => child.tag === 'input') as MemoryElement
@@ -112,12 +114,12 @@ describe('field', () => {
     const form = createForm({ initialValues: { password: '' } })
 
     mount(memory.rootElement, () =>
-      Field({ form, name: 'password', secure: true, keyboard: 'text', autoComplete: 'current-password' }),
+      Field({ form, name: 'password', secure: true, keyboard: 'text', autoComplete: 'password' }),
     )
     const { input } = partsOf(memory.root)
 
     expect(input.props['secure']).toBe(true)
-    expect(input.props['autoComplete']).toBe('current-password')
+    expect(input.props['autoComplete']).toBe('password')
   })
 
   it('renders no visible label when none was given', () => {

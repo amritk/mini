@@ -31,7 +31,18 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router', 'animate', 'forms']
+const SUBPATH_DIRS = [
+  'hosts',
+  'flow',
+  'ui',
+  'platform',
+  'composition',
+  'gestures',
+  'router',
+  'animate',
+  'forms',
+  'query',
+]
 
 /**
  * Drops comments before the specifiers are read.
@@ -193,6 +204,15 @@ describe('import-boundary', () => {
     // beyond signals — listed rather than waved through, so a dependency added
     // later has to be a deliberate edit to this line.
     expect([...forms.externals].sort()).toEqual(['@amritk/runtime-validators', 'alien-signals'])
+  })
+
+  it('keeps the query subpath free of any host', () => {
+    // The easiest of the lot to keep honest, and the reason it ported verbatim:
+    // fetching and caching never touch an element, so there is nothing here
+    // that could reach for a host even carelessly.
+    const query = walk(resolve(SRC, 'query', 'index.ts'))
+    expect(leaksFrom(query.files, ['hosts'])).toEqual([])
+    expect([...query.externals].sort()).toEqual(['@tanstack/query-core', 'alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {
