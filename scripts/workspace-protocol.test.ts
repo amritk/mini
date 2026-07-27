@@ -118,12 +118,13 @@ describe('workspace-protocol', () => {
     }
   })
 
-  it('declares every runtime dependency shared by both packages through the catalog', async () => {
+  it('pins every runtime dependency shared by both packages to a single version', async () => {
     // alien-signals is the reactive core of both packages; two manifests free
     // to pin it separately is how a consumer ends up with two copies of the
     // signal graph, where an effect created by one never sees the other's
     // writes. The catalog is what makes that drift impossible.
     const manifests = await workspaceManifests()
+    const workspaceNames = new Set(manifests.flatMap(({ pkg }) => (pkg.name ? [pkg.name] : [])))
     const seen = new Map<string, string[]>()
     for (const { dir, pkg } of manifests) {
       for (const name of Object.keys(pkg.dependencies ?? {})) seen.set(name, [...(seen.get(name) ?? []), dir])
@@ -131,9 +132,15 @@ describe('workspace-protocol', () => {
 
     for (const [name, dirs] of seen) {
       if (dirs.length < 2) continue
+      // A workspace sibling — `@amritk/mini-helpers` — is pinned with
+      // `workspace:*` instead, and that is the stronger guarantee rather than a
+      // loophole. The catalog makes two dependents agree on a range they each
+      // copy; `workspace:*` resolves at publish time to the exact version going
+      // out in the same run, so there is no range for them to disagree about.
+      const expected = workspaceNames.has(name) ? 'workspace:*' : 'catalog:'
       for (const dir of dirs) {
         const pkg = manifests.find((entry) => entry.dir === dir)?.pkg
-        expect(pkg?.dependencies?.[name], `${dir} depends on ${name} through the catalog`).toBe('catalog:')
+        expect(pkg?.dependencies?.[name], `${dir} pins ${name} with ${expected}`).toBe(expected)
       }
     }
   })

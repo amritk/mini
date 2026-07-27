@@ -1,10 +1,10 @@
+import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+
 import { onCleanup } from '../on-cleanup'
 import { batch, type ReadonlySignal, signal } from '../signals'
 import type { Dispose, HostElement } from '../types'
 import { untrack } from '../untrack'
 import type { RouterHistory, RouterLocation } from './history'
-import { matchRoute, type RouteParams } from './match-route'
-import { parseQuery } from './parse-query'
 
 /**
  * One route definition.

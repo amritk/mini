@@ -1,8 +1,9 @@
+import type { RouteParams } from '@amritk/mini-helpers'
+
 import { requireHost } from '../current-host'
 import { type ChildFactory, renderChild } from '../render-child'
 import type { HostElement } from '../types'
 import type { Route, Router } from './create-router'
-import type { RouteParams } from './match-route'
 
 /** Props for {@link RouteView}. */
 export type RouteViewProps<R extends Route> = {

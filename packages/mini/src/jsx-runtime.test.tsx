@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 
-import type { ClassValue } from './jsx-runtime'
+import { type ClassValue, jsx } from './jsx-runtime'
 import { signal } from './signals'
 
 describe('jsx-runtime', () => {
@@ -275,6 +275,83 @@ describe('jsx-runtime', () => {
     expect(el.style.display).toBe('none')
     visible(true)
     expect(el.style.display).toBe('inline-block')
+  })
+
+  it('keeps a bound value updating after the user has typed', () => {
+    const draft = signal('a')
+    const el = (<input value={draft} />) as HTMLInputElement
+    expect(el.value).toBe('a')
+    // Typing makes the field dirty, which is where an attribute write stops
+    // reaching the rendered value — the attribute is only the DEFAULT.
+    el.value = 'typed by the user'
+    draft('b')
+    expect(el.value).toBe('b')
+  })
+
+  it('selects the matching option for a select value, including the children written after it', () => {
+    const picked = signal('b')
+    const el = (
+      <select value={picked}>
+        <option value="a">A</option>
+        <option value="b">B</option>
+      </select>
+    ) as HTMLSelectElement
+    // A `value` ATTRIBUTE means nothing on a `<select>`; only the property
+    // selects. It also has to land after the options exist — `children` is the
+    // last key the transform emits, so the write is held back until then.
+    expect(el.value).toBe('b')
+    picked('a')
+    expect(el.value).toBe('a')
+  })
+
+  it('keeps a bound checked updating after the user has clicked', () => {
+    const on = signal(true)
+    const el = (<input type="checkbox" checked={on} />) as HTMLInputElement
+    expect(el.checked).toBe(true)
+    el.click()
+    on(false)
+    on(true)
+    expect(el.checked).toBe(true)
+  })
+
+  it('writes option selected through the property', () => {
+    const chosen = signal(false)
+    const el = (<option selected={chosen}>B</option>) as HTMLOptionElement
+    expect(el.selected).toBe(false)
+    chosen(true)
+    expect(el.selected).toBe(true)
+  })
+
+  it('falls back to the attribute for value on an element that has no such property', () => {
+    // `<div value>` is not a control, so the property does not exist and the
+    // attribute is the only place the value can go.
+    const el = jsx('div', { value: 'x' })
+    expect(el.getAttribute('value')).toBe('x')
+  })
+
+  it('leaves no class attribute behind when the class resolves to nothing', () => {
+    const busy = signal(false)
+    const el = <div class={() => busy() && 'spinning'} />
+    expect(el.hasAttribute('class')).toBe(false)
+    busy(true)
+    expect(el.getAttribute('class')).toBe('spinning')
+    busy(false)
+    expect(el.hasAttribute('class')).toBe(false)
+  })
+
+  it('renders a reactive boolean child as nothing, like a static one', () => {
+    const flag = signal(true)
+    const el = (
+      <span>
+        {flag}
+        {false}
+      </span>
+    )
+    // A static boolean child vanishes; the reactive form has to agree, or
+    // `{flag}` prints the word "true" where `{false}` prints nothing.
+    expect(el.textContent).toBe('')
+    flag(false)
+    expect(el.textContent).toBe('')
   })
 
   it('narrows currentTarget to the bound element in event handlers', () => {

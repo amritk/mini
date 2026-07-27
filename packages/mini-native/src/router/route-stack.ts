@@ -1,3 +1,4 @@
+import type { RouteParams } from '@amritk/mini-helpers'
 import { effect, effectScope } from 'alien-signals'
 
 import { applyProp } from '../apply-prop'
@@ -10,7 +11,6 @@ import type { ClassValue, Dispose, HostElement, HostNode, MaybeReactive, StyleVa
 import { mergeStyle } from '../ui/merge-style'
 import { untrack } from '../untrack'
 import type { Route, Router, RouteState } from './create-router'
-import type { RouteParams } from './match-route'
 import type { StackChange, StackTransition } from './stack-transition'
 
 /** Props for {@link RouteStack}. */

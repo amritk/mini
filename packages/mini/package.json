@@ -41,6 +41,7 @@
     "test": "NODE_ENV=production vitest run --root ../.. packages/mini/"
   },
   "dependencies": {
+    "@amritk/mini-helpers": "workspace:*",
     "alien-signals": "catalog:"
   },
   "exports": {

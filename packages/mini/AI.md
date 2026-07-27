@@ -86,6 +86,11 @@ runtime:
 No fragments (`<>…</>`), no `dangerouslySetInnerHTML`, no event options. A JSX
 expression **is** the `HTMLElement` — components return the element directly.
 
+`value`, `checked`, and `selected` go through the DOM **property**, so
+`<input value={draft} />` keeps updating after the user has typed in the field
+and `<select value={picked}>` actually selects the option. They are one-way;
+`bindValue` / `bindChecked` / `bindSelect` are the two-way versions.
+
 ## Subpath entry points (tree-shakeable; core stays tiny)
 
 | Import | Purpose | Extra peer dep |

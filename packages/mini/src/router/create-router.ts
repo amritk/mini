@@ -1,7 +1,8 @@
+import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+
+import { onCleanup } from '../on-cleanup'
 import type { ReadonlySignal } from '../signals'
 import { signal } from '../signals'
-import { matchRoute, type RouteParams } from './match-route'
-import { parseQuery } from './parse-query'
 import { stripBase } from './strip-base'
 
 /**
@@ -106,7 +107,16 @@ export const createRouter = <R extends Route>(options: RouterOptions<R>): Router
     }
   }
 
-  return { route, navigate, stop: () => window.removeEventListener(event, onChange) }
+  const stop = (): void => window.removeEventListener(event, onChange)
+  // Same contract every other primitive here keeps — `list`, `createQuery`,
+  // `form.bind` all register their teardown — so a router built inside a
+  // component or a test's `mount` dies with it instead of leaving a listener on
+  // `window` holding the whole route table alive. Created at module scope, the
+  // documented shape, there is no enclosing scope and this never fires, which is
+  // exactly the lifetime the router had before; `stop()` stays for that case.
+  onCleanup(stop)
+
+  return { route, navigate, stop }
 }
 
 /** Reads the current path+search from the browser for the active mode. */
