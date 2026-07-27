@@ -49,8 +49,11 @@
  * ```
  */
 
+// Re-exported from `@amritk/mini-helpers/schema`: a schema has no platform in
+// it, so this is the arm `@amritk/mini` and this package genuinely share.
+export { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
+
 export { bindField } from './bind-field'
 export type { Field as FieldState, FieldValue, FieldValues, Form, FormConfig, FormValidate } from './create-form'
 export { createForm } from './create-form'
 export { Field, type FieldProps } from './field'
-export { type FormErrors, schemaToValidator } from './schema-to-validator'

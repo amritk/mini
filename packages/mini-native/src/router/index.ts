@@ -49,6 +49,8 @@
  * before a real app has asked for one twice.
  */
 
+export { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+
 export { createMemoryHistory } from './create-memory-history'
 export {
   createRouter,
@@ -59,7 +61,5 @@ export {
   type RouteState,
 } from './create-router'
 export type { RouterHistory, RouterLocation } from './history'
-export { matchRoute, type RouteParams } from './match-route'
-export { parseQuery } from './parse-query'
 export { RouteLink, type RouteLinkProps } from './route-link'
 export { RouteView, type RouteViewProps } from './route-view'

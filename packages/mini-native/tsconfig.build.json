@@ -11,7 +11,13 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": [],
     "jsx": "react-jsx",
-    "jsxImportSource": "@amritk/mini-native"
+    "jsxImportSource": "@amritk/mini-native",
+    // Dropped for the emit pass. `tsconfig.json` turns it on so a type-check in
+    // a fresh clone reads `@amritk/mini-helpers` from source; here that would put
+    // another package's `src` inside this one's `rootDir`. The build resolves it
+    // through the normal `types` condition instead — which is why the root
+    // `build` script builds `mini-helpers` before either package that uses it.
+    "customConditions": []
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx"]

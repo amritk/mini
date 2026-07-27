@@ -10,9 +10,15 @@
  * existence. The schema arm imports `@amritk/runtime-validators`, an optional
  * peer: install it only if you validate with schemas.
  */
+
+// Re-exported from `@amritk/mini-helpers/schema`: compiling a schema is the arm
+// of this layer that never touches an element, so it is shared with
+// `@amritk/mini-native` rather than ported. `@amritk/runtime-validators` stays
+// an optional peer, reached through that package instead of directly.
+export type { FormErrors } from '@amritk/mini-helpers/schema'
+export { schemaToValidator } from '@amritk/mini-helpers/schema'
+
 export type { Field as FieldState, FieldValues, Form, FormConfig, FormValidate } from './create-form'
 export { createForm } from './create-form'
 export type { FieldControl, FieldProps } from './field'
 export { Field } from './field'
-export type { FormErrors } from './schema-to-validator'
-export { schemaToValidator } from './schema-to-validator'

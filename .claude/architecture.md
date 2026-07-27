@@ -32,7 +32,8 @@ the reconciler, and there is none here to port.
 mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
-│   └── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+│   ├── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+│   └── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-native/# every @amritk/mini-native entry point, through the DOM host
@@ -137,9 +138,44 @@ the real target that native approximates.
   name — a name is a proxy for the thing an app actually cares about, and
   proxies rot.
 - **Depends on:** `alien-signals` only, re-exported from `src/signals.ts` so
-  nothing else imports it.
+  nothing else imports it, plus `@amritk/mini-helpers` from `/router` and
+  `/forms`.
 - **Build:** `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`, the
   same pipeline as `@amritk/mini`.
+
+### `@amritk/mini-helpers` (`packages/mini-helpers`)
+
+The helpers the other two turned out to need *identically*, factored out so they
+cannot drift. It is small on purpose and the bar for adding to it is high: **no
+reactivity, no platform.**
+
+- **Two entries.** `.` is `matchRoute`/`RouteParams`/`parseQuery` — pure string
+  arithmetic with **zero dependencies**, which is the promise that entry makes.
+  `/schema` is `schemaToValidator`/`FormErrors`, on its own entry because it is
+  the one thing here that reaches a dependency (`@amritk/runtime-validators`, an
+  optional peer, exactly as it was in both `/forms` layers before).
+- **Neither published package's surface changed.** Both re-export everything
+  from the subpath it already lived on, so `matchRoute` still comes from
+  `@amritk/mini/router` and `schemaToValidator` still comes from
+  `@amritk/mini-native/forms`. The sharing is an implementation detail a
+  consumer never has to know about.
+- **`src/purity.test.ts` is the charter, enforced.** It walks the graph from
+  both entries and asserts `.` has no externals at all, `/schema` has only its
+  peer, neither reaches `alien-signals`, and neither imports a sibling package.
+  The signals rule is the load-bearing one: a third edge onto the signal engine
+  is how a consumer ends up with two reactive graphs that cannot see each
+  other's writes — a failure that typechecks, runs, and silently stops updating.
+  The platform rule is a compiler constraint (`lib: ["ESNext"]`, `types: []`),
+  and it is why `parseQuery` is hand-rolled rather than calling
+  `URLSearchParams`, which is a web global and not an ECMAScript one.
+- **Depends on:** nothing. `@amritk/runtime-validators` is an optional peer of
+  `/schema` alone.
+- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline. Both
+  dependents resolve it through the `development` condition while type-checking
+  (`customConditions` in their `tsconfig.json`, dropped again in
+  `tsconfig.build.json`) so CI can type-check before it builds; the emit
+  resolves it through `types` instead, which is why `bun run --workspaces build`
+  builds this package first.
 
 ## The playgrounds (`apps/`)
 
@@ -188,6 +224,24 @@ and the reserved-`key` hole were found in `mini-native` and then fixed in `mini`
 too. **When you fix a bug in one package, check the other for the same shape**
 — the per-package `AGENTS.md` files cross-reference each other for exactly this
 reason.
+
+`@amritk/mini-helpers` pays that cost down for the narrow band where it can be
+paid down for free: code that is already *literally identical* in both and
+carries neither reactivity nor a platform. Today that is route matching, query
+parsing, and JSON Schema compilation. It does **not** make the two packages
+layers — the shared package is a leaf that imports neither of them, and both
+depend on it rather than on each other.
+
+Three duplications are deliberate and should stay:
+
+- **The runtime cores** (`signals`, `list`, `mount`, the JSX runtimes, the bind
+  helpers) only look parallel. `mini` takes DOM fast paths — `textContent`,
+  template cloning — that have no meaning behind a `Host`.
+- **`onCleanup` and `runDetached`,** which really are byte-identical, live in
+  each `.` entry, whose transitive imports must be `alien-signals` and nothing
+  else. Sharing them would put bytes in the widget's bundle to save nine lines.
+- **`createQuery`,** also a verbatim port, is built out of signals — and signals
+  are the one thing the shared package may never touch.
 
 ## Import Conventions
 

@@ -22,7 +22,15 @@
       "@amritk/mini-native/jsx-runtime": ["./src/jsx-runtime.ts"],
       "@amritk/mini-native/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"],
       "@amritk/mini-native": ["./src/index.ts"]
-    }
+    },
+    // Resolve `@amritk/mini-helpers` to the workspace's SOURCE through the
+    // `development` condition it already declares, rather than to its `dist`.
+    // CI type-checks BEFORE it builds, so without this a fresh clone would look
+    // for a `.d.ts` that does not exist yet. It also means the shared sources
+    // are checked against THIS package's platform-free `lib`, so a browser
+    // global smuggled into them fails here and not only on a device.
+    // Undone in `tsconfig.build.json`, where the emit must resolve to `dist`.
+    "customConditions": ["development"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "examples/**/*.tsx"],
   "exclude": [
