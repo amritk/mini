@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // No DOM lib and no Node types, for the same reason `@amritk/mini-native`
+    // omits them and then some: this package is consumed by BOTH a browser-only
+    // package and a platform-free one, so the only ambient surface it may use
+    // is the one every ECMAScript host provides. `decodeURIComponent` is a
+    // language global and fine; `URLSearchParams` is a web one and is not,
+    // which is why `parseQuery` is hand-rolled here.
+    "lib": ["ESNext"],
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

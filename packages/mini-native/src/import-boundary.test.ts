@@ -183,6 +183,12 @@ describe('import-boundary', () => {
     const router = walk(resolve(SRC, 'router', 'index.ts'))
     expect(leaksFrom(router.files, ['hosts'])).toEqual([])
     expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
+    // `matchRoute`/`parseQuery` are that arithmetic, and they live in
+    // `@amritk/mini-helpers` so this router and `@amritk/mini`'s cannot drift
+    // about what a route pattern means. That package is pure by charter — no
+    // signals, no platform, enforced by its own `purity.test.ts` — so naming it
+    // here does not weaken what this case is guarding.
+    expect([...router.externals].sort()).toEqual(['@amritk/mini-helpers', 'alien-signals'])
   })
 
   it('keeps the animation subpath free of any host', () => {
@@ -200,10 +206,14 @@ describe('import-boundary', () => {
     // from `@amritk/mini` changed one file and not the whole layer.
     const forms = walk(resolve(SRC, 'forms', 'index.ts'))
     expect(leaksFrom(forms.files, ['hosts'])).toEqual([])
-    // The validator is the schema arm's optional peer and the only external here
-    // beyond signals — listed rather than waved through, so a dependency added
-    // later has to be a deliberate edit to this line.
-    expect([...forms.externals].sort()).toEqual(['@amritk/runtime-validators', 'alien-signals'])
+    // The schema arm now lives in `@amritk/mini-helpers/schema`, shared with
+    // `@amritk/mini` because compiling a schema is the part of this layer that
+    // never touches a control. `@amritk/runtime-validators` is still the
+    // optional peer behind it — reached through that package rather than
+    // directly, which is why it no longer appears here. Both externals are
+    // listed rather than waved through, so a dependency added later has to be a
+    // deliberate edit to this line.
+    expect([...forms.externals].sort()).toEqual(['@amritk/mini-helpers/schema', 'alien-signals'])
   })
 
   it('keeps the query subpath free of any host', () => {

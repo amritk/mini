@@ -47,8 +47,8 @@ src/
   composition/            createContext, Portal, ErrorBoundary
   gestures/               pan, swipe — arithmetic over the normalised pointer stream
   animate/                animate() — a timeline described once and handed to the engine
-  router/                 Pattern matching (pure) + a pluggable history; the browser one is its own entry
-  forms/                  createForm, Field, schema validation — ported from mini bar one file
+  router/                 A pluggable history + views; matchRoute/parseQuery come from @amritk/mini-helpers
+  forms/                  createForm, Field — ported from mini bar one file; the schema arm is shared
   query/                  createQuery over @tanstack/query-core — ported verbatim
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform

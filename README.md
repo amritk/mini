@@ -24,6 +24,12 @@ shapes:
 | **[`@amritk/mini`](./packages/mini)** | The DOM. Reactive bindings, keyed lists, static-template cloning, and a compilerless JSX runtime. |
 | **[`@amritk/mini-native`](./packages/mini-native)** | Whatever a pluggable **`Host`** puts in front of it — a native view tree (Lynx), the DOM as a preview target, or plain objects. |
 
+A third package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
+handful of helpers that turned out identical in both — route matching, query
+parsing, JSON Schema compilation. Both packages depend on it and re-export it, so
+you never import it directly; it is separate only because its charter is worth
+enforcing: **no reactivity, no platform.**
+
 Both are compilerless: there is no custom build step, just the standard
 `react-jsx` transform pointed at the package's own runtime.
 
@@ -115,6 +121,8 @@ package READMEs:
   contract, the native element vocabulary, the three shipped hosts, and the
   `/flow` `/ui` `/platform` `/composition` `/gestures` `/animate` `/router`
   `/forms` `/query` subpaths.
+- [`@amritk/mini-helpers`](./packages/mini-helpers/README.md) — the pure helpers
+  both of the above share, and the bar for adding to them.
 
 ## Playgrounds
 

@@ -2,11 +2,16 @@
 export type RouteParams = Record<string, string>
 
 /**
- * Matches a route pattern against a concrete pathname, returning the captured
+ * Matches a route pattern against a concrete path, returning the captured
  * params or `null` when the two do not match.
  *
- * The pattern grammar is intentionally tiny — the only two things dashboards
- * reach for:
+ * Pure — no platform, no browser, no engine. That is the whole reason routing
+ * ports at all: matching is string arithmetic, and only *navigation* has a
+ * per-target answer. Both routers call this one function, which is why they
+ * cannot drift about what a route pattern means.
+ *
+ * The grammar is intentionally tiny — the only two things a real app reaches
+ * for:
  * - `:name` captures one path segment into `params.name`.
  * - a trailing `*` captures the entire rest of the path into `params.rest`
  *   (the empty string when nothing follows), which covers nested layouts and
@@ -40,10 +45,10 @@ export const matchRoute = (pattern: string, path: string): RouteParams | null =>
   return patternParts.length === pathParts.length ? params : null
 }
 
-/** Splits a path into its non-empty segments, dropping leading/trailing slashes. */
+/** Splits a path into its non-empty segments, dropping leading and trailing slashes. */
 const split = (path: string): string[] => path.split('/').filter((part) => part.length > 0)
 
-/** Decodes a single captured segment, tolerating malformed encodings. */
+/** Decodes a single captured segment, tolerating a malformed encoding rather than throwing. */
 const decode = (value: string): string => {
   try {
     return decodeURIComponent(value)
