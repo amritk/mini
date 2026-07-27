@@ -83,8 +83,14 @@ type ClassEntry = string | false | null | undefined | readonly ClassEntry[] | Re
  * entries may themselves be arrays or toggle maps, which flatten; an object keeps
  * the keys whose value is truthy (`{ btn: true, on: active() }`). The whole thing
  * is still `MaybeReactive`, so wrap it in a getter to track.
+ *
+ * Falsy is a value in its own right, and means no class at all — the attribute is
+ * removed. It is listed because `class={busy() && 'spinning'}` is how people
+ * actually write a conditional class, and the runtime has always dropped every
+ * falsy value; leaving `false` out of the type rejected the shorthand at the top
+ * level while accepting it one bracket deeper, inside an array.
  */
-export type ClassValue = string | readonly ClassEntry[] | Record<string, boolean>
+export type ClassValue = string | false | null | undefined | readonly ClassEntry[] | Record<string, boolean>
 
 /**
  * The value forms `style` accepts: a `cssText` string, or an object of
@@ -361,6 +367,37 @@ const setAttribute = (element: Element, name: string, value: unknown): void => {
   else element.setAttribute(name, value === true ? '' : String(value))
 }
 
+/**
+ * The props a form control only *seeds* from its attribute. Writing
+ * `value`/`checked`/`selected` as attributes sets the element's DEFAULT — the
+ * live state is the property, and the two stop tracking each other the moment
+ * the user interacts. So `<input value={draft} />` would update the field until
+ * the first keystroke and then silently freeze, and `<select value={picked} />`
+ * never selects anything at all, because a `value` attribute means nothing on a
+ * `<select>`. These three go through the property instead. The DOM host in
+ * `mini-native` routes the same names the same way, for the same reason.
+ */
+const isProperty = (name: string): boolean => name === 'value' || name === 'checked' || name === 'selected'
+
+/**
+ * Writes one of the {@link isProperty} names through the DOM property, falling
+ * back to the attribute on an element that has no such property (`<div value>`
+ * and other non-controls, where the attribute is the only place to put it).
+ *
+ * `value` is stringified with the nullish/`false` cases emptying the field
+ * rather than writing the literal `"null"`; `checked`/`selected` are booleans.
+ */
+const setProperty = (element: Element, name: string, value: unknown): void => {
+  if (!(name in element)) {
+    setAttribute(element, name, value)
+  } else if (name === 'value') {
+    ;(element as unknown as Record<string, string>)[name] =
+      value === null || value === undefined || value === false ? '' : String(value)
+  } else {
+    ;(element as unknown as Record<string, boolean>)[name] = value === true
+  }
+}
+
 /** Collapses a {@link ClassValue} (string, array, or toggle-map) into a className string. */
 const resolveClass = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -478,7 +515,10 @@ const appendChildren = (element: Element, children: MiniChildren): void => {
     const get = children
     effect(() => {
       const value = get()
-      text.textContent = value === null || value === undefined || value === false ? '' : String(value)
+      // Booleans render as nothing, matching a static child (`typeof 'boolean'`
+      // returns above) — otherwise `{() => flag}` would print the word "true"
+      // where `{flag}` prints nothing, and only one of the two is ever intended.
+      text.textContent = value === null || value === undefined || typeof value === 'boolean' ? '' : String(value)
     })
     element.appendChild(text)
     return
@@ -516,6 +556,11 @@ export const jsx = (tag: string | Component<never>, props: MiniElementProps, key
 
   const element = createElement(tag)
   let ref: ((el: HTMLElement) => void) | undefined
+  // The `value`/`checked`/`selected` props, held back until the loop is done.
+  // `<select value={picked}>` is why: the property write only takes if the
+  // matching `<option>` already exists, and `children` is the LAST key the JSX
+  // transform emits — applying in prop order would select against an empty list.
+  let properties: string[] | undefined
 
   // `for…in` over the props object rather than `Object.entries(props)`: the
   // latter allocates an array of `[key, value]` tuples on every element built,
@@ -538,13 +583,20 @@ export const jsx = (tag: string | Component<never>, props: MiniElementProps, key
       bindShow(element as HTMLElement, get)
     } else if (name === 'class') {
       // `class` accepts a string, an array, or a toggle-map; a function tracks.
-      // Everything funnels through `resolveClass` so both forms behave alike.
-      if (typeof value === 'function') effect(() => setAttribute(element, 'class', resolveClass(value())))
-      else setAttribute(element, 'class', resolveClass(value))
+      // Everything funnels through `resolveClass` so both forms behave alike,
+      // and an empty result removes the attribute rather than leaving a bare
+      // `class=""` behind — `class={busy() && 'spinning'}` is the ordinary way
+      // that happens, and it should read as no class at all.
+      if (typeof value === 'function') effect(() => setAttribute(element, 'class', resolveClass(value()) || null))
+      else setAttribute(element, 'class', resolveClass(value) || null)
     } else if (name === 'style') {
       // `style` accepts a cssText string or a property object; a function tracks.
       if (typeof value === 'function') effect(() => applyStyle(element, (value as () => unknown)()))
       else applyStyle(element, value)
+    } else if (isProperty(name)) {
+      // Deferred below, where the element's children exist.
+      properties ??= []
+      properties.push(name)
     } else if (name.startsWith('on') && typeof value === 'function') {
       // onClick → click, onPointerDown → pointerdown. Plain listener, bubble
       // phase — options and delegation are out of scope by charter.
@@ -556,6 +608,16 @@ export const jsx = (tag: string | Component<never>, props: MiniElementProps, key
       effect(() => setAttribute(element, name, get()))
     } else {
       setAttribute(element, name, value)
+    }
+  }
+
+  if (properties !== undefined) {
+    for (const name of properties) {
+      const value = props[name]
+      // Same reactivity rule as an attribute: a function tracks, anything else
+      // is written once.
+      if (typeof value === 'function') effect(() => setProperty(element, name, (value as () => unknown)()))
+      else setProperty(element, name, value)
     }
   }
 

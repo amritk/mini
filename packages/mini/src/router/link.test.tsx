@@ -79,6 +79,16 @@ describe('link', () => {
     expect(anchor.getAttribute('aria-current')).toBe(null)
   })
 
+  it('sets aria-current from active even without an activeClass', () => {
+    // The screen-reader half of `active` is not something the caller can add
+    // back from outside, so it must not depend on also asking for a class.
+    const here = signal(false)
+    const anchor = Link({ to: '/x', navigate: () => {}, active: here })
+    expect(anchor.getAttribute('aria-current')).toBe(null)
+    here(true)
+    expect(anchor.getAttribute('aria-current')).toBe('page')
+  })
+
   it('forwards common anchor attributes', () => {
     const anchor = Link({ to: '/x', navigate: () => {}, target: '_blank', rel: 'noopener', title: 'Go' })
     expect(anchor.getAttribute('target')).toBe('_blank')

@@ -24,10 +24,18 @@ export type CatchCalledSignalsOptions = {
   readonly overlay?: boolean
 }
 
-/** A `.tsx` module we should scan — not a virtual module, not a dependency. */
+/**
+ * A JSX module we should scan — not a virtual module, not a dependency.
+ *
+ * `.jsx` counts as much as `.tsx`. Being compilerless is the point of this
+ * package, so an app with no TypeScript at all is a supported consumer — and it
+ * is the one that needs this guard MOST, having no type checker either. The
+ * scanner parses both as TSX and recognises `const x = signal(0)` without any
+ * annotation, so the plain-JS app is covered by exactly the same pass.
+ */
 const isScannable = (id: string): boolean => {
   const path = id.split('?', 1)[0] ?? id
-  return path.endsWith('.tsx') && !path.includes('/node_modules/')
+  return (path.endsWith('.tsx') || path.endsWith('.jsx')) && !path.includes('/node_modules/')
 }
 
 /** The human-facing message for one finding — the fix is in the text, not just the rule name. */

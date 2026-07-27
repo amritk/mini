@@ -75,15 +75,21 @@ export const Link = (props: LinkProps): HTMLElement => {
     children: props.children,
   }
 
-  // Merge `activeClass` into `class` reactively when `active` can toggle;
+  // Merge `activeClass` into `class` reactively when there is one to merge;
   // otherwise forward `class` untouched so a fully-static link stays effect-free.
   if (active !== undefined && props.activeClass !== undefined) {
     const base = props.class === undefined ? undefined : toGetter(props.class)
     anchorProps['class'] = () => [base?.(), active() ? props.activeClass : undefined].filter(Boolean).join(' ')
-    anchorProps['aria-current'] = () => (active() ? 'page' : null)
   } else if (props.class !== undefined) {
     anchorProps['class'] = props.class
   }
+
+  // `aria-current` is decided by `active` alone. It used to ride along with the
+  // class merge, so a link that marked itself some other way — an `activeClass`
+  // it did not need, a `class` getter of its own reading the same signal —
+  // announced nothing to a screen reader, which is the half of `active` that
+  // cannot be worked around from the outside.
+  if (active !== undefined) anchorProps['aria-current'] = () => (active() ? 'page' : null)
 
   for (const key of ['target', 'rel', 'title', 'id', 'style'] as const) {
     if (props[key] !== undefined) anchorProps[key] = props[key]
