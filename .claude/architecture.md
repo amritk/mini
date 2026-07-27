@@ -32,7 +32,8 @@ the reconciler, and there is none here to port.
 mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
-│   └── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+│   ├── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+│   └── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-native/# every @amritk/mini-native entry point, through the DOM host
