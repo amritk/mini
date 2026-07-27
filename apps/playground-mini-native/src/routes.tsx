@@ -2,8 +2,12 @@ import { createRouter, type Route, type Router } from '@amritk/mini-native/route
 import { createBrowserHistory } from '@amritk/mini-native/router/browser'
 
 import { CompositionScreen } from './screens/composition'
+import { DataScreen } from './screens/data'
 import { FlowScreen } from './screens/flow'
+import { FormsScreen } from './screens/forms'
 import { GesturesScreen } from './screens/gestures'
+import { LynxScreen } from './screens/lynx'
+import { MotionScreen } from './screens/motion'
 import { PlatformScreen } from './screens/platform'
 import { RoutingScreen } from './screens/routing'
 import { UiScreen } from './screens/ui'
@@ -32,6 +36,10 @@ const ROUTES: readonly AppRoute[] = [
   { path: '/gestures', label: 'Gestures', badge: '✋', nav: true, view: () => <GesturesScreen /> },
   { path: '/platform', label: 'Platform', badge: '◍', nav: true, view: () => <PlatformScreen /> },
   { path: '/composition', label: 'Compose', badge: '⧉', nav: true, view: () => <CompositionScreen /> },
+  { path: '/forms', label: 'Forms', badge: '✎', nav: true, view: () => <FormsScreen /> },
+  { path: '/data', label: 'Data', badge: '⇅', nav: true, view: () => <DataScreen /> },
+  { path: '/motion', label: 'Motion', badge: '↝', nav: true, view: () => <MotionScreen /> },
+  { path: '/lynx', label: 'Lynx', badge: '◆', nav: true, view: () => <LynxScreen /> },
   { path: '/routing', label: 'Routing', badge: '↦', nav: true, view: (params) => <RoutingScreen params={params} /> },
   // The same screen under a params pattern. Moving between the two keeps it
   // mounted and only updates the params getter — `RouteView` renders one slot,

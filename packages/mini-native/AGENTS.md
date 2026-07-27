@@ -60,6 +60,7 @@ src/
     lynx-element-api.ts   The PAPI subset, as an injectable type
     lynx-transition-animator.ts  Timelines as inline transitions — the most the PAPI can express
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
+    to-css-name.ts        A style key → its CSS spelling, for the targets handed declarations
     to-keyframe.ts        A style bag → an animation keyframe, units and IDL names applied
     named-events.ts       Which events a host owes a normalised payload for
     tri-state-props.ts    The props where `false` is a value, not an absence

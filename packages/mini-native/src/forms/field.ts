@@ -1,6 +1,6 @@
 import type { ElementProps } from '../elements'
 import { jsx } from '../jsx-runtime'
-import type { ClassValue, HostElement, MaybeReactive } from '../types'
+import type { ClassValue, HostElement, MaybeReactive, StyleValue } from '../types'
 import type { FieldValues, Form } from './create-form'
 
 /** Props for {@link Field}, parameterised by the form's value shape `V`. */
@@ -44,6 +44,24 @@ export type FieldProps<V extends FieldValues> = {
   inputClass?: MaybeReactive<ClassValue>
   /** Class for the error message. */
   errorClass?: MaybeReactive<ClassValue>
+  /**
+   * Style for the wrapper.
+   *
+   * The four style props exist alongside the four class ones because a class is
+   * the web-only channel: it is a stylesheet lookup on the DOM, a different
+   * mechanism again on Lynx, and nothing at all on the memory host. A style bag
+   * of density-independent pixels means the same thing everywhere, which makes
+   * it the portable default and the one a field styled for both targets should
+   * reach for. Ported from `@amritk/mini`, this component arrived carrying only
+   * the web half.
+   */
+  style?: MaybeReactive<StyleValue | null>
+  /** Style for the visible label. */
+  labelStyle?: MaybeReactive<StyleValue | null>
+  /** Style for the control. */
+  inputStyle?: MaybeReactive<StyleValue | null>
+  /** Style for the error message. */
+  errorStyle?: MaybeReactive<StyleValue | null>
 }
 
 /**
@@ -83,7 +101,21 @@ export type FieldProps<V extends FieldValues> = {
  * ```
  */
 export const Field = <V extends FieldValues>(props: FieldProps<V>): HostElement => {
-  const { form, name, label, hint, class: wrapperClass, labelClass, inputClass, errorClass, ...control } = props
+  const {
+    form,
+    name,
+    label,
+    hint,
+    class: wrapperClass,
+    labelClass,
+    inputClass,
+    errorClass,
+    style: wrapperStyle,
+    labelStyle,
+    inputStyle,
+    errorStyle,
+    ...control
+  } = props
   const field = form.field(name)
 
   // The error wins the description slot when there is one: a field that is
@@ -92,16 +124,22 @@ export const Field = <V extends FieldValues>(props: FieldProps<V>): HostElement 
 
   return jsx('view', {
     ...(wrapperClass === undefined ? {} : { class: wrapperClass }),
+    ...(wrapperStyle === undefined ? {} : { style: wrapperStyle }),
     children: [
       label === undefined
         ? null
-        : jsx('text', { ...(labelClass === undefined ? {} : { class: labelClass }), children: label }),
+        : jsx('text', {
+            ...(labelClass === undefined ? {} : { class: labelClass }),
+            ...(labelStyle === undefined ? {} : { style: labelStyle }),
+            children: label,
+          }),
       jsx('input', {
         ...control,
         ref: form.bind(name),
         ...(label === undefined ? {} : { label }),
         hint: describedBy,
         ...(inputClass === undefined ? {} : { class: inputClass }),
+        ...(inputStyle === undefined ? {} : { style: inputStyle }),
       }),
       // Hidden rather than emptied, so an error-only style — a border, spacing —
       // does not paint on a valid field. `error` is already withheld until the
@@ -109,6 +147,7 @@ export const Field = <V extends FieldValues>(props: FieldProps<V>): HostElement 
       // pristine form and appears the moment a message does.
       jsx('text', {
         ...(errorClass === undefined ? {} : { class: errorClass }),
+        ...(errorStyle === undefined ? {} : { style: errorStyle }),
         show: () => field.error() !== undefined,
         children: () => field.error() ?? '',
       }),

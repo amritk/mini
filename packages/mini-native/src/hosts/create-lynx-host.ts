@@ -3,8 +3,20 @@ import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
 import { createTransitionAnimator } from './lynx-transition-animator'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
+import { toCssName } from './to-css-name'
 import { toStyleText } from './to-style-text'
 import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
+
+/**
+ * Re-exported because the PAPI being an ARGUMENT is only half a promise if the
+ * caller cannot name its type.
+ *
+ * `createLynxHost` invites an app to "pass a fake to exercise the adapter
+ * off-device", and a fake has to satisfy `LynxElementApi` to be one. Without
+ * this, that type lived on a module outside the package's export map and the
+ * invitation could only be taken up with a cast.
+ */
+export type { LynxElement, LynxElementApi } from './lynx-element-api'
 
 /**
  * A host that renders onto Lynx, driving its Element PAPI directly.
@@ -423,12 +435,22 @@ const numberOr = (value: unknown): number | null => (typeof value === 'number' &
  * Numbers become density-independent pixels here rather than being handed over
  * bare, which is the host's job per the contract — see {@link toStyleText} for
  * the properties that stay unitless.
+ *
+ * Keys are converted to their CSS spelling for the same reason the DOM host
+ * converts them: `__SetInlineStyles` is handed DECLARATIONS, and the engine
+ * parses them as CSS, where `fontSize` has never been a property. Passing the
+ * camelCase key through was silently dropping it — on the device only, since
+ * the DOM host translated and the memory host stores the bag verbatim, so the
+ * browser preview and the whole test suite agreed with each other and disagreed
+ * with the one target that mattered. Note the direction: this is the opposite
+ * conversion to {@link toKeyframe}'s, because a keyframe is an object read by
+ * property name rather than a declaration parsed as CSS.
  */
 const toStyleStrings = (value: StyleValue): Record<string, string> => {
   const styles: Record<string, string> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (entry === null || entry === undefined || entry === false) continue
-    styles[key] = toStyleText(key, entry)
+    styles[toCssName(key)] = toStyleText(key, entry)
   }
   return styles
 }

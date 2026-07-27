@@ -1,5 +1,5 @@
 import { computed, type HostElement, list, onCleanup, signal } from '@amritk/mini-native'
-import { Dynamic, For, Index, Match, Show, Switch } from '@amritk/mini-native/flow'
+import { Dynamic, For, Index, Match, Show, Switch, VirtualFor } from '@amritk/mini-native/flow'
 import { Row, Stack, Text } from '@amritk/mini-native/ui'
 
 import { Action, Chip, Panel, Readout } from '../lib/ui'
@@ -23,6 +23,7 @@ export const FlowScreen = (): HostElement => (
     <ForDemo />
     <IndexDemo />
     <DynamicDemo />
+    <VirtualForDemo />
     <ListDemo />
   </Stack>
 )
@@ -195,6 +196,97 @@ const DynamicDemo = (): HostElement => {
         <Action onTap={() => tab('none')}>nothing</Action>
       </Row>
       <Dynamic>{() => (tab() === 'summary' ? summary : tab() === 'detail' ? detail : null)}</Dynamic>
+    </Panel>
+  )
+}
+
+/** `<VirtualFor>` — a bounded window of rows, for the collections `For` cannot afford. */
+type Contact = { readonly id: number; readonly name: string; readonly city: string }
+
+const CITIES = ['Lisbon', 'Osaka', 'Toronto', 'Nairobi', 'Bergen'] as const
+
+/** Ten thousand rows, built once. A device would create ten thousand real views for these under `For`. */
+const CONTACTS: readonly Contact[] = Array.from({ length: 10_000 }, (_, index) => ({
+  id: index,
+  name: `contact ${index.toString().padStart(4, '0')}`,
+  city: CITIES[index % CITIES.length] as string,
+}))
+
+const ROW_HEIGHT = 44
+const VIEWPORT = 220
+
+const VirtualForDemo = (): HostElement => {
+  const palette = PaletteContext.use()
+  // Counts how many row elements have ever been BUILT. `For` over the same data
+  // would make ten thousand of them; this settles at the window size and stays
+  // there however far the list is scrolled.
+  //
+  // A plain counter mirrored into the signal, for the same reason `list` below
+  // needs one: the builder runs inside the list's own tracking effect, so
+  // reading `built()` in there would make the list depend on a signal it writes
+  // and the effect would re-run itself forever.
+  let rows = 0
+  const built = signal(0)
+
+  return (
+    <Panel
+      title="VirtualFor"
+      blurb="On the web ten thousand nodes is slow; on a device it is ten thousand real views, which is the defining native performance problem and the reason every native toolkit ships a recycler. This builds viewport / itemSize + 2 × overscan elements and no more."
+    >
+      <VirtualFor
+        each={CONTACTS}
+        itemSize={ROW_HEIGHT}
+        viewport={VIEWPORT}
+        overscan={2}
+        role="list"
+        label="Contacts"
+        style={() => ({
+          borderRadius: RADIUS.sm,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: palette().border,
+          background: palette().surfaceAlt,
+        })}
+      >
+        {(contact) => {
+          rows += 1
+          built(rows)
+          return (
+            <view
+              role="listitem"
+              style={() => ({
+                height: ROW_HEIGHT,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingLeft: 10,
+                paddingRight: 10,
+              })}
+            >
+              {/* Both arguments are GETTERS, and reading them inside a binding is
+                  the whole design: the node stays put and the data flows through
+                  it, exactly as a native recycler reuses a cell. */}
+              <text style={() => ({ color: palette().text, fontSize: 13 })}>{() => contact().name}</text>
+              <text style={() => ({ color: palette().muted, fontSize: 12 })}>{() => contact().city}</text>
+            </view>
+          )
+        }}
+      </VirtualFor>
+      <Readout>
+        {() => `${CONTACTS.length.toLocaleString()} rows in the collection · ${built()} row elements ever built`}
+      </Readout>
+      <Text size="sm" tone="muted">
+        `itemSize` is fixed, and that is the notable limitation: rows of differing heights need each one measured before
+        it is on screen, which needs a `measure` on the host contract that does not exist. Estimating instead is how a
+        virtualised list ends up jumping under the user's finger as the estimates are corrected — a wrong fixed number
+        is at least wrong visibly.
+      </Text>
+      <Text size="sm" tone="muted">
+        It is not bound to a platform recycler, and Lynx has one. A recycler's model is “the engine owns the cell, you
+        fill it with data” — which is a different contract from the rest of the package, and unnecessary, because
+        `Index` already hands a row a getter for whatever occupies its slot. Same idea, so the window is built out of
+        the ordinary keyed list and behaves identically on all three targets.
+      </Text>
     </Panel>
   )
 }

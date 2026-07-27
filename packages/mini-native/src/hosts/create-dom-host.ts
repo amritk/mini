@@ -3,6 +3,7 @@ import type { HostElement, HostNode, HostText } from '../types'
 import { createDomEnvironment } from './dom-environment'
 import { installDomReset, RESET_CONTAINER_MARKER, RESET_MARKER } from './dom-reset'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
+import { toCssName } from './to-css-name'
 import { toKeyframe } from './to-keyframe'
 import { toStyleText } from './to-style-text'
 
@@ -414,7 +415,7 @@ export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
       if (value !== null) {
         for (const [key, entry] of Object.entries(value)) {
           if (entry === null || entry === undefined || entry === false) continue
-          const property = cssName(key)
+          const property = toCssName(key)
           const text = toStyleText(key, entry)
           // Remembered rather than merely written, because `setVisible` has to
           // know what to put back when it shows the element again.
@@ -810,10 +811,6 @@ const EVENTS: Record<string, string> = {
   // Enter on a keydown is the same gesture, filtered by `isSubmit`.
   submit: 'keydown',
 }
-
-/** Converts a camelCase style key to its CSS spelling, leaving custom properties alone. */
-const cssName = (key: string): string =>
-  key.startsWith('--') ? key : key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
 
 /*
  * Host nodes are opaque to the runtime, so the adapter crosses that boundary

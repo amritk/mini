@@ -122,6 +122,34 @@ describe('field', () => {
     expect(input.props['autoComplete']).toBe('password')
   })
 
+  it('styles each of its three parts through a style bag', () => {
+    const memory = createMemoryHost()
+    setHost(memory.host)
+    const form = createForm({ initialValues: { email: '' } })
+
+    mount(memory.rootElement, () =>
+      Field({
+        form,
+        name: 'email',
+        label: 'Email',
+        style: { gap: 4 },
+        labelStyle: { fontSize: 12 },
+        inputStyle: { padding: 10 },
+        errorStyle: { color: 'red' },
+      }),
+    )
+    const wrapper = memory.root.children[0] as MemoryElement
+    const { label, input, error } = partsOf(memory.root)
+
+    // A class is the web-only channel — a stylesheet lookup on the DOM and
+    // nothing at all here — so the portable half has to reach every part of the
+    // field, not just the wrapper.
+    expect(wrapper.style).toEqual({ gap: 4 })
+    expect((label as MemoryElement).style).toEqual({ fontSize: 12 })
+    expect(input.style).toEqual({ padding: 10 })
+    expect(error.style).toEqual({ color: 'red' })
+  })
+
   it('renders no visible label when none was given', () => {
     const memory = createMemoryHost()
     setHost(memory.host)
