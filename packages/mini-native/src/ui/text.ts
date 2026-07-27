@@ -2,7 +2,7 @@ import { jsx } from '../jsx-runtime'
 import type { HostElement, MiniChildren, StyleValue } from '../types'
 import type { Forwarded } from './forwarded'
 import { mergeStyle } from './merge-style'
-import type { TextSize, Tone } from './theme'
+import type { TextSize, Tone, Weight } from './theme'
 import { ThemeContext } from './theme-context'
 
 /** Props for {@link Text}. */
@@ -13,6 +13,13 @@ export type TextProps = Forwarded<'text'> & {
    * `level` separate.
    */
   size?: TextSize
+  /**
+   * How heavy, as a step of the weight scale. Separate from `size` for the same
+   * reason `size` is separate from a heading level: emphasis and scale are two
+   * decisions, and a design needs small-and-heavy as often as it needs
+   * large-and-light.
+   */
+  weight?: Weight
   /** What the text is for, resolved to a colour by the theme. */
   tone?: Tone
   /** The text run. A function child is a reactive text binding, as everywhere else. */
@@ -36,11 +43,15 @@ export type TextProps = Forwarded<'text'> & {
  * what an app that skips it sees.
  */
 export const Text = (props: TextProps): HostElement => {
-  const { size, tone, style, ...rest } = props
+  const { size, weight, tone, style, ...rest } = props
   const theme = ThemeContext.use()
 
+  // The weight is stated even at the default, for the same reason the scale
+  // states a line height at every step: an unstated one is resolved by the
+  // target, and the two targets do not have to agree about what it resolves to.
   const base = (): StyleValue => ({
     ...theme().size[size ?? 'md'],
+    fontWeight: theme().weight[weight ?? 'regular'],
     color: theme().tone[tone ?? 'default'],
   })
 

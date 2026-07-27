@@ -248,7 +248,8 @@ The named things a screen is actually written in. **The package ships the semant
 | `<Stack>` / `<Row>` | `view` | none — layout only, column and row |
 | `<List>` / `<ListItem>` | `view` | `role="list"` / `"listitem"` |
 | `<Screen>` | `view` | `role="main"`, plus the safe-area insets |
-| `ThemeContext` | — | The type scale, tones, and spacing steps, as a **signal** |
+| `ThemeContext` | — | The scales — type, weight, colour, radius, spacing — as a **signal** |
+| `systemTheme()` | — | A theme signal that follows the platform's light/dark surfaces |
 
 Two things are worth knowing about it.
 
@@ -264,6 +265,14 @@ Two things are worth knowing about it.
 ```
 
 The theme is a **signal**, which is load-bearing: a component runs exactly once and therefore reads context exactly once, so a plain theme would be frozen at boot. Holding the signal means a dark-mode switch reaches the whole tree with no re-render and no invalidation machinery — the same node, with a style mutated. Not providing a theme is a supported state; the fallback is a real one, so components render on their own in a test.
+
+`systemTheme()` is the one-line version of that switch, and it is portable — it follows `colorScheme()`, which every host answers:
+
+```tsx
+mount(root, () => ThemeContext.provide(systemTheme(brand, brandDark), () => <App />))
+```
+
+**The theme carries more than `/ui` reads, on purpose.** `size`, `weight`, `tone`, `space` and `heading` are consumed by the components above, because typography and spacing are the parts of appearance a component cannot stay correct without. `surface`, `border` and `radius` are consumed by nothing here at all — they are what *you* build your button and your card out of. A theme holding only what `/ui` reads would leave an app with no scale to be tasteful against, which is the other half of "the package ships the semantics; the app ships the taste".
 
 ### Routing (`@amritk/mini-native/router`)
 
@@ -474,6 +483,8 @@ Not built yet:
 - **`ErrorBoundary` covers construction only.** A throw inside an effect, a handler, or a promise happens after every component has finished running, and belongs to whoever started it.
 - **The Lynx animator sequences with timers.** Inline transitions are the most the declared Element PAPI can express, and the engine does own the interpolation — but the hops between keyframes and between repeats are JavaScript timers, so a multi-keyframe or repeating animation can drift under load where a single tween cannot. Pass an engine-native animator as `createLynxHost(api, { animate })` where the build has one.
 - **No responsive primitive.** `dimensions()` works and branching on it works, but there is no `@media`-shaped abstraction — a native target has no media queries, and inventing one before there are real call sites would be speculation.
+- **No variants and no interaction states.** The theme carries the tokens to build `primary` / `secondary` / `ghost` and a pressed or disabled look; the system on top of them is not shipped and should not be guessed at. This one is genuinely cross-platform-hard rather than merely unwritten: hover does not exist on a touch target and nothing here synthesises a fake one, and a focus ring is a web affordance with no native equivalent.
+- **No border width, no elevation, and no font family token.** `border` is colours only. A hairline is one device pixel and `HostEnvironment` reports no pixel ratio, so a width token would be a lie on the target that needed `1 / ratio`. Elevation is three different models — iOS shadows, Android elevation, CSS `box-shadow` — not three spellings of one. A font family is covered on the web by the reset's `--mn-font` in a single declaration, where a portable token would mean emitting `fontFamily` on every element on every target.
 - **The reset is asserted, not observed.** Its suite checks that the rules are installed and stamped onto the right elements; it cannot check that a container then stacks its children, because happy-dom lays nothing out. Screenshots on two real targets are the only thing that would.
 - **The animation adapter is verified, the animation is not.** happy-dom implements no Web Animations API at all, so the DOM host's suite covers which keyframes and options are handed over and how the API's outcomes map back — not that a browser then interpolates them correctly. The first is this package's code; the second is the browser's.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.

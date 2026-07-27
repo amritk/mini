@@ -110,7 +110,7 @@ structurally, use the control-flow components.
 |---|---|
 | `@amritk/mini-native` | signals, `mount`, `list`, binds, `setHost`, JSX types |
 | `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `VirtualFor` / `defaultKey`. Reach for `VirtualFor` once a list is long enough that a node per row is wrong — it builds a screenful and recycles it, and needs a fixed `itemSize` |
-| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags |
+| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags. Plus `ThemeContext` and `systemTheme()` for the scales they resolve against |
 | `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` / `reduceMotion` as signals. Prefer the environment to the OS name |
 | `@amritk/mini-native/animate` | `animate(element, keyframes, timing)` — the timeline goes to the engine in one call. It never leaves a style behind: write the settled value, then animate from where the element was. Skipped outright under reduced motion, which is safe precisely because of that |
 | `@amritk/mini-native/forms` | `createForm` / `Field` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |

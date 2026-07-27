@@ -333,7 +333,29 @@ permanent.
   other two hosts carry a translation layer that could never be removed.
 - **`size` and `level` are two props, always.** Couple them and authors pick
   heading levels by how big they want the text. `Text` has no `role` or `level`
-  on its surface at all, which enforces it rather than documenting it.
+  on its surface at all, which enforces it rather than documenting it. `weight`
+  is a third, for the same reason — a design needs small-and-heavy about as often
+  as large-and-light — and it exists at all because without it a heading renders
+  at body weight on BOTH targets: the reset flattens the user agent's bold `<h1>`
+  and a native engine never had one.
+- **The theme carries more than `/ui` reads, on purpose.** `size`, `weight`,
+  `tone`, `space` and `heading` are consumed by components; `surface`, `border`
+  and `radius` are consumed by nothing here. That is not an oversight to tidy up
+  by styling `Button` — typography and spacing are what a component cannot stay
+  *correct* without, while a background and a radius are taste, and a theme
+  holding only what `/ui` reads leaves an app with no scale to be tasteful
+  against. Do not give `/ui` an appearance to "use" these tokens; it would cost
+  the layer its assertable semantic outcome on all three hosts.
+- **No CSS system colours in a theme, ever.** `defaultTheme` used `CanvasText`
+  and `Canvas` to get zero-config dark mode, which worked on exactly one target —
+  the Lynx host hands the string to an engine that has never heard of it. This is
+  the package's own failure mode written into the file that argues against it, so
+  `theme.test.ts` now guards it. `systemTheme()` is the portable replacement: it
+  reads `colorScheme()`, which every host answers, and returns a getter — not a
+  `computed`, since memoising one comparison between two existing objects costs
+  more than it saves. `defaultTheme` and `darkTheme` share every non-colour scale
+  **by reference**, which makes "a dark theme with its own type scale"
+  unrepresentable rather than merely discouraged.
 
 Still genuinely open, so do not treat it as decided: whether `role="button"`
 builds a real `<button>` (browser affordances, but a content model TypeScript
@@ -358,6 +380,14 @@ against a device rather than guessed at), variable row sizes in `VirtualFor`
 (needs a `measure` on the host contract), a responsive primitive, and capability
 flags. `bindClass` and fragments are deliberate omissions and should stay that
 way.
+
+The **taste layer over the theme** is the same shape of gap and belongs on that
+list: variants (`primary` / `secondary` / `ghost`), interaction states, icons,
+and fields. The tokens to build them all exist now; the system does not, and it
+should not be guessed at — this one is genuinely cross-platform-hard rather than
+merely unwritten, since hover does not exist on a touch target and a focus ring
+has no native equivalent. `docs/mini-native-style.md` §4 names what each waits
+on, along with border width, elevation, and font family.
 
 Two rules that keep biting when this list is edited: do not add a prop with
 nothing behind it — `vocabulary-coverage.test.tsx` exists to catch exactly that

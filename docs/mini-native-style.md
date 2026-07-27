@@ -199,7 +199,95 @@ Note what enforces this rather than merely documenting it: `Text` does not have
 `role` or `level` on its surface at all, so a `Text` cannot become a heading by
 accident.
 
-### 3.4 Spacing is a named step
+### 3.4 The theme carries more than `/ui` reads
+
+This looks like an inconsistency, so it is worth stating as a decision.
+
+`/ui` consumes `size`, `weight`, `tone`, `space` and `heading`. It consumes
+`surface`, `border` and `radius` **nowhere at all**. The line is not arbitrary:
+typography and spacing are the parts of appearance a component cannot stay
+*correct* without — a heading at body weight is wrong on both targets, and a
+line height nobody stated resolves two different ways. A background colour and a
+corner radius are not correctness, they are taste, and `<Button>` having an
+opinion about them is exactly the version-coupling this layer is kept small to
+avoid.
+
+But a theme holding only what `/ui` reads is not neutral either — it leaves the
+app with no scale to be tasteful *against*, and an app with no scale hard-codes
+`#e5e7eb` in forty files. So the scales exist and the components ignore them,
+which is the shape "the package ships the semantics; the app ships the taste"
+actually implies once you follow it through.
+
+Three neutrals for `border` rather than one, for the same reason: the same
+divider reads differently against `surface.base` and `surface.raised`, and an
+app given only "the border colour" invents the other two locally.
+
+### 3.5 The CSS system colours were a web-only trick, and are gone
+
+The first version of this file used `CanvasText` and `Canvas` for the two
+neutral tones, and the argument for it was good: text follows the platform's
+light and dark surfaces with **no app configuration at all**. Zero-config dark
+mode, for free, in two string literals.
+
+It worked on exactly one target. A system colour is a CSS concept. The Lynx host
+hands `'CanvasText'` to an engine that has never heard of it, so the default
+theme was correct on the web and unpredictable on a device — which is precisely
+the failure mode §1 describes and precisely the direction it always runs in: the
+permissive target flatters you, and nobody notices until the device build.
+
+That is worth dwelling on, because the trick was written *in the file arguing
+that the web must not be allowed to flatter you*. A convenience that only one
+target can honour will keep looking like a free win right up until it is a
+cross-cutting bug, and the only defence is asking of every value whether the
+other engine can read it.
+
+The replacement is `systemTheme()`, and it is portable because it is built on
+the seam that already existed:
+
+```tsx
+mount(root, () => ThemeContext.provide(systemTheme(), () => <App />))
+```
+
+It reads `colorScheme()` — which every host answers, and which falls back to
+`light` on a host that cannot tell — and returns a getter that resolves to
+`defaultTheme` or `darkTheme`. Zero configuration still gets a working light
+theme; one line gets both. And because it returns a **getter** rather than a
+value, the switch reaches a tree that never re-renders through the same
+mechanism as everything else here.
+
+It is deliberately not a `computed`. Memoising one comparison and a branch
+between two objects that already exist costs more in bytes and graph nodes than
+it saves.
+
+The reset keeps `--mn-color: CanvasText`, which is not the same decision: that
+is the floor for text nothing has themed at all, on the one target where a
+system colour means something.
+
+**The light and dark themes live in one file**, sharing every non-colour scale
+by reference. Two themes that must stay structurally identical drift silently
+when they live apart — a token added to one and forgotten in the other is a
+screen that is fine until somebody switches — and sharing the type scale by
+reference makes "a dark theme with its own typography" unrepresentable rather
+than merely discouraged. `theme.test.ts` pins the key sets anyway, since
+proximity is a habit and a test is a guarantee.
+
+### 3.6 Weight is in the scale because otherwise headings have none
+
+The reset flattens the user agent's bold `<h1>` along with the rest of its
+opinions, and a native engine never had one to flatten. So a scale that states
+size and colour but not weight renders **every heading at body weight on both
+targets** — and does it consistently, which is the worst way to be wrong,
+because the parity suite is happy and both targets agree on something nobody
+wants.
+
+`weight` is a separate prop from `size` for the same reason `size` is separate
+from `level`: a design needs small-and-heavy about as often as large-and-light.
+`Heading` defaults to the theme's `headingWeight`; `Text` defaults to `regular`
+and states it explicitly rather than leaving it unset, on the same logic as
+stating a line height at every step — an unstated value is resolved by the
+target, and the two targets need not resolve it alike.
+
+### 3.7 Spacing is a named step
 
 `Stack` and `Row` take `gap` as a step of the theme's scale rather than a
 number. The package knows that a spacing scale should exist and that a gap
@@ -226,6 +314,31 @@ that the button looks like a button, and §1's table is exactly the class of
 thing it will not catch.
 
 **Overflow, per §2.4.**
+
+**No variants and no interaction states.** There is no `primary` / `secondary` /
+`ghost`, and no themed answer to pressed, hovered, focused, or disabled. The
+tokens to build them are now all here, which is the point — but the *system* is
+not, and it should not be invented before there are real call sites, because
+this one is genuinely cross-platform-hard rather than merely unwritten: hover
+does not exist on a touch target and nothing here synthesises a fake one, and a
+focus ring is a web affordance with no native equivalent. *Revisit* once an app
+built on this has three of them.
+
+**No border width, and no hairline.** `border` is colours only. A hairline is
+the case that makes a width scale worth having and it cannot be expressed today:
+it is one device pixel, `HostEnvironment` does not report a pixel ratio, and a
+token that resolved to `1` on both targets would be a lie on the one that needed
+`1 / ratio`. *Revisit* alongside a pixel-ratio field on the environment.
+
+**No elevation or shadow.** This looks like the obvious next token and is not
+one: iOS shadows, Android elevation, and CSS `box-shadow` are three different
+models, not three spellings of one. A number that means something on all three
+needs a design, and §2.4's overflow argument applies to it twice over.
+
+**No font family token.** On the web the reset covers it in one declaration via
+`--mn-font`; a portable token would mean `Text` emitting `fontFamily` on every
+element on every target to close a gap only one target has. *Revisit* when a
+native build actually needs a face the engine default is not.
 
 **No animation seam.** An animation is still a bridge write per frame on a
 native target. That is the next real performance question and it is orthogonal
