@@ -114,6 +114,13 @@ const measureBundle = async (tree: string, entry: string, external: readonly str
       platform: 'browser',
       target: 'es2022',
       external: [...external],
+      // Resolve workspace packages to their `src/` through the `development`
+      // condition they declare, the same way the playgrounds and both
+      // `types:check` passes do. This bench measures a source tree and never
+      // runs a build, so without it a cross-package import — `@amritk/mini`'s
+      // router reaching `@amritk/mini-helpers` — resolves to a `dist/` that is
+      // not there and the entry reports "measure failed" instead of a number.
+      conditions: ['development'],
     })
     return { median: gzipSync(result.outputFiles[0]?.contents ?? new Uint8Array()).length }
   } catch (error) {
