@@ -21,6 +21,14 @@ compiler analysing your code:
 <view onTap={() => n(n() + 1)}>    {/* ✅ calls are fine inside handlers */}
 ```
 
+Nothing at runtime can catch rule 1 — the call already happened at the JSX call
+site, so the runtime sees an ordinary value and so does the type checker. The
+source is the only place left, and `@amritk/mini`'s scanner is purely syntactic,
+so it catches the identical mistake here: add `catchCalledSignals()` from
+`@amritk/mini/vite` to a Vite preview build, or call `findCalledSignalBindings`
+from a CLI gate for a device build that is not Vite. This package deliberately
+ships no second copy.
+
 **2. The elements are native, not HTML.** `JSX.IntrinsicElements` is
 `view | text | image | scroll-view | input`. There is no `<div>`, and there never
 will be — the DOM is a *preview target* here, not the real one. Writing

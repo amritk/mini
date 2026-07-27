@@ -87,6 +87,38 @@ The one prop this rule does not reach is `input multiline`, which is structural:
 
 Effects run synchronously on write. The flush scheduler already collapses a burst of writes into a single commit, but not the property writes leading up to it — wrap related writes in `batch` when each one would otherwise cross the bridge on its own.
 
+### Catching the frozen signal
+
+`show={visible()}` is the one mistake this runtime cannot catch for you. The call happens at the JSX call site, so the runtime never sees a signal at all — it sees a perfectly ordinary boolean — and a called signal is a valid value, so the type checker has nothing to object to either. The only place left to catch it is the source.
+
+**This package deliberately ships no linter of its own.** [`@amritk/mini`](../mini)'s scanner is purely syntactic: it looks for a zero-argument call to something it can see is a signal, inside a JSX binding that is not itself a function. Nothing in it knows which runtime the JSX belongs to, so it already catches the identical mistake in a `mini-native` codebase. A second copy would be a second thing to keep in step for no benefit.
+
+Use whichever adapter fits the build:
+
+```ts
+// vite.config.ts — for the web preview target
+import { catchCalledSignals } from '@amritk/mini/vite'
+
+export default { plugins: [catchCalledSignals()] }
+```
+
+That warns live in the dev server and fails `vite build`, so one plugin covers both the editor loop and the CI gate.
+
+A device build usually is not Vite — Lynx builds with rspack — so reach for the scanner directly there. It is bundler-agnostic and takes source text:
+
+```ts
+import { findCalledSignalBindings } from '@amritk/mini/vite'
+
+for (const { attribute, callee, line, column } of findCalledSignalBindings(await readFile(file, 'utf-8'))) {
+  // `attribute` is undefined for a child binding — `<text>{count()}</text>`
+  console.error(`${file}:${line}:${column}  ${attribute ?? ''}{${callee}()} is frozen at creation`)
+}
+```
+
+This repository's own `bun run check:reactivity` is exactly that, in about forty lines. Mark a deliberately static read with a `// mini-static-ok` comment on the line or the line above.
+
+`@amritk/mini` is a **dev** dependency for this — nothing from it reaches your bundle, and the web-only package does not follow your app onto the device.
+
 ---
 
 ## The element vocabulary is native, not HTML
