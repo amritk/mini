@@ -36,6 +36,7 @@
     "src/hosts/dom-reset.test.ts",
     "src/router/create-browser-history.ts",
     "src/router/create-browser-history.test.ts",
+    "src/router/route-stack.dom.test.tsx",
     "src/hosts/dom-environment.test.ts",
     "src/parity.test.tsx",
     "src/vocabulary-coverage.test.tsx"

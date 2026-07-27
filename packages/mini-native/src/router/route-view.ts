@@ -26,9 +26,10 @@ export type RouteViewProps<R extends Route> = {
  * one factory, remembered here.
  *
  * A native navigation STACK — where `/users/1` → `/users/2` pushes a second
- * screen and animates — is a layer above this and is not built. This is the
- * single-slot version, which is what the web wants and what a device wants for
- * a tab's root.
+ * screen and animates between them — is `RouteStack`, a layer above this one.
+ * Reach for it when screens should survive being navigated away from; this is
+ * the single-slot version, which is what the web usually wants and what a
+ * device wants for a tab's root.
  *
  * ```tsx
  * <RouteView router={router} fallback={() => <NotFound />} />

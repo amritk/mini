@@ -48,6 +48,7 @@ src/
   gestures/               pan, swipe — arithmetic over the normalised pointer stream
   animate/                animate() — a timeline described once and handed to the engine
   router/                 Pattern matching (pure) + a pluggable history; the browser one is its own entry
+                          `RouteView` is one slot, `RouteStack` is the navigation stack over `Router.depth`
   forms/                  createForm, Field, schema validation — ported from mini bar one file
   query/                  createQuery over @tanstack/query-core — ported verbatim
   hosts/
@@ -374,12 +375,20 @@ animation seam (`/animate` plus `Host.animate`), the virtualised list
 (`VirtualFor` in `/flow`), and the `/forms` and `/query` ports. `docs/mini-native-audit.md`
 carries the reasoning behind each and is now a record rather than a plan.
 
+The navigation stack has landed too — `RouteStack` in `/router`, over
+`Router.depth` and the `/animate` seam. It is the only thing in the package
+with a layout opinion (cards are absolutely positioned, because two screens
+must overlap for a transition between them to mean anything) and the only
+component that keeps subtrees alive after they leave the screen, hidden through
+`setVisible` so they leave the tab order and the accessibility tree with them.
+
 What is genuinely still missing is smaller and mostly waiting on a real screen
 rather than on someone getting to it: pinch and rotate (thresholds worth tuning
 against a device rather than guessed at), variable row sizes in `VirtualFor`
-(needs a `measure` on the host contract), a responsive primitive, and capability
-flags. `bindClass` and fragments are deliberate omissions and should stay that
-way.
+(needs a `measure` on the host contract), an interactive back gesture (a
+tracked, frame-by-frame transition, which is the one thing the animation seam
+deliberately cannot express), a responsive primitive, and capability flags.
+`bindClass` and fragments are deliberate omissions and should stay that way.
 
 The **taste layer over the theme** is the same shape of gap and belongs on that
 list: variants (`primary` / `secondary` / `ghost`), interaction states, icons,

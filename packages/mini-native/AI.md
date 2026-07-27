@@ -117,7 +117,7 @@ structurally, use the control-flow components.
 | `@amritk/mini-native/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s, verbatim |
 | `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
 | `@amritk/mini-native/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |
-| `@amritk/mini-native/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` — platform-free |
+| `@amritk/mini-native/router` | `createRouter`, `createMemoryHistory`, `RouteView` (one slot), `RouteStack` (a navigation stack), `RouteLink`, `matchRoute` — platform-free |
 | `@amritk/mini-native/router/browser` | `createBrowserHistory` — the web's session history, on its own entry so `/router` stays platform-free |
 | `@amritk/mini-native/host` | the `Host` contract, for writing a renderer |
 | `@amritk/mini-native/hosts/dom` | `createDomHost`, `domRoot` — web preview |

@@ -38,8 +38,11 @@ export type ScreenProps = Forwarded<'view'> & {
  * One caveat worth knowing. `role="main"` means the DOM host builds a real
  * `<main>`, and a page may only meaningfully have one — which is right for a
  * native nav stack, where one screen is presented at a time, and wrong if you
- * render several at once for a transition. Use a plain {@link Stack} for the
- * ones that are not the current screen.
+ * render several at once for a transition. `RouteStack` is fine: it hides every
+ * screen but the top one through `Host.setVisible`, which takes them out of the
+ * accessibility tree, so only one `<main>` is ever exposed. Rendering several
+ * yourself is the case to watch — use a plain {@link Stack} for the ones that
+ * are not the current screen.
  */
 export const Screen = (props: ScreenProps): HostElement => {
   const { style, edgeToEdge, ...rest } = props

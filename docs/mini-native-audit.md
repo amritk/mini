@@ -467,9 +467,11 @@ below:
 
 What is still missing is now a shorter and different list, and it lives in the
 package README's *Known gaps* rather than here: pinch and rotate, variable row
-sizes, a responsive primitive, capability flags, a navigation stack. None of them
-is a hole in the architecture, which is the difference between that list and this
-document.
+sizes, a responsive primitive, capability flags, an interactive back gesture.
+None of them is a hole in the architecture, which is the difference between that
+list and this document. The navigation stack was on that list until the seam
+above made it buildable, and is now `RouteStack` — which needed no new `Host`
+method either, only the depth the router was already counting.
 
 Fragments stay deliberately absent, at the known cost of one container view per
 component. That is the flattening native performance work usually targets, so it

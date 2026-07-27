@@ -1,10 +1,18 @@
 import { computed, type HostElement, signal, watch } from '@amritk/mini-native'
 import { Show } from '@amritk/mini-native/flow'
-import { createMemoryHistory, createRouter, matchRoute, RouteLink } from '@amritk/mini-native/router'
-import { Row, Stack, Text } from '@amritk/mini-native/ui'
+import {
+  createMemoryHistory,
+  createRouter,
+  fadeTransition,
+  matchRoute,
+  RouteLink,
+  RouteStack,
+} from '@amritk/mini-native/router'
+import { Heading, Row, Stack, Text } from '@amritk/mini-native/ui'
 
 import { Action, Chip, Panel, Readout } from '../lib/ui'
 import { type AppRouter, router } from '../routes'
+import { RADIUS } from '../theme'
 
 /**
  * `@amritk/mini-native/router` — matching is arithmetic and is written once;
@@ -31,6 +39,7 @@ export const RoutingScreen = (props: RoutingScreenProps): HostElement => (
     <LiveState router={router} />
     <Params router={router} params={props.params} />
     <Navigation router={router} />
+    <NavigationStack />
     <MemoryHistory />
     <Matching />
   </Stack>
@@ -130,6 +139,57 @@ const Navigation = (props: RouterPanelProps): HostElement => {
       <Text size="sm" tone="muted">
         `replace` swaps the current entry instead of stacking on it — press the browser's back button after each of the
         first two buttons and compare.
+      </Text>
+    </Panel>
+  )
+}
+
+/** `RouteStack` — the other view over a router, where screens pile up instead of swapping. */
+const NavigationStack = (): HostElement => {
+  // A screen that records when it was built, which is the whole demonstration:
+  // pop back to it and the timestamp has not moved, because the screen was
+  // never torn down.
+  const screen = (name: string) => (): HostElement => {
+    const builtAt = new Date().toLocaleTimeString()
+    return (
+      <Stack gap="xs" style={{ padding: 12 }}>
+        <Heading level={4} size="sm">
+          {name}
+        </Heading>
+        <Readout>{`built at ${builtAt}`}</Readout>
+      </Stack>
+    )
+  }
+
+  const stack = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', view: screen('Inbox') },
+      { path: '/thread/:id', view: (params: () => Record<string, string>) => screen(`Thread ${params()['id']}`)() },
+      { path: '/compose', view: screen('Compose') },
+    ],
+  })
+
+  return (
+    <Panel
+      title="RouteStack"
+      blurb="The same router, rendered as a stack instead of a single slot. Every screen underneath stays built — push a few, then come back and read the timestamps: none of them moved, so the scroll positions and half-filled forms inside them did not either."
+    >
+      <Row gap="xs">
+        <Action onTap={() => stack.navigate('/thread/1')}>push thread 1</Action>
+        <Action onTap={() => stack.navigate('/thread/2')}>push thread 2</Action>
+        <Action onTap={() => stack.navigate('/compose')}>push compose</Action>
+        <Action onTap={() => stack.back()} disabled={() => !stack.canGoBack()}>
+          pop
+        </Action>
+      </Row>
+      <view style={{ height: 150, borderRadius: RADIUS.sm, overflow: 'hidden' }}>
+        <RouteStack router={stack} transition={fadeTransition()} />
+      </view>
+      <Readout>{() => `depth: ${stack.depth()}  ·  ${stack.depth() + 1} screen(s) built`}</Readout>
+      <Text size="sm" tone="muted">
+        depth is what separates a push from a replace, and it is the only thing that can: /thread/1 → /thread/2 is the
+        same matched route either way.
       </Text>
     </Panel>
   )

@@ -32,9 +32,18 @@ export type BrowserHistoryOptions = {
  * The interesting part is what a browser cannot tell you. `history.length`
  * counts entries from every page the tab has visited, so it cannot answer
  * "would going back leave this app" — which is the only question a back chevron
- * actually asks. So this counts its own pushes instead: {@link
+ * actually asks. So this tracks its own pushes instead: {@link
  * RouterHistory.depth} is how many steps the app has taken since it started,
  * which is exactly right and is the same number the in-memory stack reports.
+ *
+ * That number is STAMPED onto each entry rather than merely counted, and the
+ * difference only shows once something reads it structurally. Counting steps
+ * means treating every `popstate` as one step down, which is right for a back,
+ * backwards for a FORWARD — the button puts the app deeper and the count says
+ * shallower — and wrong by several for a jump through the history list. None of
+ * that is visible in a `RouteView`, which reads the matched route and nothing
+ * else. All of it is visible in a `RouteStack`, which pops the screens the
+ * number says.
  */
 export const createBrowserHistory = ({ mode = 'history', base = '' }: BrowserHistoryOptions = {}): RouterHistory => {
   const listeners = new Set<() => void>()
@@ -61,10 +70,23 @@ export const createBrowserHistory = ({ mode = 'history', base = '' }: BrowserHis
   // the fragment. Neither fires for our own pushState, which is why `navigate`
   // refreshes the router directly.
   const event = mode === 'hash' ? 'hashchange' : 'popstate'
+  // Read from `window.history.state` rather than from the event, so one handler
+  // covers both modes: a `popstate` carries the restored state and a
+  // `hashchange` does not, while the browser has already swapped
+  // `history.state` over by the time either one fires.
   const onPopState = (): void => {
-    // A back that leaves the app entirely never reaches us, so clamping at zero
-    // is the honest floor rather than a guard against a bug.
-    depth = Math.max(0, depth - 1)
+    // The depth we stamped onto the entry being restored, which is the only
+    // thing that answers this honestly. Counting steps instead — one down per
+    // `popstate` — is right for a back and backwards for a FORWARD, and it is
+    // wrong by more than one for a multi-step jump through the history list.
+    // Neither shows up in a single-slot `RouteView`, where the matched route is
+    // all that is read; both are plainly visible in a stack, which pops the
+    // screens the number says.
+    const stamped = depthOf(window.history.state)
+    // A back that leaves the app entirely never reaches us, and the entry the
+    // app started on carries no stamp of ours — so an unstamped entry is the
+    // root, not a missing value to guess at.
+    depth = stamped ?? 0
     notify()
   }
   window.addEventListener(event, onPopState)
@@ -73,15 +95,17 @@ export const createBrowserHistory = ({ mode = 'history', base = '' }: BrowserHis
     location: read,
 
     push: (to) => {
-      window.history.pushState(null, '', urlFor(to))
       depth += 1
+      // Stamped onto the entry rather than only counted here, so that coming
+      // BACK to it later reports the depth it actually had. See `onPopState`.
+      window.history.pushState(stamp(depth), '', urlFor(to))
     },
 
     replace: (to) => {
       // A replace is a redirect rather than a step, so the depth is unchanged —
       // going back from here should reach whatever preceded the thing that was
       // replaced, not the thing itself.
-      window.history.replaceState(null, '', urlFor(to))
+      window.history.replaceState(depth === 0 ? null : stamp(depth), '', urlFor(to))
     },
 
     back: () => {
@@ -100,6 +124,33 @@ export const createBrowserHistory = ({ mode = 'history', base = '' }: BrowserHis
       }
     },
   }
+}
+
+/**
+ * The key the depth is stamped under.
+ *
+ * Namespaced because `history.state` is shared with whatever else the page
+ * does with it, and a bare `depth` is exactly the name something else would
+ * also pick. The state object is otherwise left alone: this reads its own key
+ * and writes its own key, so an entry that already carried something keeps it.
+ */
+const DEPTH_KEY = '__mnDepth'
+
+/** Builds the state object stamped onto an entry, preserving any state already there. */
+const stamp = (depth: number): Record<string, unknown> => ({
+  ...(typeof window.history.state === 'object' && window.history.state !== null ? window.history.state : {}),
+  [DEPTH_KEY]: depth,
+})
+
+/**
+ * Reads the depth back off an entry's state, or `undefined` when it carries
+ * none — which is the entry the app started on, and anything the browser
+ * pushed that this history did not.
+ */
+const depthOf = (state: unknown): number | undefined => {
+  if (typeof state !== 'object' || state === null) return undefined
+  const value = (state as Record<string, unknown>)[DEPTH_KEY]
+  return typeof value === 'number' ? value : undefined
 }
 
 /**

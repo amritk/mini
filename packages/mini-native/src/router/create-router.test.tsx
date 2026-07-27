@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createMemoryHost } from '../hosts/create-memory-host'
 import { serializeMemoryTree } from '../hosts/serialize-memory-tree'
-import { clearHost, mount, setHost } from '../index'
+import { clearHost, effect, mount, setHost } from '../index'
 import { createMemoryHistory } from './create-memory-history'
 import { createRouter, type Route } from './create-router'
 import { RouteView } from './route-view'
@@ -78,6 +78,42 @@ describe('create-router', () => {
 
     router.back()
     expect(router.canGoBack()).toBe(false)
+  })
+
+  it('reports the depth a push added and a replace did not', () => {
+    const router = createRouter({ routes, history: createMemoryHistory() })
+    expect(router.depth()).toBe(0)
+
+    router.navigate('/users/1')
+    expect(router.depth()).toBe(1)
+
+    // The distinction a stack is built on, and the one the matched route
+    // cannot make: same route, same params shape, different number of screens.
+    router.navigate('/users/2', { replace: true })
+    expect(router.depth()).toBe(1)
+
+    router.back()
+    expect(router.depth()).toBe(0)
+  })
+
+  it('announces a navigation once, not once per way it was told', () => {
+    const router = createRouter({ routes, history: createMemoryHistory() })
+    let announced = 0
+    const stop = effect(() => {
+      router.route()
+      announced++
+    })
+    announced = 0
+
+    // `back` reaches the refresh twice — an in-memory history notifies because
+    // a hardware gesture calls it from outside, and the router refreshes
+    // because a browser would answer asynchronously. One navigation is still
+    // one change, and anything mid-transition depends on it.
+    router.navigate('/users/1')
+    router.back()
+
+    expect(announced).toBe(2)
+    stop()
   })
 
   it('follows a change that came from outside', () => {

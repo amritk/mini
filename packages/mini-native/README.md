@@ -278,9 +278,11 @@ mount(root, () => ThemeContext.provide(systemTheme(brand, brandDark), () => <App
 
 | Export | Purpose |
 |:---|:---|
-| `createRouter({ routes, history })` | Matches the current location into a reactive `route` signal. Also `navigate`, `back`, and a `canGoBack` signal. |
+| `createRouter({ routes, history })` | Matches the current location into a reactive `route` signal. Also `navigate`, `back`, and `depth` / `canGoBack` signals. |
 | `createMemoryHistory(initial?)` | A navigation stack in memory — the *native* history as much as the test one. |
-| `<RouteView router fallback?>` | Renders the matched route. |
+| `<RouteView router fallback?>` | Renders the matched route into one slot. |
+| `<RouteStack router fallback? transition?>` | Renders the matched route onto a **stack**: screens push, pop, and keep their state underneath. |
+| `fadeTransition(timing?)` | A cross-fade between screens, for `RouteStack`'s `transition`. |
 | `<RouteLink to navigate>` | A real link that navigates through the router. |
 | `matchRoute` / `parseQuery` | The pure halves, exported for anything that needs them directly. |
 | `createBrowserHistory({ mode, base })` | From `@amritk/mini-native/router/browser` — the web's session history, `history` or `hash` mode. |
@@ -289,9 +291,21 @@ The split is the design. **Matching a pattern against a path is string arithmeti
 
 `RouteView` keeps the screen when only the params changed. `/users/1` → `/users/2` is the same route, so scroll position, a focused field, and anything in flight survive, and the `params()` getter reports the new values. A different route swaps the subtree.
 
-`canGoBack` counts the steps *this app* took. A browser's `history.length` counts entries from every page the tab has visited, so it cannot answer "would going back leave the app" — which is the only question a back chevron asks.
+`depth` counts the steps *this app* took, and `canGoBack` is that number being greater than zero. A browser's `history.length` counts entries from every page the tab has visited, so it cannot answer "would going back leave the app" — which is the only question a back chevron asks. On the web the count is stamped onto each history entry rather than merely incremented, so a forward button and a multi-step jump through the history list both land on the right number; counting `popstate` events only ever knows how to subtract.
 
-Not here: a native navigation **stack** (where `/users/2` pushes over `/users/1` and animates — it needs an animation seam that does not exist yet, and would be the wrong default for the web), and the web-only obligations of document title, scroll restoration, and keeping the URL continuously correct, which belong in the app's web entry point.
+**`RouteStack` is the other view over the same router**, and the depth is what it needs: `/users/1` → `/users/2` is two screens when it was pushed and one when it was replaced, and the matched route is identical either way — so nothing but the depth can tell them apart.
+
+```tsx
+<RouteStack router={router} transition={fadeTransition()} fallback={() => <NotFound />} />
+```
+
+Every screen beneath the top one stays built, which is the point: a scroll position, a half-filled form, and an in-flight request are all still there on the way back. Buried screens are hidden through `Host.setVisible`, so they leave the tab order and the accessibility tree rather than being painted over — which is also how several screens can each be a `Screen` (a `<main>` on the web) without the page claiming to have more than one. A stack fifty screens deep holds fifty screens, the same trade every native stack navigator makes.
+
+Its cards are absolutely positioned inside the container, and that is **the one layout opinion in the package**. Two screens have to overlap for a transition between them to mean anything; in normal flow they would sit head to tail and a cross-fade would fade between two things that are not in the same place. A transition moves the card rather than the screen inside it, so it can never collide with a `style` the app bound.
+
+`transition` defaults to none, which is also what a host with no `animate` and a user who asked for reduced motion get — the settled tree is identical either way, which is the rule the whole animation seam rests on. `fadeTransition` is the only one shipped: opacity means the same thing on every target, while a slide's distance is the viewport's width and its direction depends on the writing mode. The seam takes both cards and the direction, so an app can write one.
+
+Not here: the web-only obligations of document title, scroll restoration, and keeping the URL continuously correct, which belong in the app's web entry point.
 
 ### Gestures (`@amritk/mini-native/gestures`)
 
@@ -489,7 +503,8 @@ Not built yet:
 - **The animation adapter is verified, the animation is not.** happy-dom implements no Web Animations API at all, so the DOM host's suite covers which keyframes and options are handed over and how the API's outcomes map back — not that a browser then interpolates them correctly. The first is this package's code; the second is the browser's.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
 - **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.
-- **No navigation stack.** `RouteView` is a single slot. The animation seam it was waiting on now exists, so pushing a screen over another and animating between them is buildable — it is simply not built, and would be the wrong default for the web.
+- **No interactive back gesture.** `RouteStack` pops when the history says so; dragging a screen half off and letting it snap back is a gesture driving a transition frame by frame, which is the one thing the animation seam deliberately cannot express — it hands a whole timeline to the engine precisely so the JavaScript thread is not in the loop. `pan` from `/gestures` plus `router.back()` is the honest version available today, and it is a discrete pop rather than a tracked one.
+- **A transition belongs to the stack, not to a route.** `RouteStack` takes one `transition` for every change. A transition can read `router.route()` to see where it is going and branch on whatever metadata the route carries, which covers the common case; what is not built is the stack picking a per-route transition on the app's behalf.
 - **No picker control.** `Field` has no `as="select"`: a picker is a platform-owned surface — a wheel, a sheet, a dropdown — rather than something a five-tag vocabulary can name honestly.
 
 ---
