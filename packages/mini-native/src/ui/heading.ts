@@ -2,7 +2,7 @@ import { jsx } from '../jsx-runtime'
 import type { HostElement, MiniChildren, StyleValue } from '../types'
 import type { Forwarded } from './forwarded'
 import { mergeStyle } from './merge-style'
-import type { TextSize, Tone } from './theme'
+import type { TextSize, Tone, Weight } from './theme'
 import { ThemeContext } from './theme-context'
 
 /** Props for {@link Heading}. */
@@ -33,6 +33,15 @@ export type HeadingProps = Forwarded<'text'> & {
    * ```
    */
   size?: TextSize
+  /**
+   * How heavy, overriding the theme's `headingWeight`.
+   *
+   * A heading needs a default here in a way body text does not: the reset
+   * flattens the user agent's bold `<h1>` along with everything else it
+   * normalises away, and a native engine never had one — so without a weight in
+   * the scale a heading renders at body weight on both targets.
+   */
+  weight?: Weight
   /** What the heading is for, resolved to a colour by the theme. */
   tone?: Tone
   children?: MiniChildren
@@ -52,11 +61,12 @@ export type HeadingProps = Forwarded<'text'> & {
  * disagrees with the outline.
  */
 export const Heading = (props: HeadingProps): HostElement => {
-  const { level, size, tone, style, ...rest } = props
+  const { level, size, weight, tone, style, ...rest } = props
   const theme = ThemeContext.use()
 
   const base = (): StyleValue => ({
     ...theme().size[size ?? theme().heading[level ?? 2]],
+    fontWeight: theme().weight[weight ?? theme().headingWeight],
     color: theme().tone[tone ?? 'default'],
   })
 

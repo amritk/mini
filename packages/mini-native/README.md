@@ -205,7 +205,8 @@ The named things a screen is actually written in. **The package ships the semant
 | `<Stack>` / `<Row>` | `view` | none — layout only, column and row |
 | `<List>` / `<ListItem>` | `view` | `role="list"` / `"listitem"` |
 | `<Screen>` | `view` | `role="main"`, plus the safe-area insets |
-| `ThemeContext` | — | The type scale, tones, and spacing steps, as a **signal** |
+| `ThemeContext` | — | The scales — type, weight, colour, radius, spacing — as a **signal** |
+| `systemTheme()` | — | A theme signal that follows the platform's light/dark surfaces |
 
 Two things are worth knowing about it.
 
@@ -221,6 +222,14 @@ Two things are worth knowing about it.
 ```
 
 The theme is a **signal**, which is load-bearing: a component runs exactly once and therefore reads context exactly once, so a plain theme would be frozen at boot. Holding the signal means a dark-mode switch reaches the whole tree with no re-render and no invalidation machinery — the same node, with a style mutated. Not providing a theme is a supported state; the fallback is a real one, so components render on their own in a test.
+
+`systemTheme()` is the one-line version of that switch, and it is portable — it follows `colorScheme()`, which every host answers:
+
+```tsx
+mount(root, () => ThemeContext.provide(systemTheme(brand, brandDark), () => <App />))
+```
+
+**The theme carries more than `/ui` reads, on purpose.** `size`, `weight`, `tone`, `space` and `heading` are consumed by the components above, because typography and spacing are the parts of appearance a component cannot stay correct without. `surface`, `border` and `radius` are consumed by nothing here at all — they are what *you* build your button and your card out of. A theme holding only what `/ui` reads would leave an app with no scale to be tasteful against, which is the other half of "the package ships the semantics; the app ships the taste".
 
 ### Routing (`@amritk/mini-native/router`)
 

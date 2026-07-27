@@ -31,6 +31,21 @@ describe('heading', () => {
     expect((memory.root.children[0] as MemoryElement).style).toMatchObject(defaultTheme.size[defaultTheme.heading[3]])
   })
 
+  it('renders at the theme heading weight without being asked', () => {
+    const memory = createMemoryHost()
+    setHost(memory.host)
+
+    mount(memory.rootElement, () => <Heading>Pricing</Heading>)
+
+    // Without this a heading renders at body weight on BOTH targets and does it
+    // consistently, which is the worst way to be wrong: the reset flattens the
+    // user agent's bold `<h1>` along with the rest of its opinions, and a
+    // native engine never had one to flatten.
+    expect((memory.root.children[0] as MemoryElement).style).toMatchObject({
+      fontWeight: defaultTheme.weight[defaultTheme.headingWeight],
+    })
+  })
+
   it('lets a design disagree with the outline', () => {
     const memory = createMemoryHost()
     setHost(memory.host)

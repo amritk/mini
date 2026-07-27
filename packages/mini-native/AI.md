@@ -102,7 +102,7 @@ structurally, use the control-flow components.
 |---|---|
 | `@amritk/mini-native` | signals, `mount`, `list`, binds, `setHost`, JSX types |
 | `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey` |
-| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags |
+| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags. Plus `ThemeContext` and `systemTheme()` for the scales they resolve against |
 | `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` as signals. Prefer the environment to the OS name |
 | `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
 | `@amritk/mini-native/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |

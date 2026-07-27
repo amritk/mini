@@ -86,6 +86,18 @@ export { ListItem, type ListItemProps } from './list-item'
 export { Row, type RowProps } from './row'
 export { Screen, type ScreenProps } from './screen'
 export { Stack, type StackProps } from './stack'
+export { systemTheme } from './system-theme'
 export { Text, type TextProps } from './text'
-export { defaultTheme, type Space, type TextSize, type Theme, type Tone } from './theme'
+export {
+  type Border,
+  darkTheme,
+  defaultTheme,
+  type Radius,
+  type Space,
+  type Surface,
+  type TextSize,
+  type Theme,
+  type Tone,
+  type Weight,
+} from './theme'
 export { ThemeContext } from './theme-context'

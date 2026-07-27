@@ -26,18 +26,19 @@ describe('text', () => {
     expect(text.tag).toBe('text')
   })
 
-  it('resolves size and tone against the theme', () => {
+  it('resolves size, weight and tone against the theme', () => {
     const memory = createMemoryHost()
     setHost(memory.host)
 
     mount(memory.rootElement, () => (
-      <Text size="sm" tone="muted">
+      <Text size="sm" weight="semibold" tone="muted">
         per seat
       </Text>
     ))
 
     expect((memory.root.children[0] as MemoryElement).style).toEqual({
       ...defaultTheme.size.sm,
+      fontWeight: defaultTheme.weight.semibold,
       color: defaultTheme.tone.muted,
     })
   })
@@ -49,9 +50,13 @@ describe('text', () => {
     mount(memory.rootElement, () => <Text>per seat</Text>)
 
     // A bare `<Text>` has to be the same thing as `<Text size="md">`, or the
-    // scale would only apply where somebody remembered to ask for it.
+    // scale would only apply where somebody remembered to ask for it. The
+    // weight is stated even at the default for the same reason the scale states
+    // a line height at every step: an unstated one is resolved by the target,
+    // and the two targets do not have to resolve it the same way.
     expect((memory.root.children[0] as MemoryElement).style).toEqual({
       ...defaultTheme.size.md,
+      fontWeight: defaultTheme.weight.regular,
       color: defaultTheme.tone.default,
     })
   })
