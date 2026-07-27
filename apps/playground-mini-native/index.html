@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="Kitchen-sink playground for @amritk/mini-native — the native vocabulary, the /ui layer, control flow, gestures, platform signals and routing, previewed through the DOM host."
+      content="Kitchen-sink playground for @amritk/mini-native — Lynx elements, CSS, lists, events, control flow, forms and data, previewed through a DOM implementation of Lynx's Element PAPI."
     />
     <link
       rel="icon"
@@ -14,10 +14,11 @@
     />
     <title>mini-native — playground</title>
     <!--
-      The only CSS in this app, and it stops at the page. Everything inside
-      #app is built from the native vocabulary and styled with `style` bags of
-      density-independent pixels, because that is the part that has to run
-      unchanged on a device — a stylesheet is a web-only luxury.
+      Page-level CSS only: the background, the device-shaped viewport, and the
+      overlay layer a Portal targets. Everything inside #app is Lynx elements
+      styled by `src/styles.css`, which is CSS the engine itself supports — and
+      the rules that make a BROWSER lay out like Lynx live with the preview
+      engine in `src/lib/`, not here, so `styles.css` stays shippable.
     -->
     <style>
       html,

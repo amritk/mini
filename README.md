@@ -22,7 +22,7 @@ shapes:
 | Package | What it renders to |
 |---|---|
 | **[`@amritk/mini`](./packages/mini)** | The DOM. Reactive bindings, keyed lists, static-template cloning, and a compilerless JSX runtime. |
-| **[`@amritk/mini-native`](./packages/mini-native)** | Whatever a pluggable **`Host`** puts in front of it — a native view tree (Lynx), the DOM as a preview target, or plain objects. |
+| **[`@amritk/mini-native`](./packages/mini-native)** | **Lynx**, through its Element PAPI. The engine's own elements, attributes and events — no vocabulary in between. |
 
 A third package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
 handful of helpers that turned out identical in both — route matching, query
@@ -80,10 +80,12 @@ commitment, not a roadmap item. It buys two things:
   on its own subpath with its own module graph, so importing `/router` pulls in
   none of `/forms`. A size-budget test and an import-boundary test hold that
   line in CI, per package.
-- **Porting is one file.** The hard part of a React-style native framework is
-  the reconciler; there is none here to port. A new target for
-  `@amritk/mini-native` means implementing one `Host` — about 15 functions — and
-  nothing else.
+- **Do not rebuild what the target already does.** `@amritk/mini-native` used to
+  own a platform-neutral vocabulary and a pluggable host so a component could run
+  anywhere. Lynx already solves that one layer down, so the package dropped the
+  abstraction and became a thin layer over the engine — about 5,000 lines lighter,
+  and with the ceiling moved from "what this package has named" to "what the
+  engine can do". See [`docs/mini-native-lynx-runtime.md`](./docs/mini-native-lynx-runtime.md).
 
 If a feature seems to be missing, the correct next step is usually a bigger
 framework (Preact, Solid), not a new helper here.
@@ -117,10 +119,10 @@ package READMEs:
 - [`@amritk/mini`](./packages/mini/README.md) — DOM bindings, `list`,
   `template`, and the `/router` `/flow` `/forms` `/query` `/hot` `/vite`
   subpaths.
-- [`@amritk/mini-native`](./packages/mini-native/README.md) — the `Host`
-  contract, the native element vocabulary, the three shipped hosts, and the
-  `/flow` `/ui` `/platform` `/composition` `/gestures` `/animate` `/router`
-  `/forms` `/query` subpaths.
+- [`@amritk/mini-native`](./packages/mini-native/README.md) — the Lynx element
+  vocabulary, `renderPage`, the in-memory Element PAPI for tests, and the
+  `/flow` `/composition` `/router` `/forms` `/query` `/engine` `/testing`
+  subpaths.
 - [`@amritk/mini-helpers`](./packages/mini-helpers/README.md) — the pure helpers
   both of the above share, and the bar for adding to them.
 
@@ -132,11 +134,11 @@ entry point of its package and deployed to Cloudflare Workers as a static SPA:
 - [`playground-mini`](./apps/playground-mini/README.md) — signals, the JSX
   runtime, every binding, `/flow`, `/forms`, `/query`, and `/router` (which the
   app itself runs on).
-- [`playground-mini-native`](./apps/playground-mini-native/README.md) — the
-  five-tag vocabulary, `/ui`, `/flow`, `/gestures`, `/platform`, `/composition`
-  and `/router`, rendered through the DOM host as a **web preview of a native
-  app**. It swaps in the in-memory host live and prints the object tree the same
-  components produce there.
+- [`playground-mini-native`](./apps/playground-mini-native/README.md) — Lynx
+  elements, CSS, `<list>`, event propagation, `/flow`, `/composition`, `/forms`,
+  `/query` and `/router`, previewed through a **DOM implementation of Lynx's
+  Element PAPI**. Its `/engine` screen renders a second tree through the
+  in-memory PAPI and prints the call log, so the reconciler's cost is countable.
 
 ```sh
 bun run --filter '@amritk/playground-mini' dev

@@ -49,12 +49,13 @@ export type QueryResult<TData, TError> = {
  * observer's results into signals.
  *
  * This is a VERBATIM port of `@amritk/mini`'s, and its being verbatim is the
- * interesting part. Fetching, caching, and retrying have no platform in them,
- * and query-core has no opinion about what renders the result — so the whole
- * layer crosses over as-is, and a screen written against it runs unchanged in a
- * browser preview and on a device. It is worth contrasting with `/forms`, where
- * one file had to be rewritten because a form eventually touches a control.
- * Nothing here ever touches an element at all.
+ * interesting part. Fetching, caching, and retrying have nothing underneath
+ * them, and query-core has no opinion about what renders the result — so the
+ * whole layer crossed over as-is, and it survived the rewrite to a Lynx-only
+ * runtime without a line changing. It is worth contrasting with `/forms`, where
+ * one file had to be written twice because a form eventually touches a control.
+ * Nothing here ever touches an element at all, which is why the suite below
+ * needs no engine installed.
  *
  * The observer is subscribed immediately and unsubscribed through `onCleanup`,
  * so call `createQuery` inside a component (or any `effectScope`) — the

@@ -1,8 +1,8 @@
 import { createBenchmarkApp } from '../packages/mini-native/examples/js-framework-benchmark/main'
-import { clearHost, setHost } from '../packages/mini-native/src/current-host'
-import type { Host } from '../packages/mini-native/src/host'
-import { createMemoryHost } from '../packages/mini-native/src/hosts/create-memory-host'
+import { clearEngine, setEngine } from '../packages/mini-native/src/engine/current-engine'
+import type { LynxElementApi } from '../packages/mini-native/src/engine/element-api'
 import { mount } from '../packages/mini-native/src/mount'
+import { createFakeEngine } from '../packages/mini-native/src/testing/create-fake-engine'
 
 /**
  * bench-reconciler — a wall-clock number for the operations
@@ -44,37 +44,61 @@ const REPEATS = Number(argValue('--repeats') ?? 10)
 const asJson = args.includes('--json')
 
 /** The host operations worth counting — the ones a reconciler is judged on. */
-const COUNTED = ['createElement', 'createText', 'insert', 'remove', 'clear', 'setText', 'setProperty'] as const
+/**
+ * The engine calls worth counting: the ones the reconciler makes, named as the
+ * PAPI names them.
+ *
+ * `__SetAttribute` covers both a property write and a text update, since a text
+ * run in Lynx is an element whose `text` attribute changes — so a column that
+ * used to separate `setText` from `setProperty` would now be splitting one
+ * engine call into two names it does not have.
+ */
+const COUNTED = [
+  '__CreateElement',
+  '__CreateRawText',
+  '__CreateWrapperElement',
+  '__AppendElement',
+  '__InsertElementBefore',
+  '__RemoveElement',
+  '__SetAttribute',
+  '__SetClasses',
+] as const
 
 type Counts = Record<(typeof COUNTED)[number], number>
 
 const zeroCounts = (): Counts => ({
-  createElement: 0,
-  createText: 0,
-  insert: 0,
-  remove: 0,
-  clear: 0,
-  setText: 0,
-  setProperty: 0,
+  __CreateElement: 0,
+  __CreateRawText: 0,
+  __CreateWrapperElement: 0,
+  __AppendElement: 0,
+  __InsertElementBefore: 0,
+  __RemoveElement: 0,
+  __SetAttribute: 0,
+  __SetClasses: 0,
 })
 
 /**
- * Wraps a host so every counted call increments a tally.
+ * Wraps an engine so every counted call increments a tally.
  *
- * Deliberately a wrapper rather than an option on the host: the memory host is
- * the reference implementation of the contract, and a counting mode inside it
- * would be a feature every future host reader had to skip past.
+ * Deliberately a wrapper rather than an option on the fake engine: that engine
+ * is the reference implementation of the PAPI, and a counting mode inside it
+ * would be a feature every future reader of it had to skip past.
+ *
+ * Counting ENGINE calls rather than wall-clock alone is the more durable half
+ * of this benchmark. A timing regression can be a slower machine; an extra
+ * `__InsertElementBefore` per row is the reconciler doing more work, and on a
+ * device each one of those is a real mutation with a real cost.
  */
-const counting = (host: Host, counts: Counts): Host => {
-  const wrapped = { ...host } as Record<string, unknown>
+const counting = (engine: LynxElementApi, counts: Counts): LynxElementApi => {
+  const wrapped = { ...engine } as Record<string, unknown>
   for (const name of COUNTED) {
-    const original = host[name] as (...call: unknown[]) => unknown
+    const original = engine[name] as (...call: unknown[]) => unknown
     wrapped[name] = (...call: unknown[]) => {
       counts[name] += 1
-      return original(...call)
+      return original.apply(engine, call)
     }
   }
-  return wrapped as Host
+  return wrapped as LynxElementApi
 }
 
 type Case = {
@@ -138,12 +162,12 @@ const measure = (benchmark: Case): Result => {
 
   const repeats = (benchmark.repeats ?? REPEATS) + 1
   for (let attempt = 0; attempt < repeats; attempt++) {
-    const memory = createMemoryHost()
+    const engine = createFakeEngine()
     const attemptCounts = zeroCounts()
-    setHost(counting(memory.host, attemptCounts))
+    setEngine(counting(engine.api, attemptCounts))
 
     const app = createBenchmarkApp()
-    const dispose = mount(memory.rootElement, () => app.element)
+    const dispose = mount(engine.pageElement, () => app.element)
     benchmark.setup(app.store)
 
     // Counted from here, so setup's own tree building does not land in the
@@ -159,7 +183,7 @@ const measure = (benchmark: Case): Result => {
     }
 
     dispose()
-    clearHost()
+    clearEngine()
   }
 
   return { name: benchmark.name, median: median(samples), counts }
@@ -170,14 +194,17 @@ const results = CASES.map(measure)
 if (asJson) {
   console.log(JSON.stringify({ repeats: REPEATS, results }, null, 2))
 } else {
-  const hostCalls = (counts: Counts): number => COUNTED.reduce((total, name) => total + counts[name], 0)
+  const engineCalls = (counts: Counts): number => COUNTED.reduce((total, name) => total + counts[name], 0)
   const rows = results.map((result) => ({
     Operation: result.name,
     'Median (ms)': result.median.toFixed(2),
-    'Host calls': String(hostCalls(result.counts)),
-    Created: String(result.counts.createElement + result.counts.createText),
-    Inserts: String(result.counts.insert),
-    Removals: String(result.counts.remove + result.counts.clear),
+    'Engine calls': String(engineCalls(result.counts)),
+    Created: String(
+      result.counts.__CreateElement + result.counts.__CreateRawText + result.counts.__CreateWrapperElement,
+    ),
+    Inserts: String(result.counts.__AppendElement + result.counts.__InsertElementBefore),
+    Removals: String(result.counts.__RemoveElement),
+    Writes: String(result.counts.__SetAttribute + result.counts.__SetClasses),
   }))
 
   const columns = Object.keys(rows[0] as object)
@@ -185,7 +212,7 @@ if (asJson) {
   const line = (cells: readonly string[]): string =>
     `| ${cells.map((cell, index) => cell.padEnd(width(columns[index] as string))).join(' | ')} |`
 
-  console.log(`mini-native reconciler, memory host, median of ${REPEATS}\n`)
+  console.log(`mini-native reconciler, fake Lynx engine, median of ${REPEATS}\n`)
   console.log(line(columns))
   console.log(`|${columns.map((column) => '-'.repeat(width(column) + 2)).join('|')}|`)
   for (const row of rows) console.log(line(columns.map((column) => (row as never)[column])))

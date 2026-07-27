@@ -1,9 +1,9 @@
 import { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
 
-import { requireHost } from '../current-host'
+import { addEvent } from '../add-event'
 import { onCleanup } from '../on-cleanup'
 import { batch, computed, effect, type ReadonlySignal, type Signal, signal } from '../signals'
-import type { HostElement } from '../types'
+import type { LynxElement } from '../types'
 import { bindField } from './bind-field'
 
 /** A single field's value. Text controls give strings; toggles give booleans; numeric controls give numbers. */
@@ -15,8 +15,8 @@ export type FieldValue = string | number | boolean
  * A field's type is whatever its `initialValues` entry is — `''` for text,
  * `false` for a toggle, `0` for a number — and `bind` wires the matching binding
  * from that type. Unlike the web sibling, which reads the same fact off the
- * element it is handed, this is the only source of it: a host node is opaque
- * here by design. See `bindField` for why that turns out to be the better end of
+ * element it is handed, this is the only source of it: an engine element is an
+ * opaque handle. See `bindField` for why that turns out to be the better end of
  * the trade.
  */
 export type FieldValues = Record<string, FieldValue>
@@ -90,7 +90,7 @@ export type Form<V extends FieldValues> = {
    * the field's initial value, not by the element. Cleaned up with the enclosing
    * scope.
    */
-  bind: (name: keyof V & string) => (element: HostElement) => void
+  bind: (name: keyof V & string) => (element: LynxElement) => void
   /** Sets a field's value imperatively. */
   setValue: <K extends keyof V & string>(name: K, value: V[K]) => void
   /**
@@ -108,10 +108,10 @@ export type Form<V extends FieldValues> = {
    * Marks everything touched, validates, and runs `onSubmit` when valid.
    *
    * Takes and ignores an event, so it can be wired straight to a control's
-   * `onSubmit` — `<input onSubmit={form.handleSubmit} />`. There is nothing to
-   * cancel: this vocabulary has no form element and therefore no navigation to
-   * prevent, which is why the web version's `preventDefault` has no counterpart
-   * here rather than a no-op standing in for one.
+   * confirm key — `<input bindconfirm={form.handleSubmit} />`. There is nothing
+   * to cancel: Lynx has no form element and therefore no navigation to prevent,
+   * which is why the web version's `preventDefault` has no counterpart here
+   * rather than a no-op standing in for one.
    */
   handleSubmit: (event?: unknown) => Promise<void>
 }
@@ -137,7 +137,7 @@ export type Form<V extends FieldValues> = {
  *   onSubmit: async (values) => save(values),
  * })
  *
- * <input ref={form.bind('email')} onSubmit={form.handleSubmit} keyboard="email" />
+ * <input ref={form.bind('email')} type="email" bindconfirm={form.handleSubmit} />
  * ```
  */
 export const createForm = <V extends FieldValues>(config: FormConfig<V>): Form<V> => {
@@ -196,8 +196,7 @@ export const createForm = <V extends FieldValues>(config: FormConfig<V>): Form<V
 
   const bind =
     (name: keyof V & string) =>
-    (element: HostElement): void => {
-      const host = requireHost()
+    (element: LynxElement): void => {
       const dispose = bindField(element, valueSignals[name])
 
       // Attached from inside an effect for the same reason the bindings are:
@@ -206,11 +205,16 @@ export const createForm = <V extends FieldValues>(config: FormConfig<V>): Form<V
       // control would leave a blur listener attached to a node nobody can see.
       const detach = effect(() => {
         const disposes = [
-          host.addEventListener(element, 'blur', () => touchedSignals[name](true)),
+          addEvent(element, 'bindEvent', 'blur', () => touchedSignals[name](true)),
           // Editing a field clears any manual (server-side) error on it, so a
-          // corrected value stops showing a stale message.
-          host.addEventListener(element, 'input', () => clearManualError(name)),
-          host.addEventListener(element, 'change', () => clearManualError(name)),
+          // corrected value stops showing a stale message. `tap` is here for the
+          // toggles: Lynx has no checkbox element, so a boolean field is an
+          // app-built control whose value changes on a tap and which never emits
+          // an input event at all. It fires on a text field too — tapping into
+          // one clears a stale server message about a value the user is now
+          // editing, which is the behaviour anyone would have asked for.
+          addEvent(element, 'bindEvent', 'input', () => clearManualError(name)),
+          addEvent(element, 'bindEvent', 'tap', () => clearManualError(name)),
         ]
         return () => {
           for (const stop of disposes) stop()

@@ -2,52 +2,51 @@
 /**
  * A keyed [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark)
  * implementation in `@amritk/mini-native` — the mirror of the one
- * [`@amritk/mini`](../../../mini/examples/js-framework-benchmark) grew, built
- * out of the native vocabulary so the same create/update/reorder workload can be
- * timed through any host.
+ * [`@amritk/mini`](../../../mini/examples/js-framework-benchmark) grew, built out
+ * of Lynx's own element vocabulary so the same create/update/reorder workload can
+ * be timed against a fake engine or a real one.
  *
  * It is an example, not part of the published package. What it is FOR is the
  * number: the reconciler's move-minimal guarantee was previously asserted in
- * host calls, which proves the algorithm and says nothing about the clock.
- * Driving this store against the memory host — a host whose operations are
- * array splices — measures very nearly the runtime's own overhead and nothing
- * else. `scripts/bench-reconciler.ts` is that harness.
+ * engine calls, which proves the algorithm and says nothing about the clock.
+ * Driving this store against the fake engine — whose operations are array
+ * splices on plain objects — measures very nearly the runtime's own overhead and
+ * nothing else.
  *
- * ## Two of `mini`'s four techniques are unavailable here, and that is the point
+ * ## One of `mini`'s four techniques is unavailable here, and that is the point
  *
  * **No template cloning.** `mini` clones a row from one parsed `<tr>`, so
  * *create* pays one `cloneNode` instead of a dozen `createElement`s. There is no
- * equivalent on a native target: an engine has no HTML parser and no way to
- * deep-copy a subtree, so a row is built element by element. That is a real
- * difference in what the two runtimes can do, not a gap in this example, and the
- * benchmark is where it should show up rather than being argued about.
+ * equivalent on Lynx: the Element PAPI has no HTML parser and no way to deep-copy
+ * a subtree, so a row is built element by element. That is a real difference in
+ * what the two runtimes can do rather than a gap in this example, and the
+ * benchmark is where it should show up instead of being argued about.
  *
- * **No event delegation.** `mini` puts one `click` listener on the `<tbody>` and
- * recovers the row with `closest`. Native targets have no bubbling phase — which
- * is why `Host.addEventListener` has no delegation and no options — so every row
- * carries its own handlers. A thousand rows really is two thousand listeners
- * here, and pretending otherwise would mean measuring something no app could
- * ship.
- *
- * The two that do carry over:
+ * The rest carry over, and one of them carries over BETTER than it does on the
+ * web:
  *
  * 1. **Keyed `list`** — the same move-minimal two-ended diff, so *swap rows* is
- *    two host inserts, *remove row* is none, and row identity survives every
- *    reorder.
+ *    one move, *remove row* is none, and row identity survives every reorder.
  * 2. **O(1) select** — selection is a signal PER ROW rather than one shared
- *    `selectedId` every row reads, so selecting in a ten-thousand-row list
- *    writes two signals and updates two classes. `mini` does this imperatively
- *    with `classList`; a signal each is the same complexity and stays inside the
+ *    `selectedId` every row reads, so selecting in a ten-thousand-row list writes
+ *    two signals and updates two class lists. `mini` does this imperatively with
+ *    `classList`; a signal each is the same complexity and stays inside the
  *    graph, which is the shape this runtime prefers anyway.
+ * 3. **Main-thread handlers.** `bindtap` registers a worklet the engine calls on
+ *    the main thread, where the element tree already lives — so a tap writes a
+ *    signal and lands on the tree within the frame, with no thread hop. A
+ *    background-thread framework pays a round trip per tap, which is exactly the
+ *    cost `main-thread:bindtap` exists to buy back by hand, one handler at a
+ *    time.
  *
  * Only the label and the selected flag are reactive, so *partial update*
- * rewrites the touched text nodes and never reconciles the list — the `rows`
- * array reference is unchanged, so the `list` effect does not re-run.
+ * rewrites the touched text runs and never reconciles the list — the `rows` array
+ * reference is unchanged, so the `list` effect does not re-run.
  */
 
+import type { LynxElement } from '../../src/engine/element-api'
 import { list } from '../../src/list'
 import { type Signal, signal } from '../../src/signals'
-import type { HostElement } from '../../src/types'
 
 /** One row: a stable id for keying, a reactive label, and its own selection flag. */
 export type Row = {
@@ -129,12 +128,12 @@ export type BenchmarkStore = {
  * Builds the benchmark UI and returns its root element plus the store driving
  * it.
  *
- * A host must be installed first. Mount `element` to run it interactively, or
+ * An engine must be installed first. Mount `element` to run it interactively, or
  * call the store operations directly to exercise each measured path — which is
- * what the timing harness does, so the numbers cover the runtime rather than
- * whatever a synthetic tap costs on a given host.
+ * what a timing harness should do, so the numbers cover the runtime rather than
+ * whatever a synthetic tap costs.
  */
-export const createBenchmarkApp = (): { element: HostElement; store: BenchmarkStore } => {
+export const createBenchmarkApp = (): { element: LynxElement; store: BenchmarkStore } => {
   const rows = signal<readonly Row[]>([])
   let nextId = 1
   // Tracked as a plain variable rather than a signal: nothing renders it, and a
@@ -147,8 +146,8 @@ export const createBenchmarkApp = (): { element: HostElement; store: BenchmarkSt
   const setSelected = (row: Row | null): void => {
     if (selected === row) return
     // Exactly two writes, whatever the list's length. A shared `selectedId`
-    // signal read by every row's class would make this O(n) — a thousand
-    // effects re-running to change one class.
+    // signal read by every row's class would make this O(n) — a thousand effects
+    // re-running to change one class.
     selected?.selected(false)
     row?.selected(true)
     selected = row
@@ -198,52 +197,57 @@ export const createBenchmarkApp = (): { element: HostElement; store: BenchmarkSt
   /**
    * Builds one row.
    *
-   * Element by element, because there is nothing to clone from — see the note
-   * at the top. Two handlers per row, because there is no bubbling to delegate
-   * through.
+   * Element by element, because there is nothing to clone from — see the note at
+   * the top. The id and the label are separate `<text>` elements each holding
+   * their own `raw-text`, which is what a run of text IS on Lynx; only the label
+   * one is bound, so a partial update rewrites a single `text` attribute.
    */
-  const createRow = (row: Row): HostElement => (
+  const createRow = (row: Row): LynxElement => (
     <view
       class={() => (row.selected() ? 'row danger' : 'row')}
-      role="listitem"
-      testId={`row-${row.id}`}
-      onTap={() => store.select(row.id)}
+      data-testid={`row-${row.id}`}
+      bindtap={() => store.select(row.id)}
     >
-      <text class="col-id">{String(row.id)}</text>
-      <text class="col-label">{row.label}</text>
-      <view class="col-remove" role="button" label="Remove" focusable={true} onTap={() => store.remove(row.id)}>
-        <text>✕</text>
+      <text class="col-id">
+        <raw-text text={String(row.id)} />
+      </text>
+      <text class="col-label">
+        <raw-text text={row.label} />
+      </text>
+      <view class="col-remove" data-testid={`remove-${row.id}`} bindtap={() => store.remove(row.id)}>
+        <text>
+          <raw-text text="✕" />
+        </text>
       </view>
     </view>
   )
 
   const controls = (
     <view class="controls">
-      <view role="button" focusable={true} testId="run" onTap={store.run}>
+      <view data-testid="run" bindtap={store.run}>
         <text>Create 1,000 rows</text>
       </view>
-      <view role="button" focusable={true} testId="runlots" onTap={store.runLots}>
+      <view data-testid="runlots" bindtap={store.runLots}>
         <text>Create 10,000 rows</text>
       </view>
-      <view role="button" focusable={true} testId="add" onTap={store.add}>
+      <view data-testid="add" bindtap={store.add}>
         <text>Append 1,000 rows</text>
       </view>
-      <view role="button" focusable={true} testId="update" onTap={store.update}>
+      <view data-testid="update" bindtap={store.update}>
         <text>Update every 10th row</text>
       </view>
-      <view role="button" focusable={true} testId="clear" onTap={store.clear}>
+      <view data-testid="clear" bindtap={store.clear}>
         <text>Clear</text>
       </view>
-      <view role="button" focusable={true} testId="swaprows" onTap={store.swapRows}>
+      <view data-testid="swaprows" bindtap={store.swapRows}>
         <text>Swap Rows</text>
       </view>
     </view>
   )
 
-  // A real element rather than the default flow wrapper, because the collection
-  // needs somewhere honest to put its `role="list"` — the flow wrapper is
-  // deliberately invisible to assistive technology.
-  const body = (<scroll-view class="rows" role="list" />) as HostElement
+  // A real `scroll-view` rather than a wrapper, because the rows have to scroll
+  // and a wrapper takes no part in layout at all.
+  const body = <scroll-view class="rows" data-testid="rows" scroll-orientation="vertical" />
   list(body, rows, (row) => String(row.id), createRow)
 
   return {
@@ -252,7 +256,7 @@ export const createBenchmarkApp = (): { element: HostElement; store: BenchmarkSt
         {controls}
         {body}
       </view>
-    ) as HostElement,
+    ),
     store,
   }
 }

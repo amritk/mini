@@ -1,15 +1,15 @@
 import type { RouteParams } from '@amritk/mini-helpers'
 
-import { requireHost } from '../current-host'
 import { type ChildFactory, renderChild } from '../render-child'
-import type { HostElement } from '../types'
+import { createWrapper } from '../tree'
+import type { LynxElement } from '../types'
 import type { Route, Router } from './create-router'
 
 /** Props for {@link RouteView}. */
 export type RouteViewProps<R extends Route> = {
   router: Router<R>
   /** Rendered when nothing matched. Nothing renders when it is omitted. */
-  fallback?: () => HostElement
+  fallback?: () => LynxElement
 }
 
 /**
@@ -26,18 +26,20 @@ export type RouteViewProps<R extends Route> = {
  * every change to what it read, and it is the reason each route gets exactly
  * one factory, remembered here.
  *
- * A native navigation STACK — where `/users/1` → `/users/2` pushes a second
- * screen and animates between them — is `RouteStack`, a layer above this one.
- * Reach for it when screens should survive being navigated away from; this is
- * the single-slot version, which is what the web usually wants and what a
- * device wants for a tab's root.
+ * The slot is a `wrapper`, so nothing the router interposes takes part in
+ * layout or in the accessibility tree — a screen sits directly inside whatever
+ * the `RouteView` was written in.
+ *
+ * This is the SINGLE-SLOT version, which is what a tab's root wants: the screen
+ * that left is gone. When `/users/1` → `/users/2` should push a second screen
+ * over a first that stays alive underneath, reach for `RouteStack` instead.
  *
  * ```tsx
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
  */
-export const RouteView = <R extends Route>(props: RouteViewProps<R>): HostElement => {
-  const wrapper = requireHost().createFlowHost()
+export const RouteView = <R extends Route>(props: RouteViewProps<R>): LynxElement => {
+  const wrapper = createWrapper()
 
   // One stable factory per route, so a params-only change resolves to the same
   // reference and `renderChild` leaves the screen alone. Keyed weakly, because

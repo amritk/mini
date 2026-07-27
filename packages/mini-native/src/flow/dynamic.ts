@@ -1,7 +1,7 @@
-import { requireHost } from '../current-host'
 import { renderChild } from '../render-child'
 import { toGetter } from '../to-getter'
-import type { HostElement, MaybeReactive } from '../types'
+import { createWrapper } from '../tree'
+import type { LynxElement, MaybeReactive } from '../types'
 
 /** Props for {@link Dynamic}. */
 export type DynamicProps = {
@@ -9,7 +9,7 @@ export type DynamicProps = {
    * Builds the subtree to show right now, or returns `null` for nothing. A
    * getter tracks, so returning a different builder swaps the whole subtree.
    */
-  children: MaybeReactive<(() => HostElement) | null>
+  children: MaybeReactive<(() => LynxElement) | null>
 }
 
 /**
@@ -26,8 +26,8 @@ export type DynamicProps = {
  * <Dynamic>{() => SCREENS[route()] ?? null}</Dynamic>
  * ```
  */
-export const Dynamic = (props: DynamicProps): HostElement => {
-  const wrapper = requireHost().createFlowHost()
+export const Dynamic = (props: DynamicProps): LynxElement => {
+  const wrapper = createWrapper()
   const select = toGetter(props.children)
   renderChild(wrapper, select)
   return wrapper

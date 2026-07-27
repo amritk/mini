@@ -1,34 +1,38 @@
-import { mount, setHost } from '@amritk/mini-native'
-import { createDomHost, domRoot } from '@amritk/mini-native/hosts/dom'
+import { mount, setEngine } from '@amritk/mini-native'
 
 import { App } from './app'
-import { OverlayContext } from './lib/overlay'
+import { createDomPapi } from './lib/dom-papi'
+import './styles.css'
 
 /**
- * The entry point, and the only file in this app that knows it is on the web.
+ * The entry point, and the one file that knows this is a browser.
  *
- * Picking the host is the whole of that decision: `createDomHost()` here, a
- * Lynx host on a device, the memory host in a test. Everything below this line
- * is written against the `Host` contract and never against a browser — which is
- * why the DOM is a PREVIEW target for a native app here rather than the real
- * target that native approximates.
+ * On a device the equivalent is two lines and no shim at all:
  *
- * `setHost` must run before anything renders. `requireHost()` throws otherwise,
- * because that is a boot-order mistake rather than a recoverable condition.
+ * ```ts
+ * import { renderPage } from '@amritk/mini-native'
+ * renderPage(App)
+ * ```
  *
- * The layout reset comes with the host and is load-bearing: without it an
- * unstyled container with two children stacks vertically on a device and
- * horizontally in a browser, which is the difference between a component tree
- * that runs on both and one that has to be adjusted per target.
+ * — because there the Element PAPI is already injected as globals and the
+ * engine calls `renderPage` itself. Here there is no engine, so the app
+ * supplies one: `createDomPapi()` implements the same PAPI over the DOM.
+ *
+ * That is a smaller claim than the old DOM host made, and a more honest one.
+ * The old host implemented a FRAMEWORK abstraction, so the browser and the
+ * device were two peers and either could be the odd one out. This implements
+ * the ENGINE's API, so the browser is explicitly emulating Lynx, and the
+ * emulation is the thing that can be wrong. Lynx ships a real version of this —
+ * `@lynx-js/web-platform` — which is what a production web build should use;
+ * this one exists so the playground stays a static bundle you can open.
  */
-setHost(createDomHost())
-
 const root = document.getElementById('app')
-const overlay = document.getElementById('overlay')
-if (root === null || overlay === null) throw new Error('#app and #overlay must both exist in index.html')
+if (!root) throw new Error('#app is missing from index.html')
 
-// The overlay root is created by the app, not by the host, and provided so no
-// screen has to reach for `document` to open a modal. `provide` takes a
-// function: an already-built child would have been built before the provider
-// ran, and would have read the fallback.
-mount(domRoot(root), () => OverlayContext.provide(domRoot(overlay), () => <App />))
+const engine = createDomPapi({ root })
+setEngine(engine)
+
+const page = engine.__GetPageElement?.()
+if (!page) throw new Error('The DOM engine did not hand back a page element')
+
+mount(page, App)

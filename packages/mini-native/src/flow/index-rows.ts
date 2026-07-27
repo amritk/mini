@@ -1,11 +1,11 @@
 import { list } from '../list'
 import { type Signal, signal } from '../signals'
 import { toGetter } from '../to-getter'
-import type { HostElement, MaybeReactive } from '../types'
-import { buildContainer, type ContainerProps } from './build-container'
+import type { LynxElement, MaybeReactive } from '../types'
+import { buildContainer, type ContainerProps, type ContainerTag } from './build-container'
 
 /** Props for {@link Index}, parameterised by the item type. */
-export type IndexProps<T> = ContainerProps & {
+export type IndexProps<T, Tag extends ContainerTag = 'wrapper'> = ContainerProps<Tag> & {
   /** The collection. A getter or signal tracks; a plain array renders once. */
   each: MaybeReactive<readonly T[]>
   /**
@@ -13,7 +13,7 @@ export type IndexProps<T> = ContainerProps & {
    * and that is the whole point of this component — read it inside a binding and
    * the row follows whatever moves into its slot without being rebuilt.
    */
-  children: (item: () => T, index: number) => HostElement
+  children: (item: () => T, index: number) => LynxElement
 }
 
 /**
@@ -45,7 +45,7 @@ export type IndexProps<T> = ContainerProps & {
  * <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>
  * ```
  */
-export const Index = <T>(props: IndexProps<T>): HostElement => {
+export const Index = <T, Tag extends ContainerTag = 'wrapper'>(props: IndexProps<T, Tag>): LynxElement => {
   const container = buildContainer(props)
   const each = toGetter(props.each)
   // One signal per slot, holding whatever item currently occupies it. Rows read

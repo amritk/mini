@@ -1,123 +1,145 @@
-import { effect } from 'alien-signals'
-
-import { bindShow } from './bind/bind-show'
-import { requireHost, scheduleFlush } from './current-host'
+import { addEvent } from './add-event'
+import { requireEngine, scheduleFlush } from './engine/current-engine'
+import type { LynxElement } from './engine/element-api'
 import { onCleanup } from './on-cleanup'
 import { resolveClass } from './resolve-class'
-import type { HostElement, StyleValue } from './types'
-import { warn } from './warn'
+import { effect } from './signals'
+import { applyStyle, applyVisible } from './style/apply-style'
+import type { StyleValue } from './types'
 
 /**
  * Applies one JSX prop to an element, deciding static-or-reactive from the
- * shape of the value: a function tracks, anything else is applied once and
+ * SHAPE of the value: a function tracks, anything else is applied once and
  * never again.
  *
- * Nothing is returned, because nothing needs to be disposed by the caller.
- * Reactive props become effects, which the enclosing scope disposes on its own,
- * and event listeners register their own `onCleanup` — so a subtree that leaves
- * the tree detaches its listeners without the runtime tracking them.
+ * Nothing is returned, because nothing needs disposing by the caller. Reactive
+ * props become effects, which the enclosing scope disposes on its own, and
+ * event listeners register their own `onCleanup` — so a subtree that leaves the
+ * tree detaches its listeners without the runtime tracking them.
  *
- * `children`, `key`, and `ref` never reach here: those describe the element's
+ * `children`, `key` and `ref` never reach here: those describe an element's
  * structure rather than its properties, so the runtime handles them itself.
+ *
+ * ## Props are spelled the way Lynx spells them
+ *
+ * There is no translation table in this package, and that is the point. An
+ * attribute is written exactly as the engine names it — `text-maxline`, `mode`,
+ * `scroll-orientation` — and an event exactly as a Lynx template writes it:
+ * `bindtap`, `catchtap`, `capture-bindtap`.
+ *
+ * So the engine's documentation is this runtime's documentation, a new engine
+ * attribute needs no release here to become usable, and the entire class of bug
+ * where a prop works in a preview and silently does nothing on a device cannot
+ * occur — there is no second spelling for it to be lost in translation between.
  */
-export const applyProp = (element: HostElement, name: string, value: unknown): void => {
-  const host = requireHost()
-
-  if (STATIC_PROPS.has(name)) {
-    // A getter here typechecks nowhere but arrives from plain JavaScript all the
-    // same, and the failure is silent: the host read the prop once at creation,
-    // so the binding appears to exist and never fires again. Saying so is the
-    // whole reason this branch exists — the value is deliberately not applied,
-    // because calling the getter would suggest a reactivity that cannot follow.
-    if (typeof value === 'function') {
-      warn(`\`${name}\` decides what the host builds, so it cannot be reactive. Pass a plain value.`)
-      return
-    }
-    host.setProperty(element, name, value)
-    scheduleFlush()
-    return
-  }
-
-  if (name === 'autoFocus') {
-    // Deferred to the end of the tick rather than applied here, because the
-    // element is not in the tree yet — its parent has not appended it, and on a
-    // batching target nothing has been committed at all. Focusing a detached
-    // node silently does nothing on every target, which is the worst possible
-    // shape for this bug: the prop looks applied and simply never works.
-    //
-    // The host is the one captured above rather than read late, because this
-    // element belongs to it: if another host is installed in between, that host
-    // has never seen this node and focusing through it would be meaningless.
-    if (value === true) void Promise.resolve().then(() => host.focus?.(element))
-    return
-  }
-
+export const applyProp = (element: LynxElement, name: string, value: unknown): void => {
   if (name === 'show') {
-    // Wrapping a static boolean in a getter means one code path covers both
-    // forms, so a plain `show={false}` behaves exactly like a tracked one.
+    // Wrapping a static boolean in a getter means one code path serves both
+    // forms, so `show={false}` behaves exactly like a tracked one.
     const get = typeof value === 'function' ? (value as () => boolean) : () => value as boolean
-    bindShow(element, get)
-    return
-  }
-
-  if (name === 'class') {
-    if (typeof value === 'function') {
-      effect(() => {
-        host.setProperty(element, 'class', resolveClass(value()))
-        scheduleFlush()
-      })
-      return
-    }
-    host.setProperty(element, 'class', resolveClass(value))
-    scheduleFlush()
+    bind(value, () => applyVisible(element, Boolean(get())))
     return
   }
 
   if (name === 'style') {
-    if (typeof value === 'function') {
-      effect(() => {
-        host.setStyle(element, (value as () => StyleValue | null)())
-        scheduleFlush()
-      })
-      return
-    }
-    host.setStyle(element, (value ?? null) as StyleValue | null)
-    scheduleFlush()
+    bind(value, (current) => applyStyle(element, (current ?? null) as StyleValue | string | null))
     return
   }
 
-  if (isEventProp(name, value)) {
-    // onTap becomes tap, onLongPress becomes longpress. Plain listeners with no
-    // options and no delegation, because native targets have no bubbling phase
-    // to delegate through.
-    onCleanup(host.addEventListener(element, name.slice(2).toLowerCase(), value))
-    return
-  }
-
-  if (typeof value === 'function') {
-    const get = value as () => unknown
-    effect(() => {
-      host.setProperty(element, name, get())
+  if (name === 'class') {
+    bind(value, (current) => {
+      requireEngine().__SetClasses(element, resolveClass(current))
       scheduleFlush()
     })
     return
   }
 
-  host.setProperty(element, name, value)
-  scheduleFlush()
+  if (name === 'id') {
+    // `id` has its own PAPI call rather than being an attribute, because it is
+    // what an id selector and a `SelectorQuery` match on.
+    bind(value, (current) => {
+      requireEngine().__SetID(element, current === null || current === undefined ? null : String(current))
+      scheduleFlush()
+    })
+    return
+  }
+
+  const event = eventOf(name)
+  if (event !== null && typeof value === 'function') {
+    onCleanup(addEvent(element, event.type, event.name, value as (event: unknown) => void))
+    return
+  }
+
+  bind(value, (current) => {
+    // Only `null` and `undefined` clear an attribute. **`false` is a value**,
+    // and passing it through is the whole difference between a runtime that can
+    // express Lynx and one that can nearly express it.
+    //
+    // The web habit is the opposite — `disabled={false}` means "no attribute",
+    // because HTML boolean attributes are true by their presence. Lynx is not
+    // HTML: `flatten`, `accessibility-element` and `accessibility-disabled` all
+    // default to something other than false, so `flatten={false}` is a stated
+    // opt-out and swallowing it leaves the element doing the opposite of what
+    // the source says. There is no way to write it back afterwards either,
+    // which is what makes this the runtime's decision rather than an app's.
+    const absent = current === null || current === undefined
+    requireEngine().__SetAttribute(element, name, absent ? null : current)
+    scheduleFlush()
+  })
 }
 
 /**
- * The props a host consumes when it CREATES an element rather than afterwards,
- * so none of them has a reactive form.
+ * The five ways Lynx binds an event, and the type string each maps to.
  *
- * `multiline` turns an input into a different control; `role` and `level` decide
- * which element the DOM host builds. A node cannot change what it is on any
- * target, so these are read once from `createElement`'s props and are passed on
- * here only so a host that spells one as an attribute still gets the chance.
+ * | prop prefix | engine type | phase | propagation |
+ * | --- | --- | --- | --- |
+ * | `bind` | `bindEvent` | bubble | continues to ancestors |
+ * | `catch` | `catchEvent` | bubble | stops at this element |
+ * | `capture-bind` | `capture-bind` | capture | continues down |
+ * | `capture-catch` | `capture-catch` | capture | stops at this element |
+ * | `global-bind` | `global-bindEvent` | — | fires wherever the event occurs |
+ *
+ * **The `Event` suffix is irregular and that is not a typo here.** `bind`,
+ * `catch` and `global-bind` gain it; the two `capture-` forms do not. The engine
+ * string-compares these, so normalising them into something tidier would produce
+ * a type it does not recognise and a listener that never fires. The table is
+ * ugly because the thing it describes is.
+ *
+ * Order matters too. The longer prefixes have to be tested first, or
+ * `capture-bindtap` would match the `bind` arm and register a bubble-phase
+ * listener for an event named `capture-tap`, which nothing emits.
  */
-const STATIC_PROPS = new Set(['role', 'level', 'multiline'])
+const PREFIXES: readonly (readonly [prefix: string, type: string])[] = [
+  ['capture-catch', 'capture-catch'],
+  ['capture-bind', 'capture-bind'],
+  ['global-bind', 'global-bindEvent'],
+  ['catch', 'catchEvent'],
+  ['bind', 'bindEvent'],
+]
 
-/** An `on*` prop carrying a handler. The value check keeps `onTap={undefined}` off the listener path. */
-const isEventProp = (name: string, value: unknown): value is (event: unknown) => void =>
-  name.startsWith('on') && typeof value === 'function'
+/** Splits an event prop into the engine's `(type, name)` pair, or `null` if it is not one. */
+const eventOf = (prop: string): { type: string; name: string } | null => {
+  // A `main-thread:` prefix is accepted and dropped. This runtime already runs
+  // on the main thread — driving the Element PAPI is what puts it there — so
+  // `main-thread:bindtap` and `bindtap` are the same listener here. Accepting
+  // the spelling means a component pasted out of a Lynx codebase keeps working
+  // rather than silently losing its handler.
+  const name = prop.startsWith('main-thread:') ? prop.slice('main-thread:'.length) : prop
+
+  for (const [prefix, type] of PREFIXES) {
+    if (name.startsWith(prefix) && name.length > prefix.length) {
+      return { type, name: name.slice(prefix.length) }
+    }
+  }
+  return null
+}
+
+/** Applies once for a plain value, or on every change for a getter. */
+const bind = (value: unknown, apply: (current: unknown) => void): void => {
+  if (typeof value === 'function') {
+    const get = value as () => unknown
+    effect(() => apply(get()))
+    return
+  }
+  apply(value)
+}

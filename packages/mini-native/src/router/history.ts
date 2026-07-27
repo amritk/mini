@@ -9,20 +9,20 @@ export type RouterLocation = {
 }
 
 /**
- * How navigation actually happens on a target — the one part of routing that
- * has no portable answer.
+ * How navigation actually happens — the one part of routing that is not just
+ * arithmetic over strings.
  *
- * Matching a pattern against a path is string arithmetic and ports for nothing.
- * *Moving between locations* does not: a browser has an address bar, a back
- * button, and a session history the user shares with every other tab; a device
- * has a navigation stack the app owns outright, and nothing the user can type
- * into. Those are different enough that pretending otherwise is how a router
- * ends up with a `window` reference in the middle of a screen.
+ * Matching a pattern against a path has nothing underneath it. *Moving between
+ * locations* does: a device has a navigation stack the app owns outright, and
+ * nothing the user can type into, while the back gesture that unwinds it is a
+ * platform affordance arriving from outside the app. A router that assumed
+ * either shape would be a router with the wrong one wired into every screen.
  *
- * So the router takes one of these rather than reaching for a platform. The
- * package ships an in-memory implementation, which is the right shape for a
- * device *and* for a test; the browser one lives on its own entry so that
- * importing the router never drags a browser assumption along.
+ * So the router takes one of these instead. {@link createMemoryHistory} is the
+ * default and is a complete implementation rather than a stand-in — an app's
+ * screen stack genuinely is a stack it holds — and this type stays a seam so
+ * that an app embedding Lynx inside a host that owns navigation (a tab bar it
+ * did not write, a native shell it is one screen of) can hand its own in.
  */
 export type RouterHistory = {
   /** Where the app is right now. */
@@ -37,17 +37,17 @@ export type RouterHistory = {
    * How many entries this history has pushed and not yet popped, so `0` is the
    * place the app started.
    *
-   * This exists instead of a `canGoBack` flag because it is a question with an
-   * honest answer on both targets. A browser cannot say whether going back
-   * would leave the app entirely — `history.length` counts entries from other
-   * pages too — but it can count the ones this router pushed, which is exactly
-   * what a back chevron should be shown for.
+   * This exists instead of a `canGoBack` flag because it is the question a
+   * history can always answer honestly. Whether going back would leave the app
+   * entirely is up to whatever hosts it, but how many steps the app has taken
+   * since it started is its own business — and that is exactly what a back
+   * chevron should be shown for.
    */
   depth: () => number
   /**
-   * Called when the location changed from OUTSIDE — a browser back button, a
-   * deep link, a hardware back gesture. Navigation through this object does not
-   * fire it, since the caller already knows.
+   * Called when the location changed from OUTSIDE — a hardware back gesture, a
+   * deep link, a host shell popping a screen. Navigation through this object
+   * does not fire it, since the caller already knows.
    */
   subscribe: (listener: () => void) => Dispose
 }

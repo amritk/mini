@@ -1,13 +1,13 @@
 import { computed, effect, effectScope } from 'alien-signals'
 
 import { currentFrame, withFrame } from './context-frame'
-import { requireHost, scheduleFlush } from './current-host'
 import { onCleanup } from './on-cleanup'
 import { runDetached } from './run-detached'
-import type { Dispose, HostElement } from './types'
+import { clear, insert } from './tree'
+import type { Dispose, LynxElement } from './types'
 
 /** Builds the node to display, or returns `null` to display nothing. */
-export type ChildFactory = () => HostElement | null
+export type ChildFactory = () => LynxElement | null
 
 /**
  * Keeps `wrapper`'s children equal to whatever `select` currently resolves to —
@@ -42,8 +42,7 @@ export type ChildFactory = () => HostElement | null
  * final branch alive after the enclosing component unmounted. Owning the
  * lifetime outright makes both cases explicit. See `run-detached.ts`.
  */
-export const renderChild = (wrapper: HostElement, select: () => ChildFactory | null): Dispose => {
-  const host = requireHost()
+export const renderChild = (wrapper: LynxElement, select: () => ChildFactory | null): Dispose => {
   let dispose: Dispose | null = null
 
   // Captured HERE, while the component that wrote this is still running, and
@@ -64,7 +63,7 @@ export const renderChild = (wrapper: HostElement, select: () => ChildFactory | n
     dispose?.()
     // effectScope runs its body synchronously, so the assignment is definite —
     // just invisible to the compiler, hence the initialiser plus reassignment.
-    let node: HostElement | null = null
+    let node: LynxElement | null = null
     // Detached for the same reason `list` detaches its rows: a scope built
     // inside this effect would be disposed on the effect's next run, leaving
     // teardown order dependent on that rather than on the explicit dispose
@@ -74,9 +73,8 @@ export const renderChild = (wrapper: HostElement, select: () => ChildFactory | n
         node = factory ? withFrame(frame, factory) : null
       }),
     )
-    host.clear(wrapper)
-    if (node) host.insert(wrapper, node, null)
-    scheduleFlush()
+    clear(wrapper)
+    if (node) insert(wrapper, node, null)
   })
 
   const tearDown = (): void => {

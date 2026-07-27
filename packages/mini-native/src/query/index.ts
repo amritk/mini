@@ -4,9 +4,10 @@
  * invalidation without this package hand-rolling a resource primitive.
  *
  * It is a verbatim port of `@amritk/mini/query`, and that is worth stating
- * rather than glossing: fetching and caching have no platform in them, and
+ * rather than glossing: fetching and caching have nothing underneath them, and
  * query-core has no opinion about what renders the result, so the entire layer
- * crossed over untouched. Where `/forms` needed one file rewritten — a form
+ * crossed over untouched — and then survived the rewrite to a Lynx-only runtime
+ * untouched again. Where `/forms` needed one file written twice — a form
  * eventually has to touch a control — nothing here touches an element at all.
  *
  * Its own module graph, and `@tanstack/query-core` is an optional peer: the `.`

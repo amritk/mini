@@ -11,16 +11,19 @@
  *
  * **How a control is wired to a field.** The web version inspects the element it
  * is handed — `instanceof HTMLInputElement`, `element.type === 'checkbox'` — and
- * picks a binding from what it finds. A host node here is opaque by design, so
- * the type of the field's INITIAL VALUE decides instead: `''` binds text, `0`
- * binds a coerced number, `false` binds a toggle. That is the better end of the
- * trade rather than a concession — `initialValues` already says what each field
- * is, in one place, before any element exists, and the two can no longer
- * disagree with each other. See `bind-field.ts`.
+ * picks a binding from what it finds. An engine element here is an opaque
+ * handle, so the type of the field's INITIAL VALUE decides instead: `''` binds
+ * text, `0` binds a coerced number, `false` binds a toggle. That is the better
+ * end of the trade rather than a concession — `initialValues` already says what
+ * each field is, in one place, before any element exists, and the two can no
+ * longer disagree with each other. See `bind-field.ts`.
  *
- * `Field` is the other adjustment, and only because the vocabulary is smaller
- * than HTML: there is no `as="select"`, because a picker is a platform-owned
- * surface rather than something five tags can name honestly.
+ * `Field` is the other adjustment, and only because Lynx's element set is
+ * smaller than HTML's: multi-line is a separate `<textarea>` rather than a flag
+ * on `<input>`, there is no `as="select"` because a picker is a platform-owned
+ * surface an app presents itself, and the error message is folded into the
+ * control's accessible NAME because Lynx has no `aria-describedby` to point at
+ * it with.
  *
  * Validation accepts either a plain `(values) => errors` function or a JSON
  * Schema run through `@amritk/runtime-validators` — the eval-free interpreter,
@@ -40,20 +43,18 @@
  *
  *   return (
  *     <view>
- *       <Field form={form} name="email" label="Email" keyboard="email" autoComplete="email" />
- *       <Field form={form} name="password" label="Password" secure={true} onSubmit={form.handleSubmit} />
- *       <Button onTap={form.handleSubmit} disabled={form.isSubmitting}>Sign in</Button>
+ *       <Field form={form} name="email" label="Email" type="email" confirm-type="next" />
+ *       <Field form={form} name="password" label="Password" type="password" bindconfirm={form.handleSubmit} />
+ *       <text bindtap={form.handleSubmit}>Sign in</text>
  *     </view>
  *   )
  * }
  * ```
  */
 
-// Re-exported from `@amritk/mini-helpers/schema`: a schema has no platform in
-// it, so this is the arm `@amritk/mini` and this package genuinely share.
 export { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
 
 export { bindField } from './bind-field'
 export type { Field as FieldState, FieldValue, FieldValues, Form, FormConfig, FormValidate } from './create-form'
 export { createForm } from './create-form'
-export { Field, type FieldProps } from './field'
+export { Field, type FieldConfirmType, type FieldProps, type FieldType } from './field'

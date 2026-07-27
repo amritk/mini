@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
-import { clearHost, mount, setHost, signal } from '../index'
+import { clearEngine, mount, setEngine, signal } from '../index'
+import { createFakeEngine, type FakeElement, type FakeEngine } from '../testing/create-fake-engine'
 import { For } from './for'
 import { Index } from './index-rows'
 
@@ -9,61 +9,90 @@ import { Index } from './index-rows'
  * The console, reached through `globalThis` rather than as an ambient global.
  *
  * This package type-checks without any platform library — that absence is what
- * proves the core carries no DOM dependency — and `console` is a host global
+ * proves the runtime carries no DOM dependency — and `console` is a host global
  * rather than part of ECMAScript, so it has to be named explicitly here just as
  * `warn.ts` does in the source.
  */
 const consoleLike = (globalThis as unknown as { console: { warn: (...data: readonly unknown[]) => void } }).console
 
 afterEach(() => {
-  clearHost()
+  clearEngine()
 })
 
-/** The text of every row, which is what each ordering assertion cares about. */
-const rows = (container: MemoryElement): string[] =>
-  container.children.map((child) => {
-    const text = (child as MemoryElement).children[0]
-    return text && text.kind === 'text' ? text.value : ''
-  })
+/**
+ * The label of every row, which is what each ordering assertion cares about.
+ *
+ * A row is a `<text>` and its string lives one level down in a `raw-text`
+ * element's `text` attribute — Lynx has no text nodes.
+ */
+const rows = (container: FakeElement): string[] =>
+  container.children.map((row) => String(row.children[0]?.attrs['text'] ?? ''))
 
-/** The container the flow wrapper puts rows into. */
-const wrapperOf = (memory: ReturnType<typeof createMemoryHost>): MemoryElement =>
-  memory.root.children[0] as MemoryElement
+/** The container `Index` reconciles rows into, which is the mounted tree's only child. */
+const containerOf = (engine: FakeEngine): FakeElement => engine.page.children[0] as FakeElement
 
 describe('index-rows', () => {
   it('renders a row per position, repeats included', () => {
     // `For` with the default key would hand both "red" rows one key here, warn,
     // and drop one. Position identity is what makes the list renderable.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const tags = signal(['red', 'red', 'blue'])
 
-    mount(memory.rootElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
+    mount(engine.pageElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
 
-    expect(rows(wrapperOf(memory))).toEqual(['red', 'red', 'blue'])
+    expect(rows(containerOf(engine))).toEqual(['red', 'red', 'blue'])
+  })
+
+  it('renders into a wrapper by default', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const tags = signal(['red'])
+
+    mount(engine.pageElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
+
+    expect(containerOf(engine).tag).toBe('wrapper')
+  })
+
+  it('typechecks a container prop against the tag `as` names', () => {
+    // `Index` shares `buildContainer` with `For`, so the container behaviour and
+    // its type safety have to hold on both — that sharing is the whole reason
+    // the two cannot drift apart on which props they honour.
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const tags = signal(['red'])
+
+    mount(engine.pageElement, () => (
+      <Index each={tags} as="scroll-view" scroll-orientation="horizontal">
+        {(tag) => <text>{() => tag()}</text>}
+      </Index>
+    ))
+
+    const container = containerOf(engine)
+    expect([container.tag, container.attrs['scroll-orientation']]).toEqual(['scroll-view', 'horizontal'])
   })
 
   it('updates a slot in place when a different item moves into it', () => {
     // The whole reason `Index` is a component rather than a key function. A row
     // is built once and never rebuilt, so keying by position alone would leave
     // this list showing the old values in the shifted slots.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const tags = signal(['red', 'blue'])
 
-    mount(memory.rootElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
+    mount(engine.pageElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
     tags(['green', 'red', 'blue'])
 
-    expect(rows(wrapperOf(memory))).toEqual(['green', 'red', 'blue'])
+    expect(rows(containerOf(engine))).toEqual(['green', 'red', 'blue'])
   })
 
   it('keeps the node in a slot whose item changed', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const tags = signal(['red', 'blue'])
     let builds = 0
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Index each={tags}>
         {(tag) => {
           builds++
@@ -71,35 +100,35 @@ describe('index-rows', () => {
         }}
       </Index>
     ))
-    const first = wrapperOf(memory).children[0]
+    const first = containerOf(engine).children[0]
 
     tags(['green', 'blue'])
 
     // One slot changed content and one row was neither rebuilt nor replaced.
     expect(builds).toBe(2)
-    expect(wrapperOf(memory).children[0]).toBe(first)
+    expect(containerOf(engine).children[0]).toBe(first)
   })
 
   it('drops the trailing rows when the collection shrinks', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const tags = signal(['a', 'b', 'c'])
 
-    mount(memory.rootElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
+    mount(engine.pageElement, () => <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>)
     tags(['a'])
 
-    expect(rows(wrapperOf(memory))).toEqual(['a'])
+    expect(rows(containerOf(engine))).toEqual(['a'])
   })
 
   it('composes when nested inside another Index', () => {
     // `Index` refreshes its slot signals from inside the getter `list` tracks,
     // which is a write during another component's reconciliation once these are
     // nested. Worth pinning that it settles rather than glitching.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const groups = signal([['a', 'b'], ['c']])
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Index each={groups}>
         {(group) => (
           <view>
@@ -109,8 +138,7 @@ describe('index-rows', () => {
       </Index>
     ))
 
-    const shape = (): string[][] =>
-      wrapperOf(memory).children.map((group) => rows((group as MemoryElement).children[0] as MemoryElement))
+    const shape = (): string[][] => containerOf(engine).children.map((group) => rows(group.children[0] as FakeElement))
 
     expect(shape()).toEqual([['a', 'b'], ['c']])
     groups([['z'], ['c', 'd']])
@@ -118,21 +146,21 @@ describe('index-rows', () => {
   })
 
   it('renders duplicates that For would have to warn about', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const warn = vi.spyOn(consoleLike, 'warn').mockImplementation(() => {})
     const tags = signal(['red', 'red'])
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <view>
         <Index each={tags}>{(tag) => <text>{() => tag()}</text>}</Index>
         <For each={tags}>{(tag: string) => <text>{tag}</text>}</For>
       </view>
     ))
 
-    const parent = memory.root.children[0] as MemoryElement
-    expect(rows(parent.children[0] as MemoryElement)).toEqual(['red', 'red'])
-    expect(rows(parent.children[1] as MemoryElement)).toEqual(['red'])
+    const parent = engine.page.children[0] as FakeElement
+    expect(rows(parent.children[0] as FakeElement)).toEqual(['red', 'red'])
+    expect(rows(parent.children[1] as FakeElement)).toEqual(['red'])
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
   })

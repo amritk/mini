@@ -3,7 +3,7 @@
 // explicitly here because the package's tsconfig is deliberately platform-free
 // (`lib: ["ESNext"]`, `types: []`) to keep the shipped sources off both the DOM
 // and the Node ambient types.
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -12,37 +12,24 @@ import { describe, expect, it } from 'vitest'
  * The package's central claim, enforced: the core carries no platform.
  *
  * The `.` entry's transitive import graph must contain ONLY this package's own
- * core sources and `alien-signals`. Nothing under `hosts/` may be reachable,
- * because a host is the one place that knows what a browser or an engine is —
- * an app that targets Lynx should never pull the DOM host along. Nothing under
- * `flow/` may be reachable either, since the control-flow components are an
- * opt-in subpath rather than part of the runtime everyone pays for.
+ * core sources and `alien-signals`. Every subpath is opt-in — `flow/`,
+ * `composition/`, `router/`, `forms/`, `query/` — and an app that uses none of
+ * them should not carry their bytes.
  *
- * Nothing under `ui/` may be reachable for the same reason as `flow/`: the
- * component layer is an opt-in subpath, and an app that writes its own
- * components should not pay for the ones shipped here.
+ * `testing/` is on that list and is the one worth naming, because it is the one
+ * that would be embarrassing: the fake engine exists to be imported BY a test,
+ * and a reference implementation of the whole Element PAPI reaching a device
+ * bundle through the `.` entry would be dead weight an app cannot even see.
  *
- * Today the only thing enforcing any of this is the tsconfig's missing DOM lib,
- * which catches a stray `document` but is perfectly happy with an import that
- * merely drags a host's bytes along. This walks the source graph from
- * `src/index.ts` and fails the moment anything else appears.
+ * The tsconfig's missing DOM lib catches a stray `document`, but it is perfectly
+ * happy with an import that merely drags a subpath's bytes along. This walks the
+ * source graph from `src/index.ts` and fails the moment anything else appears.
  */
 
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = [
-  'hosts',
-  'flow',
-  'ui',
-  'platform',
-  'composition',
-  'gestures',
-  'router',
-  'animate',
-  'forms',
-  'query',
-]
+const SUBPATH_DIRS = ['flow', 'composition', 'router', 'forms', 'query', 'testing']
 
 /**
  * Drops comments before the specifiers are read.
@@ -68,11 +55,19 @@ const specifiersOf = (file: string): string[] => {
   return specifiers
 }
 
-/** Resolves a relative specifier to a concrete `.ts`/`.tsx` file on disk. */
+/**
+ * Resolves a relative specifier to a concrete `.ts`/`.tsx` FILE on disk.
+ *
+ * The extensioned candidates are tried before the bare path, and the bare path
+ * is accepted only when it is a file. Otherwise `'./vocabulary'` resolves to the
+ * directory of that name — which exists — and the walker then tries to read a
+ * directory as text, which fails with an `EISDIR` that says nothing about what
+ * went wrong.
+ */
 const resolveRelative = (fromFile: string, specifier: string): string | null => {
   const base = resolve(dirname(fromFile), specifier)
-  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`]) {
-    if (existsSync(candidate)) return candidate
+  for (const candidate of [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`, base]) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate
   }
   return null
 }
@@ -108,20 +103,32 @@ const leaksFrom = (files: Set<string>, dirs: readonly string[]): string[] =>
 describe('import-boundary', () => {
   const { files, externals } = walk(resolve(SRC, 'index.ts'))
 
-  it('pulls in only alien-signals as an external dependency', () => {
-    expect([...externals].sort()).toEqual(['alien-signals'])
+  it('pulls in only alien-signals and a types-only peer', () => {
+    // `@lynx-js/types` is the one addition, and it costs a bundle nothing:
+    // the package ships `.d.ts` files and no runtime at all, so every import
+    // of it in this graph is `import type` and erases at compile time. It is
+    // listed rather than filtered out so that the day it grows a runtime — or
+    // the day someone writes a value import of it — this fails instead of
+    // quietly shipping it.
+    expect([...externals].sort()).toEqual(['@lynx-js/types', 'alien-signals'])
   })
 
-  it('never reaches a host from the core entry', () => {
-    // A leaked host is the worst kind of regression here, because it typechecks
-    // and it runs: the app just quietly ships a renderer for a platform it does
-    // not target, and on the DOM host that means browser globals in a bundle
-    // headed for a device.
-    expect(leaksFrom(files, ['hosts'])).toEqual([])
+  it('imports the types-only peer with `import type` and nothing else', () => {
+    // The assertion above is only as good as this one: a value import of a
+    // types-only package resolves to nothing at runtime and fails on a device
+    // rather than at the boundary.
+    const offenders = [...files].filter((file) => {
+      const source = withoutComments(readFileSync(file, 'utf-8'))
+      return /(?:^|\n)\s*import\s+(?!type\b)[^\n]*from\s*['"]@lynx-js\/types/.test(source)
+    })
+    expect(offenders.map((file) => relative(SRC, file))).toEqual([])
   })
 
-  it('never reaches a control-flow component from the core entry', () => {
-    expect(leaksFrom(files, ['flow'])).toEqual([])
+  it('never reaches an opt-in subpath from the core entry', () => {
+    // The leak that would be embarrassing is `testing/`: the fake engine is a
+    // reference implementation of the whole Element PAPI, and reaching a device
+    // bundle through the `.` entry would be dead weight an app cannot even see.
+    expect(leaksFrom(files, SUBPATH_DIRS)).toEqual([])
   })
 
   it('never imports one of its own subpaths by package name', () => {
@@ -132,101 +139,26 @@ describe('import-boundary', () => {
     expect(subpathImports).toEqual([])
   })
 
-  it('keeps the control-flow subpath free of any host', () => {
-    // `/flow` is platform-free for the same reason core is: the components
-    // reach the tree through the installed host, never through a concrete one.
+  it('keeps the control-flow subpath on the core alone', () => {
+    // `/flow` is as platform-free as core is, and for the same reason: the
+    // components reach the tree through the installed engine rather than
+    // through anything concrete.
     const flow = walk(resolve(SRC, 'flow', 'index.ts'))
-    expect(leaksFrom(flow.files, ['hosts'])).toEqual([])
-    expect([...flow.externals].sort()).toEqual(['alien-signals'])
+    expect(
+      leaksFrom(
+        flow.files,
+        SUBPATH_DIRS.filter((dir) => dir !== 'flow'),
+      ),
+    ).toEqual([])
+    expect([...flow.externals].sort()).toEqual(['@lynx-js/types', 'alien-signals'])
   })
 
-  it('keeps the component layer free of any host', () => {
-    // `/ui` is pure composition over the vocabulary — it names things, it does
-    // not render them — so a host reaching it would mean a component had
-    // learned what platform it was on, which is the one thing this layer exists
-    // to prevent.
-    const ui = walk(resolve(SRC, 'ui', 'index.ts'))
-    expect(leaksFrom(ui.files, ['hosts'])).toEqual([])
-    expect([...ui.externals].sort()).toEqual(['alien-signals'])
-  })
-
-  it('keeps the platform subpath free of any host', () => {
-    // The one that would be easy to get backwards. `platform` reports which
-    // host is installed, and the tempting way to write that is to import the
-    // hosts and compare — which would make asking what target you are on pull
-    // in the renderer for every target you are not.
-    const platform = walk(resolve(SRC, 'platform', 'index.ts'))
-    expect(leaksFrom(platform.files, ['hosts'])).toEqual([])
-    expect([...platform.externals].sort()).toEqual(['alien-signals'])
-  })
-
-  it('keeps the composition subpath free of any host', () => {
-    const composition = walk(resolve(SRC, 'composition', 'index.ts'))
-    expect(leaksFrom(composition.files, ['hosts'])).toEqual([])
-    expect([...composition.externals].sort()).toEqual(['alien-signals'])
-  })
-
-  it('keeps the gestures subpath free of any host', () => {
-    // The recognisers are arithmetic over a stream the host already normalised.
-    // If one of them reached for a host, it would mean the normalisation had
-    // not actually been done and the maths was compensating for a platform.
-    const gestures = walk(resolve(SRC, 'gestures', 'index.ts'))
-    expect(leaksFrom(gestures.files, ['hosts'])).toEqual([])
-    expect([...gestures.externals].sort()).toEqual(['alien-signals'])
-  })
-
-  it('keeps the router free of the browser it can drive', () => {
-    // The whole reason `createBrowserHistory` is on its own entry. Matching a
-    // path is arithmetic and ports for nothing; only navigation has a
-    // per-target answer, and it arrives as an argument. A device build that
-    // imports the router must not pull `window` along with it.
-    const router = walk(resolve(SRC, 'router', 'index.ts'))
-    expect(leaksFrom(router.files, ['hosts'])).toEqual([])
-    expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
-    // `matchRoute`/`parseQuery` are that arithmetic, and they live in
-    // `@amritk/mini-helpers` so this router and `@amritk/mini`'s cannot drift
-    // about what a route pattern means. That package is pure by charter — no
-    // signals, no platform, enforced by its own `purity.test.ts` — so naming it
-    // here does not weaken what this case is guarding.
-    expect([...router.externals].sort()).toEqual(['@amritk/mini-helpers', 'alien-signals'])
-  })
-
-  it('keeps the animation subpath free of any host', () => {
-    // `animate` describes a timeline and hands it to whichever host is
-    // installed. Reaching for a concrete one would mean the description had
-    // learned what engine was going to run it, which is the seam collapsing.
-    const animate = walk(resolve(SRC, 'animate', 'index.ts'))
-    expect(leaksFrom(animate.files, ['hosts'])).toEqual([])
-    expect([...animate.externals].sort()).toEqual(['alien-signals'])
-  })
-
-  it('keeps the forms subpath free of any host', () => {
-    // A form is state, and state has no platform. The one part that touches an
-    // element does so through the installed host, which is exactly why the port
-    // from `@amritk/mini` changed one file and not the whole layer.
-    const forms = walk(resolve(SRC, 'forms', 'index.ts'))
-    expect(leaksFrom(forms.files, ['hosts'])).toEqual([])
-    // The schema arm now lives in `@amritk/mini-helpers/schema`, shared with
-    // `@amritk/mini` because compiling a schema is the part of this layer that
-    // never touches a control. `@amritk/runtime-validators` is still the
-    // optional peer behind it — reached through that package rather than
-    // directly, which is why it no longer appears here. Both externals are
-    // listed rather than waved through, so a dependency added later has to be a
-    // deliberate edit to this line.
-    expect([...forms.externals].sort()).toEqual(['@amritk/mini-helpers/schema', 'alien-signals'])
-  })
-
-  it('keeps the query subpath free of any host', () => {
-    // The easiest of the lot to keep honest, and the reason it ported verbatim:
-    // fetching and caching never touch an element, so there is nothing here
-    // that could reach for a host even carelessly.
-    const query = walk(resolve(SRC, 'query', 'index.ts'))
-    expect(leaksFrom(query.files, ['hosts'])).toEqual([])
-    expect([...query.externals].sort()).toEqual(['@tanstack/query-core', 'alien-signals'])
-  })
-
-  it('keeps every subpath directory out of the core graph at once', () => {
-    // The catch-all, so a directory added later is covered without a new case.
-    expect(leaksFrom(files, SUBPATH_DIRS)).toEqual([])
+  it('keeps the peer-backed subpaths off the core budget', () => {
+    // `/forms` and `/query` are the two entries with an optional peer, and the
+    // whole point of the peer being optional is that an app importing neither
+    // installs neither. That only holds while nothing in core reaches them.
+    for (const subpath of ['forms', 'query']) {
+      expect(leaksFrom(files, [subpath])).toEqual([])
+    }
   })
 })

@@ -2,7 +2,7 @@ import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
 
 import { onCleanup } from '../on-cleanup'
 import { batch, type ReadonlySignal, signal } from '../signals'
-import type { Dispose, HostElement } from '../types'
+import type { Dispose, LynxElement } from '../types'
 import { untrack } from '../untrack'
 import type { RouterHistory, RouterLocation } from './history'
 
@@ -21,7 +21,7 @@ import type { RouterHistory, RouterLocation } from './history'
  */
 export type Route = {
   path: string
-  view: (params: () => RouteParams) => HostElement
+  view: (params: () => RouteParams) => LynxElement
 } & Record<string, unknown>
 
 /** The current location, matched against the route table. */

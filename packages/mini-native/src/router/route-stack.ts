@@ -3,12 +3,14 @@ import { effect, effectScope } from 'alien-signals'
 
 import { applyProp } from '../apply-prop'
 import { currentFrame, withFrame } from '../context-frame'
-import { requireHost, scheduleFlush } from '../current-host'
+import { scheduleFlush } from '../engine/current-engine'
+import type { LynxElement } from '../engine/element-api'
 import { onCleanup } from '../on-cleanup'
 import { runDetached } from '../run-detached'
 import { type Signal, signal } from '../signals'
-import type { ClassValue, Dispose, HostElement, HostNode, MaybeReactive, StyleValue } from '../types'
-import { mergeStyle } from '../ui/merge-style'
+import { applyStyle, applyVisible } from '../style/apply-style'
+import { createElement, insert, remove } from '../tree'
+import type { ClassValue, Dispose, MaybeReactive, StyleValue } from '../types'
 import { untrack } from '../untrack'
 import type { Route, Router, RouteState } from './create-router'
 import type { StackChange, StackTransition } from './stack-transition'
@@ -17,10 +19,10 @@ import type { StackChange, StackTransition } from './stack-transition'
 export type RouteStackProps<R extends Route> = {
   router: Router<R>
   /** Rendered for a screen whose location matched nothing. Nothing renders when it is omitted. */
-  fallback?: () => HostElement
+  fallback?: () => LynxElement
   /**
-   * How a change is animated. Omitted means instantly, which is also what a
-   * host with no `animate` and a user who asked for reduced motion get.
+   * How a change is animated. Omitted means instantly, which is also what an app
+   * respecting a reduced-motion preference passes.
    * {@link fadeTransition} is the one shipped.
    */
   transition?: StackTransition
@@ -29,7 +31,7 @@ export type RouteStackProps<R extends Route> = {
   /** Style for the stack container, laid over its own positioning. */
   style?: MaybeReactive<StyleValue | null>
   /** Called with the container once built. */
-  ref?: (element: HostElement) => void
+  ref?: (element: LynxElement) => void
 }
 
 /** One live screen: the card it was built into, and what it was built FROM. */
@@ -37,7 +39,7 @@ type StackEntry<R extends Route> = {
   /** The history depth this screen sits at, which is what makes it poppable. */
   depth: number
   /** The element the stack owns and positions. The screen is its only child. */
-  card: HostElement
+  card: LynxElement
   /** The route this screen was built for, or `null` for the fallback. */
   route: R | null
   /**
@@ -57,10 +59,10 @@ type StackEntry<R extends Route> = {
  * A navigation stack: screens pushed over one another, popped back off, and
  * animated between.
  *
- * The stack is the router's DEPTH made visible. `RouteView` renders one slot
- * and reads the matched route, which is all a browser page needs; a stack needs
- * to know whether a location arrived by being pushed on top of the last one or
- * by replacing it, and only {@link Router.depth} answers that — `/users/1` →
+ * The stack is the router's DEPTH made visible. `RouteView` renders one slot and
+ * reads the matched route, which is all a single screen needs; a stack needs to
+ * know whether a location arrived by being pushed on top of the last one or by
+ * replacing it, and only {@link Router.depth} answers that — `/users/1` →
  * `/users/2` is two screens when pushed and one when replaced, and the matched
  * route is identical either way.
  *
@@ -74,9 +76,9 @@ type StackEntry<R extends Route> = {
  * than a cost to optimise away: a scroll position, a half-filled form, and an
  * in-flight request all survive a push and are still there on the way back —
  * which is exactly what a user expects from a back gesture and exactly what
- * rebuilding on pop would throw away. They are hidden through
- * `Host.setVisible`, so a buried screen is out of the accessibility tree and
- * out of the tab order too, not merely painted over.
+ * rebuilding on pop would throw away. They are hidden through {@link applyVisible},
+ * so a buried screen carries `display: none` and is genuinely out of the layout
+ * and out of the accessibility tree, not merely painted over by the card above.
  *
  * It follows that a stack fifty screens deep holds fifty screens. That is the
  * same trade every native stack navigator makes, and it is bounded by the app's
@@ -84,33 +86,37 @@ type StackEntry<R extends Route> = {
  *
  * ## The one layout opinion in the package
  *
- * Cards are absolutely positioned inside the container, because two screens
- * have to overlap for any transition between them to mean anything — in normal
- * flow they would stack head to tail and a cross-fade would fade between two
- * things that are not in the same place. This is structural rather than taste,
- * and it is the same shape every stack navigator on every platform arrives at.
- * The container is a real element for the same reason: `createFlowHost`'s
- * wrapper is `display: contents` on the web, which is precisely the thing that
- * cannot be a positioning context.
+ * Cards are absolutely positioned inside the container, because two screens have
+ * to overlap for any transition between them to mean anything — in normal flow
+ * they would stack head to tail and a cross-fade would fade between two things
+ * that are not in the same place. This is structural rather than taste, and it
+ * is the same shape every stack navigator on every platform arrives at.
+ *
+ * The container is a real `view` for the same reason, and this is the one place
+ * in the package where a `wrapper` would be wrong: a wrapper takes no part in
+ * layout, which is precisely what makes it unable to be the positioning context
+ * its cards resolve against.
  *
  * The card is what a transition moves, never the screen inside it. A screen
- * binds its own `style`, and a wholesale style write from out here would fight
- * that binding; the card belongs to the stack, so animating it cannot collide
- * with anything the app wrote.
+ * binds its own `style`, and Lynx keeps an element's whole inline style in one
+ * channel — so a write from out here would not merely fight that binding, it
+ * would replace it. The card belongs to the stack, which is why
+ * {@link StackTransitionContext.style} merges over the stack's own positioning
+ * rather than handing a transition the style channel outright.
  *
- * ## Web and native
+ * ## Where the back gesture comes from
  *
- * Nothing here is native-only, but the web is where the defaults need saying
- * out loud. A browser back button, a deep link, and a hardware back gesture all
- * arrive the same way — the history notifies, the depth moves, the stack pops —
- * because the history is the thing that differs per target and it was already
- * abstracted. The transition defaults to none because a page that animates
- * every navigation is a page most of the web does not want, and a stack that
- * pushes is still the right structure for a tab's contents on either target.
+ * A hardware back gesture, a deep link and an in-app back button all arrive the
+ * same way — the history notifies, the depth moves, the stack pops — because the
+ * history is the seam and it was already abstracted. `createMemoryHistory` is
+ * the one this package ships and it is the real thing rather than a stand-in: a
+ * Lynx app owns its stack of screens outright.
+ *
+ * The transition defaults to none. Motion is the app's decision, and it is the
+ * app that can read whether the user asked for less of it.
  */
-export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElement => {
-  const host = requireHost()
-  const container = host.createElement('view')
+export const RouteStack = <R extends Route>(props: RouteStackProps<R>): LynxElement => {
+  const container = createElement('view')
   applyProp(container, 'style', mergeStyle(CONTAINER, props.style))
   if (props.class !== undefined) applyProp(container, 'class', props.class)
   props.ref?.(container)
@@ -130,13 +136,13 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
   // moved on cannot settle a state that is no longer the current one.
   let generation = 0
 
-  const build = (state: RouteState<R>, depth: number, anchor: HostNode | null = null): StackEntry<R> => {
-    const card = host.createElement('view')
-    host.setStyle(card, CARD)
+  const build = (state: RouteState<R>, depth: number, anchor: LynxElement | null = null): StackEntry<R> => {
+    const card = createElement('view')
+    applyStyle(card, CARD)
     const params = signal(state.params)
     const matched = state.route
 
-    let node: HostElement | null = null
+    let node: LynxElement | null = null
     // Detached and scoped for the same reason `list` builds its rows that way:
     // this runs inside a tracking effect, and a scope created there is torn
     // down when that effect re-runs — so pushing a second screen would silently
@@ -148,20 +154,19 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
         node = withFrame(frame, () => (matched === null ? (props.fallback?.() ?? null) : matched.view(params)))
       }),
     )
-    if (node !== null) host.insert(card, node, null)
-    // Tree order IS paint order for overlapping siblings, on the web and in a
-    // native layout engine alike, so appending is what makes the arriving
-    // screen the one on top during a push — no z-index, and nothing more for a
-    // host to implement. A pop wants the opposite and passes an anchor, so the
-    // screen being revealed sits UNDER the one sliding off it.
-    host.insert(container, card, anchor)
+    if (node !== null) insert(card, node, null)
+    // Tree order IS paint order for overlapping siblings, so appending is what
+    // makes the arriving screen the one on top during a push — no `z-index` to
+    // keep in step with anything. A pop wants the opposite and passes an anchor,
+    // so the screen being revealed sits UNDER the one fading off it.
+    insert(container, card, anchor)
     return { depth, card, route: matched, params, dispose }
   }
 
   /** Disposes an entry and takes its card out of the tree. */
   const destroy = (entry: StackEntry<R>): void => {
     entry.dispose()
-    host.remove(entry.card)
+    remove(entry.card)
   }
 
   /** Ends whatever is on its way out, immediately and without waiting for anything. */
@@ -175,20 +180,20 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
    * half-removed.
    *
    * Reached whether the transition finished, was skipped, or was cut short by
-   * the next navigation — which is what lets a test assert the same tree
-   * against the memory host that a device ends up showing.
+   * the next navigation — which is what lets a test assert the same tree against
+   * the fake engine that a device ends up showing.
    */
   const settle = (): void => {
     flushLeaving()
     const top = entries[entries.length - 1]
-    for (const entry of entries) host.setVisible(entry.card, entry === top)
+    for (const entry of entries) applyVisible(entry.card, entry === top)
     scheduleFlush()
   }
 
   /** Hands the two cards to the transition, and settles when it says so. */
-  const transition = (change: StackChange, entering: HostElement | null, exiting: HostElement | null): void => {
+  const transition = (change: StackChange, entering: LynxElement | null, exiting: LynxElement | null): void => {
     const running = generation
-    const result = props.transition?.({ change, entering, exiting })
+    const result = props.transition?.({ change, entering, exiting, style: styleCard })
     if (result === undefined || result === null) {
       settle()
       return
@@ -209,7 +214,7 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
    * Replaces the top entry with a screen built for `state`, holding the old one
    * so a transition still has something to move. Returns the card that arrived.
    */
-  const swapTop = (state: RouteState<R>, anchor: HostNode | null): HostElement => {
+  const swapTop = (state: RouteState<R>, anchor: LynxElement | null): LynxElement => {
     const previous = entries.pop() as StackEntry<R>
     // Held rather than destroyed, so the outgoing screen is still on screen for
     // a transition to move. `flushLeaving` ends it either way.
@@ -250,12 +255,12 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
         leaving.push(entries.pop() as StackEntry<R>)
       }
       const revealed = entries[entries.length - 1] as StackEntry<R>
-      // Below the floor: a browser reloaded deep in the stack starts with one
-      // screen and a depth to match, so going back from there has nothing to
-      // pop and rebases instead. Keeping an entry is what guarantees the stack
-      // is never empty.
+      // Below the floor: an app deep-linked into the middle of a stack starts
+      // with one screen and a depth to match, so going back from there has
+      // nothing to pop and rebases instead. Keeping an entry is what guarantees
+      // the stack is never empty.
       if (revealed.depth > depth) revealed.depth = depth
-      host.setVisible(revealed.card, true)
+      applyVisible(revealed.card, true)
       // The lowest card on its way out, which every rebuilt screen must go
       // beneath: what is being revealed belongs under what is leaving.
       const under = leaving[0]?.card ?? null
@@ -310,22 +315,63 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): HostElem
 }
 
 /**
+ * Lays a transition's declarations over a card's own positioning, and restores
+ * that positioning when passed `null`.
+ *
+ * This is the whole reason {@link StackTransitionContext} carries a writer
+ * rather than letting a transition reach for `applyStyle` itself. Lynx keeps an
+ * element's inline style in ONE channel and `__SetInlineStyles` replaces it
+ * wholesale, so a transition writing `{ opacity: 0 }` at a card would take
+ * {@link CARD} with it — and cards that no longer overlap are cards a cross-fade
+ * cannot cross-fade. Merging here keeps the positioning the stack's, and keeps
+ * "leave no style behind" a single call rather than a thing every transition
+ * author has to reconstruct.
+ */
+const styleCard = (card: LynxElement, declarations: StyleValue | null): void => {
+  applyStyle(card, declarations === null ? CARD : { ...CARD, ...declarations })
+}
+
+/**
+ * Lays a caller's `style` over the stack's own base declarations, preserving the
+ * reactive form.
+ *
+ * A getter comes back as a getter, so a style that tracks a signal goes on
+ * tracking it. Collapsing it to a value here would turn a live binding into a
+ * one-time write, which is this package's single most expensive mistake to
+ * debug — and the one `bun run check:reactivity` exists to catch in JSX.
+ *
+ * This used to be `/ui`'s `mergeStyle`, shared by half a dozen components. That
+ * layer is gone with the vocabulary it existed to confine, and the stack is the
+ * only thing left that carries base layout of its own, so the merge lives here
+ * as the small local helper it always was.
+ */
+const mergeStyle = (
+  base: StyleValue,
+  style: MaybeReactive<StyleValue | null> | undefined,
+): MaybeReactive<StyleValue> => {
+  if (style === undefined) return base
+  if (typeof style === 'function') return () => ({ ...base, ...style() })
+  return { ...base, ...style }
+}
+
+/**
  * The stack fills what it is given and is the positioning context its cards
  * resolve against.
  *
- * `position: relative` is the load-bearing one and it is explicit on purpose:
- * it is already the default in a native layout engine and it is emphatically
- * not the default on the web, where absolutely positioned cards would otherwise
- * escape to whatever ancestor happened to be positioned.
+ * `position: relative` is the load-bearing one and it is stated explicitly even
+ * though Lynx already defaults to it, because the whole layout opinion below
+ * rests on it: an absolutely positioned card resolves against its nearest
+ * positioned ancestor, and if that stopped being the container the cards would
+ * escape to wherever the app happened to position something further up.
  */
 const CONTAINER: StyleValue = { display: 'flex', flexDirection: 'column', flex: 1, position: 'relative' }
 
 /**
  * A card fills the stack and stacks its own content.
  *
- * Spelled as four edges rather than as `inset`, which is a CSS shorthand a
- * native layout engine has never heard of. Four numbers are what both targets
- * already understand.
+ * Spelled as four edges rather than as `inset`, which is a shorthand Lynx's CSS
+ * does not read — and a declaration Lynx does not read is dropped in silence,
+ * which here would mean every card collapsing to nothing.
  */
 const CARD: StyleValue = {
   position: 'absolute',

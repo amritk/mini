@@ -1,74 +1,103 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
-import { clearHost, effectScope, setHost, signal } from '../index'
-import type { HostElement } from '../types'
+import { clearEngine, setEngine } from '../engine/current-engine'
+import type { LynxElement } from '../engine/element-api'
+import { effectScope, signal } from '../signals'
+import { createFakeEngine, type FakeEngine } from '../testing/create-fake-engine'
+import { createElement, insert } from '../tree'
 import { bindProp } from './bind-prop'
 
 afterEach(() => {
-  clearHost()
+  clearEngine()
 })
 
+/**
+ * An `<input>` already in the tree, which is where a binding would find one —
+ * and what lets the assertions below look it up through the engine rather than
+ * through the handle they were given.
+ */
+const mountInput = (engine: FakeEngine): LynxElement => {
+  const input = createElement('input')
+  insert(engine.pageElement, input, null)
+  return input
+}
+
+/** The attributes the engine currently holds for the mounted control. */
+const attrsOf = (engine: FakeEngine): Record<string, unknown> => engine.find('input')?.attrs ?? {}
+
 describe('bind-prop', () => {
-  it('writes the property during setup', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
-    const input = memory.host.createElement('input')
+  it('writes the attribute during setup', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
 
     bindProp(input, 'placeholder', () => 'your name')
 
-    expect(propsOf(input)['placeholder']).toBe('your name')
+    expect(attrsOf(engine)['placeholder']).toBe('your name')
   })
 
-  it('rewrites the property whenever the signal changes', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+  it('rewrites the attribute whenever the signal changes', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
     const placeholder = signal('before')
-    const input = memory.host.createElement('input')
 
     bindProp(input, 'placeholder', placeholder)
     placeholder('after')
 
-    expect(propsOf(input)['placeholder']).toBe('after')
+    expect(attrsOf(engine)['placeholder']).toBe('after')
   })
 
-  it('unsets the property when the value turns into an unset sentinel', () => {
-    // `false`, `null`, and `undefined` all mean "unset it", which is what lets
-    // this one helper cover boolean props like `disabled` without a second
+  it('clears the attribute when the value turns into an unset sentinel', () => {
+    // `false`, `null`, and `undefined` all mean "clear it", which is what lets
+    // this one helper cover the engine's boolean attributes without a second
     // binding that knows about attribute presence.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
     const disabled = signal<unknown>(true)
-    const input = memory.host.createElement('input')
 
     bindProp(input, 'disabled', disabled)
-    expect(propsOf(input)['disabled']).toBe(true)
+    expect(attrsOf(engine)['disabled']).toBe(true)
 
     for (const sentinel of [false, null, undefined]) {
       disabled(true)
       disabled(sentinel)
-      expect('disabled' in propsOf(input)).toBe(false)
+      expect('disabled' in attrsOf(engine)).toBe(false)
     }
   })
 
+  it('uses the engine spelling of the attribute rather than a translated one', () => {
+    // There is no translation table in this package: an attribute is written
+    // exactly as Lynx names it, so a kebab-case engine attribute has to survive
+    // the binding untouched.
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
+
+    bindProp(input, 'confirm-type', () => 'done')
+
+    expect(attrsOf(engine)['confirm-type']).toBe('done')
+  })
+
   it('stops updating once the returned dispose is called', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
     const placeholder = signal('before')
-    const input = memory.host.createElement('input')
 
     const dispose = bindProp(input, 'placeholder', placeholder)
     dispose()
     placeholder('after')
 
-    expect(propsOf(input)['placeholder']).toBe('before')
+    expect(attrsOf(engine)['placeholder']).toBe('before')
   })
 
   it('stops updating when the enclosing scope is disposed', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const input = mountInput(engine)
     const placeholder = signal('before')
-    const input = memory.host.createElement('input')
 
     const dispose = effectScope(() => {
       bindProp(input, 'placeholder', placeholder)
@@ -76,9 +105,6 @@ describe('bind-prop', () => {
     dispose()
     placeholder('after')
 
-    expect(propsOf(input)['placeholder']).toBe('before')
+    expect(attrsOf(engine)['placeholder']).toBe('before')
   })
 })
-
-/** The property bag behind an opaque element handle. */
-const propsOf = (element: HostElement): Record<string, unknown> => (element as unknown as MemoryElement).props

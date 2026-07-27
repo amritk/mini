@@ -12,44 +12,38 @@ import { describe, expect, it } from 'vitest'
 /**
  * The number behind "the core carries no platform", made checkable.
  *
- * An app imports the `.` entry and then exactly one host, so the size of that
+ * An app imports the `.` entry and gets the whole runtime, so the size of that
  * entry — bundled and gzipped the way a consumer actually ships it — is what
  * every caller pays before rendering a single view. This bundles the core
  * through esbuild with a metafile and asserts two things: the gzipped size
  * stays under budget, and the built module graph contains only core sources and
- * `alien-signals`. Import a host or a control-flow component into core and this
- * fails on both counts.
+ * `alien-signals`. Import a subpath into core and this fails on both counts.
  *
  * The bundle is built for the `neutral` platform, which is the honest setting
  * for a runtime that targets none: nothing here may resolve through a browser
  * or Node field, and asking esbuild to assume either would quietly excuse it.
  *
- * The budget is snug against the measured size — 3084 bytes gzipped at the time
- * of writing — on purpose. The smallest thing that could leak in is a host at
- * roughly 700 bytes and `/flow` is several times that, so a real regression
- * cannot hide in the headroom. Raise it only for a deliberate, reviewed change
- * to the core, the way the last few hundred bytes were spent: the naive cursor
- * reconciler became a move-minimal two-ended keyed diff (O(1) middle removals
- * and single-move reorders), and `batch`, `watch`, and `untrack` were added.
+ * The budget moved once, deliberately, when this package stopped being a
+ * multi-platform runtime. The old core was small because it deferred every
+ * platform call to a host that an app bundled as a SECOND entry — so the
+ * honest comparison is the old core plus the old Lynx host, and against that
+ * the runtime grew a few hundred bytes for things it did not have: the worklet
+ * registry that makes a main-thread event handler possible without a compiler,
+ * the per-element style bookkeeping that keeps `show` alive across a style
+ * write, and the per-tag creator table.
+ *
+ * It stays snug against the measured size on purpose. `/flow` is several times
+ * the headroom and `/testing` is a complete Element PAPI, so a real leak cannot
+ * hide in it. Raise it only for a deliberate, reviewed change to the core.
  */
 
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** Gzipped-byte ceiling for the bundled `.` entry. */
-const GZIP_BUDGET = 3300
+const GZIP_BUDGET = 5200
 
 /** Subpath directories whose sources must never enter the core graph. */
-const SUBPATH_DIRS = [
-  'hosts/',
-  'flow/',
-  'ui/',
-  'platform/',
-  'composition/',
-  'gestures/',
-  'router/',
-  'animate/',
-  'forms/',
-]
+const SUBPATH_DIRS = ['flow/', 'composition/', 'router/', 'testing/', 'forms/', 'query/']
 
 const built = await build({
   entryPoints: ['src/index.ts'],

@@ -1,15 +1,17 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // The DOM library is deliberately absent. The runtime is supposed to be free
-    // of any platform dependency, and leaving `lib.dom` out turns that from a
-    // convention into something the compiler enforces: a stray `document` or
-    // `HTMLElement` anywhere in the core fails the check rather than quietly
-    // working in a browser and breaking on a device. Node's ambient types go for
-    // the same reason.
+    // The DOM library is deliberately absent, and now there is no exception to
+    // it. The runtime targets Lynx, whose main-thread context is not a browser
+    // and does not pretend to be: there is no `document`, no `window` and no
+    // `HTMLElement`. Leaving `lib.dom` out turns that from a convention into
+    // something the compiler enforces, so a stray platform reference fails the
+    // check here rather than at runtime on a device. Node's ambient types are
+    // absent for the same reason.
     //
-    // The DOM host is the one place that genuinely needs those types, so it is
-    // excluded here and checked by `tsconfig.dom.json` instead.
+    // This used to carry a second pass (`tsconfig.dom.json`) for the DOM host.
+    // The DOM host is gone, and with it the only file in the package that was
+    // allowed to know what a browser is.
     "lib": ["ESNext"],
     "types": [],
     "jsx": "react-jsx",
@@ -26,27 +28,9 @@
     // Resolve `@amritk/mini-helpers` to the workspace's SOURCE through the
     // `development` condition it already declares, rather than to its `dist`.
     // CI type-checks BEFORE it builds, so without this a fresh clone would look
-    // for a `.d.ts` that does not exist yet. It also means the shared sources
-    // are checked against THIS package's platform-free `lib`, so a browser
-    // global smuggled into them fails here and not only on a device.
-    // Undone in `tsconfig.build.json`, where the emit must resolve to `dist`.
+    // for a `.d.ts` that does not exist yet.
     "customConditions": ["development"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "examples/**/*.tsx"],
-  "exclude": [
-    "dist",
-    "node_modules",
-    "examples/js-framework-benchmark/bootstrap.ts",
-    "src/hosts/create-dom-host.ts",
-    "src/hosts/create-dom-host.test.tsx",
-    "src/hosts/dom-environment.ts",
-    "src/hosts/dom-reset.ts",
-    "src/hosts/dom-reset.test.ts",
-    "src/router/create-browser-history.ts",
-    "src/router/create-browser-history.test.ts",
-    "src/router/route-stack.dom.test.tsx",
-    "src/hosts/dom-environment.test.ts",
-    "src/parity.test.tsx",
-    "src/vocabulary-coverage.test.tsx"
-  ]
+  "exclude": ["dist", "node_modules", "examples/js-framework-benchmark/bootstrap.ts"]
 }

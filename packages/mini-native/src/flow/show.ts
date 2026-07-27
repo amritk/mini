@@ -1,8 +1,8 @@
-import { requireHost } from '../current-host'
 import { type ChildFactory, renderChild } from '../render-child'
 import { toFactory } from '../to-factory'
 import { toGetter } from '../to-getter'
-import type { HostElement, MaybeReactive } from '../types'
+import { createWrapper } from '../tree'
+import type { LynxElement, MaybeReactive } from '../types'
 
 /**
  * Props for {@link Show}, parameterised by the type of the `when` value so the
@@ -20,9 +20,9 @@ export type ShowProps<T = unknown> = {
    * read whatever satisfied `when` without repeating the signal and without the
    * nullish half of its type: `{(user) => <text>{() => user().name}</text>}`.
    */
-  children: HostElement | ((value: () => NonNullable<T>) => HostElement)
+  children: LynxElement | ((value: () => NonNullable<T>) => LynxElement)
   /** Rendered while `when` is falsy. Nothing renders when this is omitted. */
-  fallback?: HostElement | (() => HostElement)
+  fallback?: LynxElement | (() => LynxElement)
 }
 
 /**
@@ -45,8 +45,8 @@ export type ShowProps<T = unknown> = {
  * wrapper is laid out as though it were not there; on a native target it is an
  * ordinary container view, which is how native view trees are built anyway.
  */
-export const Show = <T>(props: ShowProps<T>): HostElement => {
-  const wrapper = requireHost().createFlowHost()
+export const Show = <T>(props: ShowProps<T>): LynxElement => {
+  const wrapper = createWrapper()
   const when = toGetter(props.when)
   const fallback = props.fallback === undefined ? null : toFactory(props.fallback)
 

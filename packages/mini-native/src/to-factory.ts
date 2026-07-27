@@ -1,4 +1,4 @@
-import type { HostElement } from './types'
+import type { LynxElement } from './types'
 
 /**
  * Normalises a branch — an already-built element or a function that builds one
@@ -16,5 +16,5 @@ import type { HostElement } from './types'
  * Reach for the function form by default; reach for the element form when a
  * branch is expensive to rebuild or has state worth preserving.
  */
-export const toFactory = (branch: HostElement | (() => HostElement)): (() => HostElement) =>
+export const toFactory = (branch: LynxElement | (() => LynxElement)): (() => LynxElement) =>
   typeof branch === 'function' ? branch : () => branch

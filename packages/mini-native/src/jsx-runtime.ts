@@ -1,30 +1,32 @@
 import { appendChildren } from './append-children'
 import { applyProp } from './apply-prop'
-import { requireHost, scheduleFlush } from './current-host'
-import type { ElementPropBag, ElementProps, ElementTag } from './elements'
-import type { Component, HostElement, MiniChildren } from './types'
+import { scheduleFlush } from './engine/current-engine'
+import type { LynxElement } from './engine/element-api'
+import { createElement } from './tree'
+import type { Component, MiniChildren } from './types'
+import type { IntrinsicElements as LynxIntrinsicElements } from './vocabulary'
 
 /**
  * The JSX runtime — the automatic runtime TypeScript targets when a package
  * sets `"jsx": "react-jsx", "jsxImportSource": "@amritk/mini-native"`.
  *
- * JSX here produces REAL HOST NODES, immediately, exactly once. There is no
- * virtual tree, no diffing, and no re-render: a component function runs a
- * single time and returns the element it built. Everything that changes
- * afterwards changes because a signal wrote to a node directly.
+ * JSX here produces REAL LYNX ELEMENTS, immediately, exactly once. There is no
+ * virtual tree, no diffing and no re-render: a component function runs a single
+ * time and returns the element it built. Everything that changes afterwards
+ * changes because a signal wrote to that element directly.
  *
- * That is what makes this port to a native target tractable. The hard part of
- * a React-style native framework is the reconciler — diffing a virtual tree and
- * committing minimal mutations. There is no reconciler here to port, so
- * targeting a new platform is a matter of implementing the `Host` contract and
- * nothing else.
+ * That is worth more on Lynx than it is on the web. The engine's element tree
+ * lives on the main thread and every property write is a real mutation with a
+ * cost, so a runtime that writes only the properties that actually changed is
+ * not an optimisation here — it is the difference between one attribute write
+ * and a subtree commit.
  *
  * ## The reactivity rule
  *
  * No compiler analyses these expressions, so reactivity is decided by the SHAPE
  * of the value at runtime:
  *
- * - A FUNCTION-valued prop, child, or `show` is reactive: it is wrapped in an
+ * - A FUNCTION-valued prop, child or `show` is reactive: it is wrapped in an
  *   effect and re-applied whenever the signals it reads change.
  * - Any other value is static: applied once at creation, never again.
  *
@@ -32,56 +34,54 @@ import type { Component, HostElement, MiniChildren } from './types'
  * already a live binding:
  *
  * ```tsx
- * <input disabled={busy} />            // reactive — tracks forever
- * <input disabled={busy()} />          // STATIC — frozen at creation
- * <text>{() => count() * 2}</text>     // reactive derived text
+ * <input disabled={busy} />                  // reactive — tracks forever
+ * <input disabled={busy()} />                // STATIC — frozen at creation
+ * <text><raw-text text={() => count()} /></text>
  * ```
  *
- * The middle line is the one footgun of a compilerless JSX: calling the signal
- * reads it once and hands the runtime a plain boolean.
+ * The middle line is the one footgun of a compilerless JSX, and
+ * `bun run check:reactivity` exists to catch it.
+ *
+ * ## Elements and props are Lynx's own
+ *
+ * `<view>`, `<text>`, `<list>`, `<scroll-view>`, `<textarea>` — the tags are the
+ * engine's, the attributes are spelled the way the engine spells them, and the
+ * events are `bindtap` / `catchtap` / `capture-bindtap`. The typings are derived
+ * from `@lynx-js/types`, so they are the Lynx team's own and they move with the
+ * engine version an app pins rather than with this package's release schedule.
  *
  * ## What is deliberately absent
  *
- * - No fragments. Every piece of UI is one root element, which is also how a
- *   native view tree works — there is no such thing as a parentless run of
- *   sibling views. Attempting `<>…</>` is a compile error, which is intended.
- * - No raw-markup sink. There is no `innerHTML` equivalent anywhere in the host
- *   contract, so bound data cannot inject elements on any target.
+ * - No fragments. Every piece of UI is one root element. Where a real grouping
+ *   node is needed, Lynx has one — `<wrapper>` — and the control-flow components
+ *   use it.
+ * - No raw-markup sink. There is no `innerHTML` equivalent anywhere here, so
+ *   bound data cannot inject elements.
  * - No conditional or list rendering inside expressions. A function child is a
- *   reactive TEXT binding only; structural changes go through `Show`, `Dynamic`,
+ *   reactive TEXT binding only; structural changes go through `Show`, `Dynamic`
  *   and `For`.
  * - `key` on an ELEMENT is accepted (JSX reserves it) and ignored — keying lives
- *   in `list`, the one place collections are reconciled. On a COMPONENT it is
- *   forwarded as an ordinary prop; see the note in `jsx` for why that is not the
- *   same decision.
+ *   in `list`. On a COMPONENT it is forwarded as an ordinary prop; see below.
  */
-export const jsx = (tag: ElementTag | Component<never>, props: ElementPropBag, key?: unknown): HostElement => {
+export const jsx = (tag: string | Component<never>, props: ElementPropBag, key?: unknown): LynxElement => {
   // A component runs exactly once. There is no instance and no lifecycle;
   // whatever reactivity it sets up internally is all that ever updates after.
   //
   // `key` is handed back to a component rather than dropped. The JSX transform
-  // hoists any `key` attribute out of the props object and into this third
+  // hoists any `key` attribute out of the props object into this third
   // parameter before the component is ever called — a React convention this
   // runtime inherits from the transform whether it wants to or not — so a
   // component with a legitimate prop of that name would silently never receive
   // it. `For` is exactly that component: `<For each={rows} key={byId}>` would
-  // quietly fall back to the default key, which is the kind of bug that shows
-  // up as rows mysteriously not updating rather than as an error. There is no
-  // competing meaning to protect here, because this framework does no
-  // keying at the JSX level at all.
+  // quietly fall back to the default key, which shows up as rows mysteriously
+  // not updating rather than as an error.
   if (typeof tag === 'function') {
     const withKey = key === undefined ? props : { ...props, key }
-    return (tag as (props: ElementPropBag) => HostElement)(withKey)
+    return (tag as (props: ElementPropBag) => LynxElement)(withKey)
   }
 
-  const host = requireHost()
-  // The props go in as well as being applied below, because a few of them
-  // decide what the host BUILDS rather than how the built element behaves —
-  // `input multiline` becomes a different control entirely, and no target can
-  // swap one for the other after the fact. Hosts with nothing to read here
-  // ignore the argument.
-  const element = host.createElement(tag, props)
-  let ref: ((element: HostElement) => void) | undefined
+  const element = createElement(tag)
+  let ref: ((element: LynxElement) => void) | undefined
 
   for (const [name, value] of Object.entries(props)) {
     if (name === 'children') {
@@ -89,9 +89,9 @@ export const jsx = (tag: ElementTag | Component<never>, props: ElementPropBag, k
     } else if (name === 'key') {
       // Reserved by JSX syntax; keying belongs to `list`, so ignore it here.
     } else if (name === 'ref') {
-      // Deferred until the element is fully built, so the callback never sees
-      // a half-populated node.
-      ref = value as (element: HostElement) => void
+      // Deferred until the element is fully built, so the callback never sees a
+      // half-populated node.
+      ref = value as (element: LynxElement) => void
     } else {
       applyProp(element, name, value)
     }
@@ -115,27 +115,32 @@ export const jsxs = jsx
  * instances, so they are accepted and dropped.
  */
 export const jsxDEV = (
-  tag: ElementTag | Component<never>,
+  tag: string | Component<never>,
   props: ElementPropBag,
   key?: unknown,
   _isStatic?: boolean,
   _source?: unknown,
   _self?: unknown,
-): HostElement => jsx(tag, props, key)
+): LynxElement => jsx(tag, props, key)
+
+/**
+ * The loose bag the runtime iterates. Call sites are checked richly through
+ * `JSX.IntrinsicElements`; by the time props reach `jsx` they are just a
+ * string-keyed object, and `unknown` forces the runtime to narrow each value
+ * before it uses it.
+ */
+export type ElementPropBag = { readonly [prop: string]: unknown }
 
 /**
  * The JSX type surface TypeScript resolves from this module.
  *
- * A JSX expression IS the host element it creates, which is why one can be
- * passed anywhere the runtime expects a node and why components need no
- * wrapper type. The intrinsic set is the platform-neutral element vocabulary
- * rather than HTML — see `elements.ts` for why that inversion matters.
+ * A JSX expression IS the element it creates, which is why one can be passed
+ * anywhere the runtime expects an element and why components need no wrapper
+ * type.
  */
 export namespace JSX {
-  export type Element = HostElement
-  export type IntrinsicElements = {
-    [Tag in ElementTag]: ElementProps<Tag>
-  }
+  export type Element = LynxElement
+  export type IntrinsicElements = LynxIntrinsicElements
   export type ElementChildrenAttribute = {
     children: MiniChildren
   }

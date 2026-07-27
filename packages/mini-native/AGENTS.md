@@ -4,171 +4,241 @@ Contributor guide for AI agents editing **this package**. Repo-wide rules:
 [`../../AGENTS.md`](../../AGENTS.md) and [`../../CLAUDE.md`](../../CLAUDE.md).
 Consuming the package instead? See [`AI.md`](./AI.md).
 
-A React-Native-shaped UI runtime on `@amritk/mini`'s model: real host nodes
-created once, mutated forever by signals, with no virtual tree in between. It
-renders to a native view tree, to the DOM, or to plain objects, depending only on
-which **host** is installed.
+A signals runtime for **Lynx**, on `@amritk/mini`'s model: real elements created
+once, mutated forever by signals, with no virtual tree in between. It drives
+Lynx's Element PAPI directly — the tags, attributes and events are the engine's
+own, and the JSX typings are derived from `@lynx-js/types` rather than written
+here.
+
+The reasoning behind that shape, and what it cost, is
+[`docs/mini-native-lynx-runtime.md`](../../docs/mini-native-lynx-runtime.md).
+Read it before changing anything structural; most of the invariants below are
+one paragraph of it each.
 
 ## Commands
 
 ```bash
 bun run --filter='@amritk/mini-native' test
-bun run --filter='@amritk/mini-native' types:check   # runs both passes: DOM-free core, then the DOM host
+bun run --filter='@amritk/mini-native' types:check
 bun run --filter='@amritk/mini-native' build
 ```
+
+`types:check` is one pass now. It used to be two — a DOM-free core and a DOM
+host checked separately — and the DOM host is gone.
 
 ## Layout
 
 ```
 src/
-  host.ts                 The Host contract — the entire platform surface
-  current-host.ts         setHost / requireHost / scheduleFlush (one host per context)
-  types.ts                MaybeReactive, ClassValue, StyleValue, opaque node handles
-  elements.ts             The element vocabulary (view/text/image/scroll-view/input) + roles
-  focus.ts                focus / blur — the only imperative pair in the contract
-  context-frame.ts        The ambient frame a lazily-built subtree is rebuilt inside
-  events.ts               The event payloads the framework defines, so hosts normalise to them
+  index.ts                The `.` entry: signals, mount, tree ops, binds, JSX types
+  entry.ts                renderPage — the global the engine calls at startup
   jsx-runtime.ts          The compilerless JSX runtime + the JSX type surface
   jsx-dev-runtime.ts      Dev entry point (same implementation)
-  apply-prop.ts           One prop → host calls, deciding static-vs-reactive
-  append-children.ts      Children, including reactive text nodes
-  list.ts                 The only reconciler: keyed list over four host ops
+  tree.ts                 Tree surgery over the PAPI: create, insert, remove, clear
+  apply-prop.ts           One JSX prop → engine calls, deciding static-vs-reactive
+  append-children.ts      Children, including reactive raw-text runs
+  add-event.ts            One dispatcher per (type, name), fanned out to a handler set
+  list.ts                 The only reconciler: keyed list over four tree ops
   render-child.ts         Reactive single-slot swap, the base of control flow
-  mount.ts                Application root — opens the owning scope
+  mount.ts                Application root — opens the owning scope. Plus pageElement()
+  types.ts                MaybeReactive, ClassValue, StyleValue, the child types
+  context-frame.ts        The ambient frame a lazily-built subtree is rebuilt inside
   run-detached.ts         Escape hatch for scope ownership (see the gotcha below)
   untrack.ts              The same suspension, named for the reader's side of it
   watch.ts                Change-only effect with an untracked callback
   signals.ts              alien-signals re-exported (plus batch), so nothing else imports it
+  to-getter.ts            Static-or-reactive prop → a getter, so downstream branches once
+  to-factory.ts           An element or a builder → a factory control flow can call
+  resolve-class.ts        A ClassValue → the single space-joined string __SetClasses wants
+  on-cleanup.ts           Teardown registered against the enclosing scope
   warn.ts                 Recoverable-mistake reporting, without assuming a console
+  engine/
+    element-api.ts        LynxElementApi — the whole platform boundary, as a type
+    current-engine.ts     setEngine / requireEngine / scheduleFlush / globalEngine
+    index.ts              The `/engine` subpath: the boundary on its own
+  events/
+    worklet-registry.ts   Handle→closure table + the `runWorklet` global the engine calls
+  style/
+    apply-style.ts        The style channel, and the visibility that shares it
+    to-css-name.ts        A style key → its CSS spelling
+    to-style-text.ts      A bare number → dp, and the unitless properties left alone
+  vocabulary/
+    intrinsic.ts          34 tags, mapped over `@lynx-js/types` rather than transcribed
+    mini-props.ts         The three props the runtime adds: ref, show, and our style/class
+  testing/
+    create-fake-engine.ts The reference engine — a complete in-memory PAPI
+    serialize-tree.ts     That tree as indented text, for assertions
   bind/                   bind-text, bind-prop, bind-show, bind-value
-  flow/                   Show, Switch/Match, Dynamic, For, Index, VirtualFor, defaultKey
-  ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
-  platform/               platform.os / platform.select, and the environment accessors
+  flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
   composition/            createContext, Portal, ErrorBoundary
-  gestures/               pan, swipe — arithmetic over the normalised pointer stream
-  animate/                animate() — a timeline described once and handed to the engine
-  router/                 A pluggable history + views; matchRoute/parseQuery come from @amritk/mini-helpers
-                          `RouteView` is one slot, `RouteStack` is the navigation stack over `Router.depth`
-  forms/                  createForm, Field — ported from mini bar one file; the schema arm is shared
-  query/                  createQuery over @tanstack/query-core — ported verbatim
-  hosts/
-    create-memory-host.ts The reference host — plain objects, no platform
-    create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)
-    dom-environment.ts    Colour scheme, viewport, safe-area insets, motion preference
-    dom-reset.ts          The stylesheet that makes a browser lay out like Yoga
-    create-lynx-host.ts   Native target, driving Lynx's Element PAPI
-    lynx-element-api.ts   The PAPI subset, as an injectable type
-    lynx-transition-animator.ts  Timelines as inline transitions — the most the PAPI can express
-    to-style-text.ts      Numbers → the target's unit, shared by the real hosts
-    to-css-name.ts        A style key → its CSS spelling, for the targets handed declarations
-    to-keyframe.ts        A style bag → an animation keyframe, units and IDL names applied
-    named-events.ts       Which events a host owes a normalised payload for
-    tri-state-props.ts    The props where `false` is a value, not an absence
+  router/                 A pluggable history, RouteView, RouteLink, RouteStack + its transitions
+  forms/                  createForm, Field, bindField, schema validation
+  query/                  createQuery over @tanstack/query-core
 examples/
   js-framework-benchmark/ The keyed benchmark; `bun run bench:reconciler` times it
 ```
 
+There is no `hosts/`, no `ui/`, no `platform/`, no `gestures/`, no `animate/`,
+no `elements.ts` and no `host.ts`. All of them were deleted rather than moved —
+§3 of the design note is the table of what replaced each.
+
+Two things this package no longer owns and re-exports instead:
+`matchRoute`/`parseQuery` and `schemaToValidator` live in
+[`@amritk/mini-helpers`](../mini-helpers/AGENTS.md), because they turned out
+identical in `@amritk/mini` and here and a defect in one was latent in the
+other. `/router` and `/forms` re-export them, so a consumer's imports are
+unchanged. That package's charter is **no reactivity, no platform**, and its
+own suite enforces it — do not reach for it from anywhere that would need
+either.
+
 ## Invariants — do not break these
 
-- **The core is platform-free, and the compiler enforces it.** `tsconfig.json`
-  omits `lib.dom` (and Node's ambient types), so a stray `document`,
-  `HTMLElement`, or host global anywhere outside the DOM host fails
-  `types:check` rather than quietly working in a browser and breaking on a
-  device. `create-dom-host.ts` is excluded there and checked by
-  `tsconfig.dom.json` instead; the `types:check` script runs both passes.
-- **The element vocabulary is native, not HTML.** `JSX.IntrinsicElements` is
-  `view | text | image | scroll-view | input`. Adding an HTML tag inverts the
-  whole design — the browser is the *guest* here, a preview target for a native
-  app. New vocabulary needs a genuine cross-platform justification.
-- **No reconciler beyond `list`.** JSX builds a host node once and signals
-  mutate it in place. If a feature seems to need diffing, it belongs in a
+- **The runtime is main-thread, because the PAPI is.** This is not a choice
+  anyone made; it falls out of driving the Element PAPI directly, and every
+  other main-thread consequence follows from it. It is mostly a gift — a handler
+  runs in the same frame as the gesture, a signal write reaches the tree with no
+  thread hop — but it means **heavy work in a handler blocks rendering**, with
+  no background thread to absorb it. It also means the main-thread context is
+  not the background context: do not assume the full set of platform globals.
+  `scheduleFlush` schedules on the promise job queue rather than through
+  `queueMicrotask` for exactly that reason, and anything new that needs a timer
+  or `fetch` (`/query` is the sharp case) has to treat their availability as an
+  engine-version question rather than a given.
+- **An event listener is a worklet handle, never a closure.** `__AddEvent`
+  accepts a string (routed to the background thread by handler name) or
+  `{ type: 'worklet', value }` (dispatched on the main thread). A raw function is
+  accepted at bind time, stored in a field fiber-arch dispatch does not read, and
+  then **silently never invoked** — no error, no JavaScript warning, one line in
+  native logs. `EventListenerValue` deliberately does not admit a function so the
+  mistake cannot compile. `events/worklet-registry.ts` hands out integer tokens
+  and installs the `runWorklet` global that resolves them, which is what lets
+  this runtime handle main-thread events with no compiler.
+  > **Carry this caveat forward.** The engine-side mechanism is read from the
+  > engine's source — dispatch fetches `runWorklet` by name and hands it the
+  > token untouched — but a *framework-defined* token has not been round-tripped
+  > on a physical device by this package. Prototype it on a device before
+  > shipping anything that depends on it. The fallback is contained and already
+  > understood: register string handlers and own the receiving end by assigning
+  > `lynxCoreInject.tt.publishEvent`, as ReactLynx does, at the cost of a thread
+  > hop. See §5 of the design note.
+- **Per-tag creators are mandatory for the tags that have one.**
+  `__CreateElement('view', …)` builds a generic fiber node for every tag but one:
+  a `view` made that way is not a view, and loses `is_view()` and the layout-only
+  optimisation, a `text` loses measurement, an `image` loses `src` handling, a
+  `list` loses virtualisation. Nothing errors; the element simply does less.
+  `CREATORS` in `tree.ts` is the table, and `__CreateElement` is correct only for
+  tags with no dedicated creator (`input`, `textarea`, `svg`, `webview`, every
+  XElement). Note that the engine's own web port calls `__CreateElement` with
+  built-in tags and passes, because on the web every tag is a custom element —
+  **the web target cannot validate an assumption about the native one.**
+- **`parentComponentUniqueId` is the page's real id, never `0`.** Zero reads
+  like a "no owning component" sentinel and is not one: engine ids start well
+  above it, so an element created with zero drops out of class, id and tag
+  selector resolution. The tree renders, inline styles work, and every
+  stylesheet rule quietly misses — a whole styling channel disappearing with
+  nothing to indicate why. `componentId()` in `tree.ts` resolves the page's id
+  once and caches it, and invalidates the cache when the engine is swapped.
+- **A style key reaches the engine in its CSS spelling.** `__SetInlineStyles` is
+  handed declarations the engine parses as CSS, where `fontSize` has never been a
+  property — a camelCase key is dropped in silence. A style bag may be written
+  either way in this package, so `to-css-name.ts` converts once, in
+  `apply-style.ts`, and nothing else may write the style channel directly.
+  `to-style-text.ts` is the other half: a bare number means density-independent
+  pixels, and the unitless properties stay unitless.
+- **Visibility must survive a style write.** Lynx expresses an element's style
+  bag and its visibility through **one** channel, and `__SetInlineStyles`
+  replaces that channel wholesale — so a style write on a hidden element un-hides
+  it, and whether it happens depends on the order the props were written in,
+  which makes it intermittent rather than reproducible. `apply-style.ts`
+  remembers the two parts separately and re-asserts `hidden` after every write.
+  Showing an element re-applies its own bag rather than writing a default back,
+  because Lynx's default display is `linear`, not `flex`, and is configurable
+  per-page — any constant picked here would be wrong for somebody, quietly.
+- **No reconciler beyond `list`.** JSX builds an element once and signals mutate
+  it in place. `list` needs four tree operations — `insert`, `remove`, `clear`,
+  `nextSibling` — and is keyed and move-minimal because every move is real work
+  on the main thread. If a feature seems to need diffing, it belongs in a
   different framework, not here.
-- **`Host` stays small** (about 15 functions) — it is the entire porting cost of
-  a new platform. `createFlowHost` is separate from `createElement` because the
-  right wrapper differs per target; `flush` is optional, for targets that batch.
-- **Visibility survives a style write.** `setVisible` and `setStyle` are easiest
-  to implement through one channel, and then a wholesale style replacement
-  quietly un-hides a hidden element — which is order-dependent on how the props
-  happened to be written, so it fails intermittently. Any host sharing a channel
-  between the two must remember the visibility and re-assert it. Both real hosts
-  do; the memory host keeps them as separate fields, which is why its tests
-  could not catch the bug.
-- **No raw-markup sink, ever.** There is deliberately no `bindHtml` equivalent
-  anywhere in the host contract, so bound data cannot inject elements on any
-  target.
-- **`false` is a VALUE for the tri-state props, not an absence.** `setProperty`'s
-  general rule that `false` means "unset it" erases the very thing `focusable`,
-  `selected`, `checked`, `expanded`, and `selectable` exist to express — a
-  collapsed disclosure is `aria-expanded="false"`, and no attribute at all is
-  something that does not expand. `tri-state-props.ts` holds the set, shared so
-  the rule cannot land on one host and not the others. It already did: the
-  parity suite caught the DOM host honouring it while Lynx and memory dropped it.
-- **A host normalises the payload of every event the vocabulary NAMES**, to the
-  shapes in `events.ts` — the same job as resolving a `class` array to a string,
-  pointed the other way. Without it `onScroll={(event) => event.y}` cannot be
-  written once, because reading an offset would mean knowing which host is
-  installed. Anything the vocabulary does not name passes through untouched and
-  belongs to whoever installed the host. `NAMED_EVENTS_WITHOUT_DATA` is shared
-  between the hosts rather than copied, because three sets that must agree are
-  three sets that can drift silently.
-- **A wrapper the framework inserted is never visible to accessibility.**
-  `createFlowHost` builds the container every control-flow component swaps
-  inside, and the moment elements carry roles an interposed generic node breaks
-  the parent/child relationships assistive technology walks — `list`/`listitem`
-  first, then every richer pairing. Flow wrappers therefore carry
-  `role="presentation"`, and `display: contents` alone does NOT count: its
-  accessibility-tree treatment has never been consistent enough to bet a
-  semantics layer on. The same rule is why a `list` role must not build a real
-  `<ul>` — `<ul>` may only contain `<li>`, which is a parse-level content model
-  no attribute can rescue once a wrapper sits between them.
+- **The fake engine is the reference implementation, and it must stay faithful.**
+  `testing/create-fake-engine.ts` is what the whole suite runs against, which is
+  a stronger position than a test double usually gets: the code under test is the
+  code that ships, against the *real* target's API rather than an abstraction
+  this package invented. That only holds while the fake reproduces the engine's
+  constraints instead of smoothing them over. Two it reproduces on purpose: it
+  keeps **one** listener per `(type, name)` pair, and it **throws** on a function
+  listener rather than accepting one — a test must fail where a device would go
+  quiet. Element ids start at `10` for the same reason. Do not make the fake more
+  forgiving to get a test passing; the test is right.
+- **Props and events are spelled the way the engine spells them.** There is no
+  translation table in this package and there must not be one: an attribute is
+  written `text-maxline`, `mode`, `scroll-orientation`, and an event `bindtap` /
+  `catchtap` / `capture-bindtap`. That is what makes the engine's documentation
+  this runtime's documentation, lets a new engine attribute work with no release
+  here, and removes the entire class of bug where a prop is lost in translation.
+  The `Event` suffix table in `apply-prop.ts` is irregular (`bindEvent`,
+  `catchEvent`, but `capture-bind`) because the engine string-compares those;
+  tidying it up produces listeners that never fire.
+- **The vocabulary is derived, not transcribed.** `vocabulary/intrinsic.ts` maps
+  over `@lynx-js/types`' own `IntrinsicElements`, so two hundred-odd attributes
+  track the engine version an app pins rather than this package's release
+  schedule. Adding a tag by hand is only correct where the engine builds one the
+  types do not declare — `wrapper` is the single case. Where the docs and the
+  shipped types disagree, **follow the types**; the list of adjudicated conflicts
+  lives at the top of that file so it can be audited in one place. Never offer a
+  prop the engine does not read: it is a documented lie that reads as a layout
+  bug on a device.
+- **The package compiles with no platform library at all.** `tsconfig.json` omits
+  `lib.dom` and Node's ambient types, and there is now no exception to it — the
+  DOM host that used to be one is gone. That is why `warn.ts` declares the slice
+  of `console` it uses rather than importing it. The guarantee is close to
+  trivial today, and it is worth keeping stated: Lynx's main-thread context has
+  no `document`, no `window` and no `HTMLElement`, and a stray reference should
+  fail the check here rather than at runtime on a device.
+- **Every mutation schedules a commit, and a tick costs exactly one.** Nothing
+  reaches the screen until `__FlushElementTree` runs, so a function that mutates
+  without calling `scheduleFlush` produces a change that appears only when
+  something else happens to flush — which looks like a race. `mount` is the one
+  deliberate exception: it commits synchronously, because the first screen cannot
+  wait for the end of the tick.
+- **An insert detaches first.** `insert` in `tree.ts` removes the node from its
+  current parent before placing it, so inserting a node that already has a parent
+  *moves* it. `list` depends on this, and `__InsertElementBefore` does not do it
+  for you.
+- **No raw-markup sink, ever.** There is no `innerHTML` equivalent anywhere on
+  this boundary, so bound data cannot inject elements.
 - **Anything that builds a subtree LATER must restore the context frame.**
-  `renderChild` and `list` capture `currentFrame()` when they are called — which
-  is during the component body, inside whatever provider wraps it — and run
-  every later build inside `withFrame`. Without that, a theme provided at the
-  app root reaches every component except the ones inside a conditional or a
+  `renderChild`, `list` and `ErrorBoundary`'s retry capture `currentFrame()` when
+  they are called — during the component body, inside whatever provider wraps it
+  — and run every later build inside `withFrame`. Without it, a value provided at
+  the app root reaches every component except the ones inside a conditional or a
   list, and it fails silently by falling back to a plausible default. Core does
   not know what a frame IS (it is `unknown` there); `/composition` decides the
-  shape, which is what keeps the feature out of the byte-budgeted entry. Any new
-  lazy-build path — `ErrorBoundary`'s retry was the third — owes the same two
-  lines.
-- **A bare text run gets its element in a COMPONENT, never in the runtime.**
-  `ui/wrap-text-runs.ts` is why `<Button>Save</Button>` works while
-  `<view>Save</view>` still does not compile, and the distinction is the whole
-  point. A container refusing a text run is a compile error because there is no
-  correct reading of it — on Lynx that screen comes up blank. A component is
-  different: it has an opinion about its own contents, its label needs a `text`
-  element on every target anyway, and the wrap is one visible line in one file.
-  `appendChildren` must never grow this behaviour — that is
-  [`docs/mini-native-cross-platform.md` §15.3](../../docs/mini-native-cross-platform.md)'s
-  rejected option 1, inserting nodes nobody wrote on the target where node count
-  is the performance problem.
-- **The compiler ceiling here is an OPTIONAL OPTIMISING plugin**, one level above
-  `@amritk/mini`'s diagnostics-only ceiling, because this package's consumer owns
-  a whole app toolchain rather than embedding into someone else's page. The
-  invariant that makes it safe: **an app that skips the plugin still renders
-  correctly** — slower, larger, with more wrapper views, but correct. Nothing may
-  become a required build step without revisiting
-  [`docs/mini-native-cross-platform.md` §18](../../docs/mini-native-cross-platform.md),
-  and note that a cross-platform compiler costs double — one plugin per target
-  toolchain, kept in lockstep, or the semantics diverge per target.
+  shape. Any new lazy-build path owes the same two lines.
+- **Staying compilerless is the point, not a convenience.** ReactLynx and Vue
+  Lynx both need a `'main thread'` transform to get a handler onto the main
+  thread; this package does not, because the worklet token is its own. Nothing
+  may become a required build step — an app configures the standard `react-jsx`
+  transform at `jsxImportSource` and that is the whole toolchain contract.
 - This package **ships its `src/`** too (see `files`), so source comments are
   shipped — keep them accurate.
 
 ## The alien-signals scope-ownership gotcha
 
 A scope created inside a running `effect` is **disposed when that effect
-re-runs**. This bites exactly two places — `list` and `renderChild` — both of
-which build long-lived subtrees from inside a tracking effect.
+re-runs**. This bites exactly three places — `list`, `renderChild` and
+`ErrorBoundary` — all of which build long-lived subtrees from inside a tracking
+effect.
 
 In a keyed list the symptom is nasty because it looks fine: appending one row
-would dispose every row already on screen, leaving the nodes in place with the
-right text while all of their bindings quietly stopped updating.
+would dispose every row already on screen, leaving the elements in place with
+the right text while all of their bindings quietly stopped updating.
 `run-detached.ts` is the fix — it builds those subtrees with no reactive owner
 installed, handing lifetime back to the code that actually knows when a subtree
 should die.
 
-`list.test.tsx` has a regression test named *"keeps existing rows reactive after
-another row is appended"* that fails without it.
+The `list` suite owes a regression test for this — *"keeps existing rows
+reactive after another row is appended"* — and it is the one case that fails
+loudly if `runDetached` is ever removed as an apparent redundancy.
 
 > `@amritk/mini` had the same latent bug, and a comment in its `render-child.ts`
 > asserted the opposite behaviour. Both are fixed there now — it has its own
@@ -181,227 +251,54 @@ props object into the runtime's third parameter *before the component is ever
 called*, so a component with a legitimate prop of that name — `For`, whose `key`
 is the row identity function — would never receive it. `jsx` forwards it back
 into props for component tags, and `flow/for.test.tsx` pins that. It stays
-ignored for element tags, where there is no keying at the JSX level at all.
+ignored for element tags, where there is no keying at the JSX level at all; note
+that `list-item`'s `item-key` is a different thing entirely, and is the engine's.
 
 > `@amritk/mini` had this hole too — its `for.test.tsx` only ever called
 > `For({…})` directly, which is likely why nobody noticed. Fixed there as well.
 
-## The two structural suites
-
-`parity.test.tsx` renders one component through all three hosts and compares
-what each reports back — role, accessible name, focusability, availability, and
-the payload of a tap. It compares SEMANTICS rather than markup on purpose:
-asserting markup would only re-test each host's mapping table and would fail
-whenever a mapping legitimately changed.
-
-It exists because the failure mode of cross-platform work is silent drift — the
-web target keeps working while the device target stops matching, because nobody
-runs the second one day to day. It earned its keep on the first run by catching
-`focusable={false}` surviving on the DOM host and being erased by the other two,
-which is where `tri-state-props.ts` came from.
-
-`vocabulary-coverage.test.tsx` asks whether every prop the vocabulary DOCUMENTS
-actually does something, by walking `ElementProps` and asserting no prop reaches
-a DOM element as a dead attribute. The audit found four that did — `fit`,
-`lines`, `direction`, `multiline` — by reading. The mapped type is the mechanism:
-it demands one sample per prop per tag, so adding a prop without adding a sample
-fails `types:check` rather than quietly going untested.
-
-Both carry the happy-dom pragma, since comparing against the DOM host needs a
-document. That does not weaken the DOM-free guarantee — the memory and Lynx
-suites still run in plain node — and both are excluded from `tsconfig.json` and
-checked by `tsconfig.dom.json`, exactly like `create-dom-host.test.tsx`.
-
 ## Testing
 
 Vitest, per [`../../.claude/testing.md`](../../.claude/testing.md). Every suite
-except the DOM host runs against `createMemoryHost` in the default node
-environment, where `document` genuinely does not exist — so a stray platform
-dependency could not pass unnoticed. `jsx-runtime.test.tsx` asserts that
-directly. Only `create-dom-host.test.tsx` carries the
-`// @vitest-environment happy-dom` pragma.
+runs against `createFakeEngine()` in the default node environment — there is no
+`// @vitest-environment happy-dom` pragma left in the package, and `document`
+genuinely does not exist while the tests run.
 
-The Lynx host takes its PAPI as an argument specifically so
-`create-lynx-host.test.tsx` can verify the whole mapping against a fake engine —
-no device, no emulator.
+The pattern is always the same three lines, and `clearEngine()` between cases so
+one test does not inherit the previous one's tree:
 
-## Settled decisions on the cross-platform story
+```ts
+const engine = createFakeEngine()
+setEngine(engine.api)
+mount(engine.pageElement, Component)
+```
 
-[`docs/mini-native-cross-platform.md`](../../docs/mini-native-cross-platform.md)
-is the reasoning. These are the conclusions, so nobody relitigates them from
-scratch — each one has a stated trigger for reopening rather than being
-permanent.
+Assert on `serializeTree(engine.page)` for shape, on `engine.calls()` for what
+the runtime asked the engine to do, and on `engine.flushes()` for coalescing.
+Fire events with `engine.dispatch(element, 'tap')`, which goes through the real
+`runWorklet` indirection rather than reaching for the closure — so the worklet
+registry is on the tested path rather than beside it.
 
-- **The web is a peer target, not a preview.** `hosts/dom` is expected to produce
-  a page you would ship: real semantics, keyboard operability, an accessible
-  name. That is a raising of the bar, not a change of direction — the vocabulary
-  is still native and the browser is still the guest.
-- **The native vocabulary stays; HTML-first was considered and declined.** The
-  element half of an HTML-first design is genuinely compilerless (§15), so the
-  usual "it needs a compiler" dismissal is wrong. It was declined because the
-  subset problem relocates rather than disappearing, HTML's permissiveness cannot
-  be honoured natively without inserting nodes nobody wrote, and a `div` that
-  does not cascade and defaults to `column` is a false friend. *Reopen if* the
-  driving use case becomes migrating an existing web app — at which point
-  evaluate React Strict DOM before building anything.
-- **Semantics arrive as a `role` prop, not as new tags.** Static, like
-  `multiline`, because it decides what the host builds. Keeps the vocabulary at
-  five tags and needs no new `Host` methods.
-- **`as` accepts a role or a component — never an HTML tag.** A tag is not a
-  portable concept, so accepting one would make the override the hole through
-  which web-only code re-enters a write-once component. `ContainerProps.as` on
-  `For`/`Index` already follows this: same meaning, narrowed to what is coherent
-  there.
-- **Screens should be written in components, not in vocabulary tags.** This is
-  the thing that keeps every decision above reversible: if the vocabulary lives
-  in twenty components rather than two hundred screens, changing any of it is a
-  rewrite of the component layer instead of the app. `/ui` is that layer.
-- **`/ui` ships the semantics; the app ships the taste.** `<Button>` knows a
-  button is a button on both targets, is reachable by keyboard on both, and is
-  unavailable rather than greyed. It does not know your buttons are 44px tall.
-  Two things follow and both are load-bearing: the layer needs **no host
-  machinery at all**, so it grows the `Host` contract by nothing, and because it
-  has no appearance every component has an assertable semantic outcome on all
-  three hosts — which is why they sit in `parity.test.tsx` beside the
-  vocabulary. Keep it small: the more it carries, the more a design system built
-  on it is version-coupled to this package.
-- **Prefer `Host.environment` to `Host.platform`.** Both exist and only one is
-  the good answer. An OS name is a proxy for the thing an app actually cares
-  about — is there a notch, does hover exist, is anything addressable — and
-  proxies rot: `os === 'web'` typechecks forever and is wrong the day a second
-  web-shaped target appears. Safe area, viewport, and colour scheme are exactly
-  what a name would otherwise be used to infer, so a good environment API is
-  what keeps `platform.select` rare. When a branch IS unavoidable, keep it to
-  leaf values; anything structural belongs in a `.web.tsx` / `.native.tsx` pair,
-  which is greppable and countable where an inline branch is invisible.
-- **A capability registry is NOT built, on purpose.** `canHover` /
-  `hasBackButton` / `isAddressable` would beat both of the above. Designing the
-  flag set before three real call sites exist is guesswork; revisit at three.
-- **A host reports only what its target genuinely knows.** Every field of
-  `HostEnvironment` is optional and so is the whole object, and the accessors
-  fill in a documented static value for whatever is absent — which is also what
-  keeps those fallbacks exercised on every run, since the memory host reports
-  nothing. The Lynx host takes its environment as an ARGUMENT rather than
-  reading engine globals: the PAPI subset it drives is element-level, the
-  system-information globals vary by engine version, and there is no fake to
-  test them against, so shipping plausible-but-wrong values per build would be
-  worse than asking the app, which knows exactly which engine it runs on.
+What a test here **cannot** tell you is anything about layout or paint. The fake
+records what it was asked to do and does not do it; an assertion that an element
+was given `flex-direction: row` is sound, and one about how wide it ended up is
+not something any test outside a device should be making.
 
-- **Gestures are two layers, and the split is the whole design.** The HOST
-  normalises a browser's Pointer Events and an engine's touch events into one
-  `PointerEvent` — id, element-relative position, phase. That is the only part
-  that cannot be written once, and it needed no new host method. The
-  RECOGNISERS in `/gestures` are then pure arithmetic and know no platform at
-  all, which is why they are portable by construction rather than by anyone
-  maintaining two versions. A recogniser that reaches for a host means the
-  normalisation was not actually done and the maths is compensating.
-- **Hover never fires on a touch, deliberately.** A browser synthesises
-  `pointerenter`/`pointerleave` around a tap and the DOM host filters those out.
-  A hover-only affordance is a design bug — content nobody on a phone will see —
-  not a platform difference to smooth over, so nothing synthesises a fake hover.
-- **`onPointer` is one prop for four phases.** A gesture is a sequence; four
-  props would only mean reassembling it at every call site.
+## The relationship with `@amritk/mini`
 
-## Settled decisions on style
+Siblings, not layers. `mini` renders to the DOM, `mini-native` renders to Lynx,
+and neither imports the other — same design, re-derived against a different
+target, which is also why `mini`'s DOM fast paths (writing `textContent`,
+cloning a static template) have no equivalent here.
 
-[`docs/mini-native-style.md`](../../docs/mini-native-style.md) is the reasoning.
+That independence has a cost: **a defect found in one is usually latent in the
+other.** Both gotchas above were found here and then fixed there. When you fix a
+bug in this package, go read `../mini/AGENTS.md` and look for the same shape.
 
-- **The reset is the floor, not a nicety.** An unstyled container with two
-  children stacks vertically on a device and horizontally on the web. Everything
-  else in the cross-platform story is additive; this is not, and no amount of
-  careful component authoring above it papers over it.
-- **The reset never outranks the app.** Every rule is `:where()`-wrapped, so
-  specificity is zero and a single class or a `style` prop beats it. A reset that
-  wins arguments is one people work around, and the workarounds are worse than
-  the divergence.
-- **Scoped by `data-mn`, not by tag.** An app embedding this runtime keeps its
-  own page. Flow wrappers are deliberately unstamped — `display: contents` means
-  no box to reset, and a `display: flex` rule would fight the one thing the
-  wrapper must be.
-- **Text inheritance stops at a container**, matching Yoga rather than CSS, and
-  the base is `--mn-font` / `--mn-color` rather than `initial` — `font: initial`
-  is a serif face, so an app that had never heard of the reset would come up in
-  Times.
-- **Overflow is NOT clipped.** It looks like a missing row in the divergence
-  table and is left out on purpose: the two native platforms disagree with each
-  other, and clipping every container on the web breaks shadows, focus rings,
-  and popovers. *Reopen if* a real screen shows the difference is structural
-  rather than cosmetic.
-- **Tokens resolve to STYLE OBJECTS, not classes.** Classes are cheaper on the
-  web and meaningless on a headless host. A style object is the only shape every
-  target already consumes, and class extraction stays available later as a
-  web-only optimisation behind the optional plugin — where skipping it costs
-  bytes rather than correctness. Choosing classes first would have made the
-  other two hosts carry a translation layer that could never be removed.
-- **`size` and `level` are two props, always.** Couple them and authors pick
-  heading levels by how big they want the text. `Text` has no `role` or `level`
-  on its surface at all, which enforces it rather than documenting it. `weight`
-  is a third, for the same reason — a design needs small-and-heavy about as often
-  as large-and-light — and it exists at all because without it a heading renders
-  at body weight on BOTH targets: the reset flattens the user agent's bold `<h1>`
-  and a native engine never had one.
-- **The theme carries more than `/ui` reads, on purpose.** `size`, `weight`,
-  `tone`, `space` and `heading` are consumed by components; `surface`, `border`
-  and `radius` are consumed by nothing here. That is not an oversight to tidy up
-  by styling `Button` — typography and spacing are what a component cannot stay
-  *correct* without, while a background and a radius are taste, and a theme
-  holding only what `/ui` reads leaves an app with no scale to be tasteful
-  against. Do not give `/ui` an appearance to "use" these tokens; it would cost
-  the layer its assertable semantic outcome on all three hosts.
-- **No CSS system colours in a theme, ever.** `defaultTheme` used `CanvasText`
-  and `Canvas` to get zero-config dark mode, which worked on exactly one target —
-  the Lynx host hands the string to an engine that has never heard of it. This is
-  the package's own failure mode written into the file that argues against it, so
-  `theme.test.ts` now guards it. `systemTheme()` is the portable replacement: it
-  reads `colorScheme()`, which every host answers, and returns a getter — not a
-  `computed`, since memoising one comparison between two existing objects costs
-  more than it saves. `defaultTheme` and `darkTheme` share every non-colour scale
-  **by reference**, which makes "a dark theme with its own type scale"
-  unrepresentable rather than merely discouraged.
-
-Still genuinely open, so do not treat it as decided: whether `role="button"`
-builds a real `<button>` (browser affordances, but a content model TypeScript
-cannot enforce) or a `div` with the role and synthesised activation.
-
-## Known gaps
-
-See the README's *Known gaps* for the full list, which is the one to trust — this
-is the short version.
-
-**Everything the audit called the native story has landed.** Accessibility props
-(`Role` in `elements.ts` and the two host mappings), the component layer
-(`/ui`) and its theme, the platform accessors (`/platform`), the composition
-seams (`/composition`), gestures (`/gestures`), routing (`/router`), the
-animation seam (`/animate` plus `Host.animate`), the virtualised list
-(`VirtualFor` in `/flow`), and the `/forms` and `/query` ports. `docs/mini-native-audit.md`
-carries the reasoning behind each and is now a record rather than a plan.
-
-The navigation stack has landed too — `RouteStack` in `/router`, over
-`Router.depth` and the `/animate` seam. It is the only thing in the package
-with a layout opinion (cards are absolutely positioned, because two screens
-must overlap for a transition between them to mean anything) and the only
-component that keeps subtrees alive after they leave the screen, hidden through
-`setVisible` so they leave the tab order and the accessibility tree with them.
-
-What is genuinely still missing is smaller and mostly waiting on a real screen
-rather than on someone getting to it: pinch and rotate (thresholds worth tuning
-against a device rather than guessed at), variable row sizes in `VirtualFor`
-(needs a `measure` on the host contract), an interactive back gesture (a
-tracked, frame-by-frame transition, which is the one thing the animation seam
-deliberately cannot express), a responsive primitive, and capability flags.
-`bindClass` and fragments are deliberate omissions and should stay that way.
-
-The **taste layer over the theme** is the same shape of gap and belongs on that
-list: variants (`primary` / `secondary` / `ghost`), interaction states, icons,
-and fields. The tokens to build them all exist now; the system does not, and it
-should not be guessed at — this one is genuinely cross-platform-hard rather than
-merely unwritten, since hover does not exist on a touch target and a focus ring
-has no native equivalent. `docs/mini-native-style.md` §4 names what each waits
-on, along with border width, elevation, and font family.
-
-Two rules that keep biting when this list is edited: do not add a prop with
-nothing behind it — `vocabulary-coverage.test.tsx` exists to catch exactly that
-class of documented lie — and do not describe something as missing here without
-checking the README, which is where the reasoning lives.
+One thing is deliberately borrowed rather than duplicated: the called-signal
+scanner. `@amritk/mini`'s is purely syntactic and does not know which runtime
+the JSX belongs to, so it already catches the identical mistake here — which is
+why this package ships no second copy, and why `bun run check:reactivity` at the
+repo root covers both.
 
 Add a changeset for every change (`bunx changeset`).

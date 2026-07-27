@@ -1,9 +1,9 @@
 import { currentFrame, withFrame } from '../context-frame'
-import { requireHost, scheduleFlush } from '../current-host'
 import { onCleanup } from '../on-cleanup'
 import { runDetached } from '../run-detached'
 import { effectScope } from '../signals'
-import type { Dispose, HostElement } from '../types'
+import { clear, createWrapper, insert } from '../tree'
+import type { Dispose, LynxElement } from '../types'
 
 /** Props for {@link ErrorBoundary}. */
 export type ErrorBoundaryProps = {
@@ -12,28 +12,27 @@ export type ErrorBoundaryProps = {
    * have thrown as an argument — before this component ever ran — and there
    * would be nothing left to catch.
    */
-  children: () => HostElement
+  children: () => LynxElement
   /**
    * What to render instead. `retry` rebuilds the subtree from scratch, which is
    * the right offer for a failure that might not repeat (a screen whose data
    * fetch threw) and pointless for one that will.
    */
-  fallback: (error: unknown, retry: () => void) => HostElement
+  fallback: (error: unknown, retry: () => void) => LynxElement
 }
 
 /**
  * Renders `fallback` when building `children` throws.
  *
- * The cross-platform angle is the failure mode rather than the feature. A
+ * The failure mode is the argument for this, rather than the feature. A
  * component here runs exactly once, so a throw part-way through leaves a
- * half-built tree with no second render to recover on — and what that looks
- * like differs sharply per target. On the web it is a blank area and a message
- * in a console nobody has open; on a device it is a dead app and a crash
- * report. The second is expensive enough that this should not wait behind the
- * ergonomics work.
+ * half-built tree with no second render to recover on — and on a device that is
+ * a dead app and a crash report, not a blank area and a message in a console
+ * somebody has open. There is no reload to fall back on either, which is why
+ * `retry` is part of the shape rather than an extra.
  *
  * ```tsx
- * <ErrorBoundary fallback={(error, retry) => <Failed error={error} onTap={retry} />}>
+ * <ErrorBoundary fallback={(error, retry) => <Failed error={error} bindtap={retry} />}>
  *   {() => <Dashboard />}
  * </ErrorBoundary>
  * ```
@@ -51,9 +50,8 @@ export type ErrorBoundaryProps = {
  * per-subtree lifetime guarantee `list` gives each row and `renderChild` gives
  * each branch.
  */
-export const ErrorBoundary = (props: ErrorBoundaryProps): HostElement => {
-  const host = requireHost()
-  const wrapper = host.createFlowHost()
+export const ErrorBoundary = (props: ErrorBoundaryProps): LynxElement => {
+  const wrapper = createWrapper()
   // Captured now, restored around every attempt — a retry happens long after
   // this component returned, by which time any provider around it has gone.
   const frame = currentFrame()
@@ -61,7 +59,7 @@ export const ErrorBoundary = (props: ErrorBoundaryProps): HostElement => {
 
   const attempt = (): void => {
     dispose?.()
-    let node: HostElement | null = null
+    let node: LynxElement | null = null
     dispose = runDetached(() =>
       effectScope(() => {
         withFrame(frame, () => {
@@ -76,9 +74,8 @@ export const ErrorBoundary = (props: ErrorBoundaryProps): HostElement => {
         })
       }),
     )
-    host.clear(wrapper)
-    if (node) host.insert(wrapper, node, null)
-    scheduleFlush()
+    clear(wrapper)
+    if (node) insert(wrapper, node, null)
   }
 
   attempt()

@@ -47,9 +47,6 @@ const PEER_BACKED_SUBPATHS: Record<string, string> = {
   '@amritk/mini-helpers/schema': '@amritk/runtime-validators',
 }
 
-/** The one subpath that exists purely to publish types — its compiled module is empty by design. */
-const TYPES_ONLY_SUBPATH = '@amritk/mini-native/host'
-
 /** The optional peers a consumer installs to use the subpaths above. */
 const OPTIONAL_PEERS: Record<string, string> = {
   '@amritk/runtime-validators': '^0.9.0',
@@ -230,10 +227,11 @@ describe('consumer-e2e', () => {
       console.log(JSON.stringify(empty))
     `
     const empty = JSON.parse((await runProbe(fullDir, 'subpaths', source)).trim()) as string[]
-    // `/host` is the renderer contract: types only, so its compiled module is
-    // legitimately empty. Any other entry that ships nothing at runtime is a
-    // build that dropped its exports.
-    expect(empty).toEqual([TYPES_ONLY_SUBPATH])
+    // Every entry ships something at runtime now. `mini-native/host` used to be
+    // the one exception — a renderer contract that was types only — and it went
+    // with the `Host` abstraction: `/engine` replaced it and exports real
+    // functions. An empty module here is a build that dropped its exports.
+    expect(empty).toEqual([])
   })
 
   it('imports the core entries with no optional peer installed', async () => {
@@ -295,26 +293,26 @@ describe('consumer-e2e', () => {
     expect(await runProbe(bareDir, 'mini-dom', source)).toContain('ok')
   })
 
-  it('drives mini-native through its memory host from the installed tarball', async () => {
+  it('drives mini-native through its fake engine from the installed tarball', async () => {
     const source = `
-      const { bindText, mount, setHost, signal } = await import('@amritk/mini-native')
-      const { createMemoryHost } = await import('@amritk/mini-native/hosts/memory')
-      const { serializeMemoryTree } = await import('@amritk/mini-native/hosts/memory/serialize')
+      const { bindText, createElement, createRawText, insert, mount, setEngine, signal } =
+        await import('@amritk/mini-native')
+      const { createFakeEngine, serializeTree } = await import('@amritk/mini-native/testing')
 
-      const memory = createMemoryHost()
-      setHost(memory.host)
+      const engine = createFakeEngine()
+      setEngine(engine.api)
 
       const label = signal('first')
-      mount(memory.rootElement, () => {
-        const item = memory.host.createElement('text')
-        const text = memory.host.createText('')
+      mount(engine.pageElement, () => {
+        const item = createElement('text')
+        const text = createRawText('')
         bindText(text, label)
-        memory.host.insert(item, text, null)
+        insert(item, text, null)
         return item
       })
 
       const check = (expected) => {
-        const tree = serializeMemoryTree(memory.root)
+        const tree = serializeTree(engine.page)
         if (!tree.includes(expected)) {
           console.error('expected ' + expected + ' in\\n' + tree)
           process.exit(1)
