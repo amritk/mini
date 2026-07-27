@@ -100,6 +100,12 @@
       "import": "./dist/gestures/index.js",
       "default": "./dist/gestures/index.js"
     },
+    "./forms": {
+      "development": "./src/forms/index.ts",
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
+    },
     "./animate": {
       "development": "./src/animate/index.ts",
       "types": "./dist/animate/index.d.ts",
@@ -150,14 +156,19 @@
     }
   },
   "peerDependencies": {
+    "@amritk/runtime-validators": ">=0.8.0",
     "typescript": "^5"
   },
   "peerDependenciesMeta": {
+    "@amritk/runtime-validators": {
+      "optional": true
+    },
     "typescript": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@amritk/runtime-validators": "^0.9.0",
     "typescript": "^5"
   }
 }

@@ -48,12 +48,15 @@
         "alien-signals": "catalog:",
       },
       "devDependencies": {
+        "@amritk/runtime-validators": "^0.9.0",
         "typescript": "^5",
       },
       "peerDependencies": {
+        "@amritk/runtime-validators": ">=0.8.0",
         "typescript": "^5",
       },
       "optionalPeers": [
+        "@amritk/runtime-validators",
         "typescript",
       ],
     },
