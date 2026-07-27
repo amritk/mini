@@ -1,0 +1,264 @@
+/*
+ * The app's stylesheet — and the fact that there is one is the headline.
+ *
+ * The previous version of this playground had no CSS inside the app root at
+ * all, on purpose: it targeted a five-tag vocabulary whose only portable
+ * styling channel was a bag of density-independent pixels, and a stylesheet was
+ * a web-only luxury that would not have survived the trip to a device.
+ *
+ * Lynx has real CSS — selectors, the cascade, custom properties, keyframes — so
+ * the honest way to write a Lynx app is to use it. Classes carry everything
+ * static, and an inline `style` prop carries the handful of values that are
+ * genuinely dynamic. That is the same division of labour a web app makes, and
+ * for the same reason: a class is resolved once by the engine, and an inline
+ * declaration is written on every change.
+ *
+ * Everything below is CSS that Lynx itself supports. Where a rule exists only
+ * to make the BROWSER preview behave like the engine, it lives in
+ * `src/lib/install-lynx-reset.ts` instead, so this file stays something you
+ * could ship.
+ */
+
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-alt: #eef1f8;
+  --border: #dde2ee;
+  --text: #131722;
+  --muted: #5c6577;
+  --accent: #2f5bd7;
+  --on-accent: #ffffff;
+  --danger: #c02d47;
+  --ok: #12704a;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+}
+
+/*
+ * Dark mode is a CLASS, not a media query.
+ *
+ * Lynx has no `@media` and no `prefers-color-scheme` — neither exists in the
+ * engine's CSS — so the platform's colour scheme arrives as data (through
+ * `globalProps` or a system-information global) and the app toggles a class on
+ * the page. That is a real difference from the web worth showing rather than
+ * hiding, and it is why `/styling` has a switch instead of leaving it to the OS.
+ */
+.theme-dark {
+  --bg: #0b0e15;
+  --surface: #141924;
+  --surface-alt: #1b2130;
+  --border: #28303f;
+  --text: #e8ecf4;
+  --muted: #98a2b8;
+  --accent: #7ea2ff;
+  --on-accent: #0b0e15;
+  --danger: #ff8098;
+  --ok: #5fe0a5;
+}
+
+.page {
+  flex: 1;
+  background-color: var(--bg);
+  overflow: hidden;
+}
+
+.header {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--border);
+  background-color: var(--surface);
+}
+
+.title {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.body {
+  flex: 1;
+  padding: 14px;
+}
+
+.tabs {
+  flex-direction: row;
+  padding: 8px;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--border);
+  background-color: var(--surface);
+}
+
+.tab {
+  align-items: center;
+  min-width: 66px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.tab-active {
+  background-color: var(--surface-alt);
+}
+
+.tab-badge {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.tab-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.tab-active .tab-badge,
+.tab-active .tab-label {
+  color: var(--accent);
+}
+
+.panel {
+  padding: 14px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-md);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border);
+  background-color: var(--surface);
+}
+
+.panel-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.panel-blurb {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 19px;
+  margin-bottom: 10px;
+}
+
+.prose {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 19px;
+  margin-top: 8px;
+}
+
+.readout {
+  /* Readouts print logs and serialised trees, so a newline has to survive. Lynx
+     supports `white-space`, and without it a multi-line readout collapses into
+     one unreadable line — which is the sort of thing that looks like a bug in
+     the value being printed rather than in the stylesheet. */
+  white-space: pre-wrap;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-alt);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.gap-xs {
+  gap: 4px;
+}
+.gap-sm {
+  gap: 8px;
+}
+.gap-md {
+  gap: 12px;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+
+.action {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border);
+  background-color: var(--surface-alt);
+}
+
+.action-label {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.action-disabled {
+  opacity: 0.45;
+}
+
+.chip {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--muted);
+}
+
+.chip-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chip-good {
+  border-color: var(--ok);
+}
+.chip-good .chip-label {
+  color: var(--ok);
+}
+.chip-bad {
+  border-color: var(--danger);
+}
+.chip-bad .chip-label {
+  color: var(--danger);
+}
+
+.field {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border);
+  background-color: var(--surface-alt);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.card {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-alt);
+}
+
+.card-title {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.card-meta {
+  color: var(--muted);
+  font-size: 12px;
+}

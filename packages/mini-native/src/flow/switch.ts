@@ -1,7 +1,7 @@
-import { requireHost } from '../current-host'
 import { renderChild } from '../render-child'
 import { toFactory } from '../to-factory'
-import type { HostElement, MiniChildren } from '../types'
+import { createWrapper } from '../tree'
+import type { LynxElement, MiniChildren } from '../types'
 import { MATCH, type MatchData, type MatchElement } from './match-marker'
 
 /** Props for {@link Switch}. `children` are the `<Match>` branches. */
@@ -9,7 +9,7 @@ export type SwitchProps = {
   /** The `<Match>` branches, in priority order. */
   children: MiniChildren
   /** Rendered when no branch matches. Nothing renders when this is omitted. */
-  fallback?: HostElement | (() => HostElement)
+  fallback?: LynxElement | (() => LynxElement)
 }
 
 /**
@@ -53,8 +53,8 @@ const collectMatches = (children: MiniChildren): MatchData[] => {
  * The subtree lives inside a wrapper element from the host, exactly as `Show`'s
  * does.
  */
-export const Switch = (props: SwitchProps): HostElement => {
-  const wrapper = requireHost().createFlowHost()
+export const Switch = (props: SwitchProps): LynxElement => {
+  const wrapper = createWrapper()
   const matches = collectMatches(props.children)
   const fallback = props.fallback === undefined ? null : toFactory(props.fallback)
   renderChild(wrapper, () => {

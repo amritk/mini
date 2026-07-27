@@ -57,13 +57,13 @@ export type Context<T> = {
  * byte-budgeted widget dropped into somebody else's page, where an ambient
  * registry is surface nobody asked for.
  *
- * The calculus here is different, and specifically because of cross-platform.
- * The things that vary by platform — theme, insets, navigation, locale, colour
- * scheme — are exactly the things you do not want in a component's signature.
- * Prop-drill them and every intermediate component grows a platform-shaped prop
- * it does not use, which is write-once eroding one signature at a time. A
- * component that takes `insets` as a prop is already a component that knows it
- * might be on a phone.
+ * The calculus here is different, because this runtime's consumer is a whole
+ * app rather than a widget. The things an app carries ambiently — theme,
+ * safe-area insets, navigation, locale, colour scheme — are exactly the things
+ * you do not want in a component's signature. Prop-drill them and every
+ * intermediate component grows a prop it does not use, which is write-once
+ * eroding one signature at a time. A leaf that takes `insets` as a prop is
+ * already a leaf that knows which device it is on.
  *
  * ## The fallback is a real value, not a "not provided" sentinel
  *

@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
-import { dispatchMemoryEvent } from '../hosts/dispatch-memory-event'
-import { clearHost, mount, setHost } from '../index'
-import type { HostElement } from '../types'
+import { clearEngine, setEngine } from '../engine/current-engine'
+import { mount } from '../mount'
+import { createFakeEngine, type FakeElement, type FakeEngine } from '../testing/create-fake-engine'
+import { createElement, insert } from '../tree'
 import { createForm } from './create-form'
 
 afterEach(() => {
-  clearHost()
+  clearEngine()
 })
+
+/** Types into a control the way the engine reports it — the value rides on the event. */
+const type = (engine: FakeEngine, node: FakeElement, value: string): void => {
+  engine.dispatch(node, 'input', { detail: { value } })
+}
 
 describe('create-form', () => {
   it('starts from the initial values and reports them as one record', () => {
@@ -103,6 +108,24 @@ describe('create-form', () => {
     expect(form.field('email').error()).toBeUndefined()
   })
 
+  it('clears a manual error when the user edits the control', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const form = createForm({ initialValues: { email: 'taken@b.com' } })
+    form.field('email').setTouched()
+
+    mount(engine.pageElement, () => {
+      const input = createElement('input')
+      form.bind('email')(input)
+      return input
+    })
+    form.setError('email', 'Already taken')
+
+    type(engine, engine.find('input') as FakeElement, 'free@b.com')
+
+    expect(form.field('email').error()).toBeUndefined()
+  })
+
   it('restores everything on reset', async () => {
     const form = createForm({
       initialValues: { email: '' },
@@ -127,90 +150,124 @@ describe('create-form', () => {
     expect(form.field('email')).toBe(form.field('email'))
   })
 
-  it('binds a text field and tracks blur through the host', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+  it('binds a text field and tracks blur', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const form = createForm({ initialValues: { email: '' } })
 
-    mount(memory.rootElement, () => {
-      const input = memory.host.createElement('input')
+    mount(engine.pageElement, () => {
+      const input = createElement('input')
       form.bind('email')(input)
       return input
     })
-    const input = memory.root.children[0] as MemoryElement
+    const input = engine.find('input') as FakeElement
 
-    input.props['value'] = 'typed@b.com'
-    dispatchMemoryEvent(input, 'input')
+    type(engine, input, 'typed@b.com')
     expect(form.values().email).toBe('typed@b.com')
 
-    dispatchMemoryEvent(input, 'blur')
+    engine.dispatch(input, 'blur', { detail: { value: 'typed@b.com' } })
     expect(form.field('email').touched()).toBe(true)
   })
 
-  it('binds a boolean field to the checked property', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+  it('binds a boolean field to the checked attribute and flips it on a tap', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const form = createForm({ initialValues: { subscribed: false } })
 
-    mount(memory.rootElement, () => {
-      const box = memory.host.createElement('input')
-      form.bind('subscribed')(box)
-      return box
+    mount(engine.pageElement, () => {
+      const toggle = createElement('view')
+      form.bind('subscribed')(toggle)
+      return toggle
     })
-    const box = memory.root.children[0] as MemoryElement
+    const toggle = engine.find('view') as FakeElement
 
     // Which binding is wired comes from the type of the initial value, not from
-    // anything about the element — the one place this port diverges from the
-    // web sibling, and the reason the same form code runs on three targets.
-    expect(box.props['checked']).toBe(false)
+    // anything about the element — which is just as well, since Lynx has no
+    // checkbox and a toggle is a `<view>` the app styled itself.
+    expect(toggle.attrs['checked']).toBe(false)
 
-    box.props['checked'] = true
-    dispatchMemoryEvent(box, 'change')
+    engine.dispatch(toggle, 'tap')
+
     expect(form.values().subscribed).toBe(true)
+    expect(toggle.attrs['checked']).toBe(true)
   })
 
   it('binds a numeric field, treating an emptied control as blank rather than zero', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const form = createForm({ initialValues: { age: 30 } })
 
-    mount(memory.rootElement, () => {
-      const input = memory.host.createElement('input')
+    mount(engine.pageElement, () => {
+      const input = createElement('input')
       form.bind('age')(input)
       return input
     })
-    const input = memory.root.children[0] as MemoryElement
-    expect(input.props['value']).toBe('30')
+    const input = engine.find('input') as FakeElement
+    expect(input.attrs['value']).toBe('30')
 
-    input.props['value'] = ''
-    dispatchMemoryEvent(input, 'input')
+    engine.clearCalls()
+    type(engine, input, '')
 
     // `Number('')` is 0, which would make a cleared field read as a deliberate
     // zero and snap straight back to it. `NaN` is how "left blank" stays sayable.
     expect(Number.isNaN(form.values().age)).toBe(true)
-    expect(input.props['value']).toBe('')
+    // And nothing is written back: the control is already empty, so an echo
+    // would only move the caret.
+    expect(engine.calls().filter((call) => call.includes('"value"'))).toEqual([])
+  })
+
+  it('renders a blank numeric field as an empty control rather than the text NaN', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const form = createForm({ initialValues: { age: 30 } })
+
+    mount(engine.pageElement, () => {
+      const input = createElement('input')
+      form.bind('age')(input)
+      return input
+    })
+
+    form.setValue('age', Number.NaN)
+
+    expect((engine.find('input') as FakeElement).attrs['value']).toBe('')
+  })
+
+  it('follows a numeric field downwards as the model changes', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const form = createForm({ initialValues: { age: 30 } })
+
+    mount(engine.pageElement, () => {
+      const input = createElement('input')
+      form.bind('age')(input)
+      return input
+    })
+
+    form.setValue('age', 31)
+
+    expect((engine.find('input') as FakeElement).attrs['value']).toBe('31')
   })
 
   it('detaches the binding when the scope that made it goes away', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const form = createForm({ initialValues: { email: '' } })
-    let input!: MemoryElement
 
-    const dispose = mount(memory.rootElement, () => {
-      const element = memory.host.createElement('input')
+    const dispose = mount(engine.pageElement, () => {
+      const element = createElement('input')
       form.bind('email')(element)
-      input = element as unknown as MemoryElement
-      return element as HostElement
+      insert(engine.pageElement, element, null)
+      return element
     })
+    const input = engine.find('input') as FakeElement
 
     dispose()
-    input.props['value'] = 'late@b.com'
-    dispatchMemoryEvent(input, 'input')
+    type(engine, input, 'late@b.com')
 
     // Reached through a `ref`, nobody calls the binding's dispose by hand — so
     // teardown has to belong to the enclosing scope, or an unmounted screen
     // leaves the engine calling into a form nobody can see.
     expect(form.values().email).toBe('')
+    expect(input.events.size).toBe(0)
   })
 })

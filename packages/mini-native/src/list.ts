@@ -1,16 +1,15 @@
 import { effect, effectScope } from 'alien-signals'
 
 import { currentFrame, withFrame } from './context-frame'
-import { requireHost, scheduleFlush } from './current-host'
-import type { Host } from './host'
 import { onCleanup } from './on-cleanup'
 import { runDetached } from './run-detached'
-import type { Dispose, HostElement, HostNode } from './types'
+import { clear, insert, nextSibling, remove } from './tree'
+import type { Dispose, LynxElement } from './types'
 import { warn } from './warn'
 
 /** A live row: the node it built and the dispose for the scope its bindings live in. */
 type Entry = {
-  node: HostElement
+  node: LynxElement
   dispose: Dispose
 }
 
@@ -40,17 +39,16 @@ type Entry = {
  * @example
  * ```tsx
  * const rows = signal<{ id: string; label: string }[]>([])
- * const box = <view /> as HostElement
+ * const box = <view /> as LynxElement
  * list(box, rows, (row) => row.id, (row) => <text>{row.label}</text>)
  * ```
  */
 export const list = <T>(
-  container: HostElement,
+  container: LynxElement,
   items: () => readonly T[],
   key: (item: T, index: number) => string,
-  create: (item: T, index: number) => HostElement,
+  create: (item: T, index: number) => LynxElement,
 ): Dispose => {
-  const host = requireHost()
   const live = new Map<string, Entry>()
   // Rows are built inside the reconciliation effect, so whatever a provider set
   // around this call is gone by then. Captured here and restored per row — see
@@ -84,7 +82,7 @@ export const list = <T>(
       if (!live.has(k)) {
         // effectScope runs its body synchronously, so the assignment inside is
         // definite — just invisible to the compiler, hence the non-null claim.
-        let node!: HostElement
+        let node!: LynxElement
         const created = index
         // Detached on purpose: a scope built inside this effect would be
         // disposed the next time the effect re-runs, so appending one row would
@@ -102,10 +100,8 @@ export const list = <T>(
     }
 
     // Pass 2 — move as few nodes as possible to get from `prev` to `order`.
-    reconcile(host, container, prev, order, live)
+    reconcile(container, prev, order, live)
     prev = order
-
-    scheduleFlush()
   })
 
   // Clearing `live` as it goes makes this safe to call twice, which matters
@@ -126,14 +122,14 @@ export const list = <T>(
 }
 
 /** The node currently bound to `k`, which pass 1 guarantees is present. */
-const nodeOf = (live: Map<string, Entry>, k: string): HostElement => (live.get(k) as Entry).node
+const nodeOf = (live: Map<string, Entry>, k: string): LynxElement => (live.get(k) as Entry).node
 
 /** Disposes a key's scope, detaches its node, and forgets it. */
-const drop = (host: Host, live: Map<string, Entry>, k: string): void => {
+const drop = (live: Map<string, Entry>, k: string): void => {
   const entry = live.get(k)
   if (!entry) return
   entry.dispose()
-  host.remove(entry.node)
+  remove(entry.node)
   live.delete(k)
 }
 
@@ -161,8 +157,7 @@ const drop = (host: Host, live: Map<string, Entry>, k: string): void => {
  * the caller's kept order and is never touched.
  */
 const reconcile = (
-  host: Host,
-  container: HostElement,
+  container: LynxElement,
   a: (string | null)[],
   b: readonly string[],
   live: Map<string, Entry>,
@@ -172,7 +167,7 @@ const reconcile = (
     // scope and empty it in one host call rather than detaching row by row.
     for (const entry of live.values()) entry.dispose()
     live.clear()
-    host.clear(container)
+    clear(container)
     return
   }
 
@@ -204,13 +199,13 @@ const reconcile = (
     } else if (aStartKey === bEndKey) {
       // Head of old is now the tail of new: it slid right. Park it after the
       // current old tail, which is where that new-tail slot sits.
-      host.insert(container, nodeOf(live, aStartKey), host.nextSibling(nodeOf(live, aEndKey)))
+      insert(container, nodeOf(live, aStartKey), nextSibling(nodeOf(live, aEndKey)))
       aStartKey = a[++aStart] ?? null
       bEndKey = b[--bEnd] as string
     } else if (aEndKey === bStartKey) {
       // Tail of old is now the head of new: it slid left. Move it before the
       // current old head.
-      host.insert(container, nodeOf(live, aEndKey), nodeOf(live, aStartKey))
+      insert(container, nodeOf(live, aEndKey), nodeOf(live, aStartKey))
       aEndKey = a[--aEnd] ?? null
       bStartKey = b[++bStart] as string
     } else {
@@ -225,7 +220,7 @@ const reconcile = (
       // Place the wanted head row before the current old head. If it already
       // existed elsewhere, null its old slot so the pointer walk skips it;
       // otherwise it is a brand-new node dropped straight into position.
-      host.insert(container, nodeOf(live, bStartKey), nodeOf(live, aStartKey))
+      insert(container, nodeOf(live, bStartKey), nodeOf(live, aStartKey))
       if (found !== undefined) a[found] = null
       bStartKey = b[++bStart] as string
     }
@@ -236,14 +231,14 @@ const reconcile = (
     // before the first already-placed node past the range (a null anchor
     // appends).
     if (bStart <= bEnd) {
-      const anchor: HostNode | null = bEnd + 1 < b.length ? nodeOf(live, b[bEnd + 1] as string) : null
-      for (; bStart <= bEnd; bStart++) host.insert(container, nodeOf(live, b[bStart] as string), anchor)
+      const anchor: LynxElement | null = bEnd + 1 < b.length ? nodeOf(live, b[bEnd + 1] as string) : null
+      for (; bStart <= bEnd; bStart++) insert(container, nodeOf(live, b[bStart] as string), anchor)
     }
   } else if (bStart > bEnd) {
     // New exhausted — whatever is left of the old order is removals.
     for (; aStart <= aEnd; aStart++) {
       const k = a[aStart]
-      if (k != null) drop(host, live, k)
+      if (k != null) drop(live, k)
     }
   }
 }

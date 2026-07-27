@@ -1,11 +1,18 @@
 import { list } from '../list'
 import { toGetter } from '../to-getter'
-import type { HostElement, MaybeReactive } from '../types'
-import { buildContainer, type ContainerProps } from './build-container'
+import type { LynxElement, MaybeReactive } from '../types'
+import { buildContainer, type ContainerProps, type ContainerTag } from './build-container'
 import { defaultKey } from './default-key'
 
-/** Props for {@link For}, parameterised by the item type. */
-export type ForProps<T> = ContainerProps & {
+/**
+ * Props for {@link For}, parameterised by the item type and by the tag of the
+ * container it renders into.
+ *
+ * `Tag` is inferred from `as`, so `<For as="scroll-view" scroll-orientation="horizontal">`
+ * checks the container's props against Lynx's real `scroll-view` and rejects a
+ * misspelling — rather than forwarding it to the engine to be ignored.
+ */
+export type ForProps<T, Tag extends ContainerTag = 'wrapper'> = ContainerProps<Tag> & {
   /** The collection. A getter or signal tracks; a plain array renders once. */
   each: MaybeReactive<readonly T[]>
   /**
@@ -13,7 +20,7 @@ export type ForProps<T> = ContainerProps & {
    * row is first created and does not update on later reorders, so treat it as
    * a creation-time hint rather than a reactive value.
    */
-  children: (item: T, index: number) => HostElement
+  children: (item: T, index: number) => LynxElement
   /**
    * Derives the stable key deciding row identity across updates. Defaults to
    * {@link defaultKey}; supply one whenever the list can reorder, so rows follow
@@ -37,7 +44,7 @@ export type ForProps<T> = ContainerProps & {
  * the identity, reach for `Index` instead — keying such a list by value hands
  * two rows the same key, which `list` reports and drops.
  */
-export const For = <T>(props: ForProps<T>): HostElement => {
+export const For = <T, Tag extends ContainerTag = 'wrapper'>(props: ForProps<T, Tag>): LynxElement => {
   const container = buildContainer(props)
   const each = toGetter(props.each)
   const keyOf = props.key ?? defaultKey

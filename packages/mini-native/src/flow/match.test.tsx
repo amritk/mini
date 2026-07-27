@@ -1,39 +1,40 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryHost } from '../hosts/create-memory-host'
-import { clearHost, setHost, signal } from '../index'
-import type { HostElement } from '../types'
+import { clearEngine, setEngine, signal } from '../index'
+import { createFakeEngine } from '../testing/create-fake-engine'
+import type { LynxElement } from '../types'
 import { Match } from './match'
 import { MATCH, type MatchData } from './match-marker'
 
 /** Reads the data a carrier is tagged with, which is all a `Switch` ever wants from it. */
-const dataOf = (carrier: HostElement): MatchData => {
+const dataOf = (carrier: LynxElement): MatchData => {
   const data = (carrier as unknown as { [MATCH]?: MatchData })[MATCH]
   if (!data) throw new Error('expected the carrier to be tagged with match data')
   return data
 }
 
 afterEach(() => {
-  clearHost()
+  clearEngine()
 })
 
 describe('match', () => {
-  it('builds its carrier without touching the host', () => {
-    // No host is installed here on purpose. Anything that asked the host for an
-    // element would throw, so passing proves the carrier is a plain object and
-    // that a Switch of ten branches allocates no views for the nine that lose.
-    const carrier = Match({ when: true, children: () => ({}) as HostElement })
+  it('builds its carrier without touching the engine', () => {
+    // No engine is installed here on purpose. Anything that asked for an element
+    // would throw out of `requireEngine`, so passing proves the carrier is a
+    // plain object — and that a Switch of ten branches creates no elements for
+    // the nine that lose.
+    const carrier = Match({ when: true, children: () => ({}) as LynxElement })
     expect(dataOf(carrier)).toBeDefined()
   })
 
   it('normalises a plain-value condition into a getter', () => {
-    const carrier = Match({ when: 'ready', children: () => ({}) as HostElement })
+    const carrier = Match({ when: 'ready', children: () => ({}) as LynxElement })
     expect(dataOf(carrier).when()).toBe('ready')
   })
 
   it('tracks a reactive condition through the getter', () => {
     const open = signal(false)
-    const carrier = Match({ when: open, children: () => ({}) as HostElement })
+    const carrier = Match({ when: open, children: () => ({}) as LynxElement })
     const when = dataOf(carrier).when
     expect(when()).toBe(false)
     open(true)
@@ -43,8 +44,8 @@ describe('match', () => {
   it('reuses an already-built element across renders', () => {
     // The element form is the state-preserving one: the same node comes back
     // every time the branch is re-entered rather than being rebuilt.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const node = <view />
 
     const carrier = Match({ when: true, children: node })
@@ -60,7 +61,7 @@ describe('match', () => {
       when: true,
       children: () => {
         builds += 1
-        return {} as HostElement
+        return {} as LynxElement
       },
     })
 

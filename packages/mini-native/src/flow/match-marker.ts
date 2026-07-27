@@ -1,5 +1,5 @@
 import type { ChildFactory } from '../render-child'
-import type { HostElement } from '../types'
+import type { LynxElement } from '../types'
 
 /** The data a `<Match>` carries for its enclosing `<Switch>`. */
 export type MatchData = {
@@ -18,4 +18,4 @@ export type MatchData = {
 export const MATCH = Symbol('mini.match')
 
 /** A `<Match>`'s return value, tagged with the data its `<Switch>` reads. */
-export type MatchElement = HostElement & { [MATCH]?: MatchData }
+export type MatchElement = LynxElement & { [MATCH]?: MatchData }

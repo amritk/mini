@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryHost, type MemoryElement } from './hosts/create-memory-host'
-import { clearHost, setHost } from './index'
+import { clearEngine, setEngine } from './engine/current-engine'
+import type { LynxElement } from './engine/element-api'
+import { createFakeEngine, type FakeElement } from './testing/create-fake-engine'
 import { toFactory } from './to-factory'
-import type { HostElement } from './types'
 
 /**
  * The two branch forms behave differently on purpose, and the difference is the
@@ -11,19 +11,34 @@ import type { HostElement } from './types'
  * rather than trusting the doc comment.
  */
 
-afterEach(() => {
-  clearHost()
+const tick = async (): Promise<void> => {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+/** The in-memory node behind an opaque handle. */
+const fake = (element: LynxElement): FakeElement => element as unknown as FakeElement
+
+/** Installs a fresh engine and hands back a builder for the branches below. */
+const setup = (): ((tag: string) => LynxElement) => {
+  const engine = createFakeEngine()
+  setEngine(engine.api)
+  return (tag) => engine.api.__CreateElement(tag, 0)
+}
+
+afterEach(async () => {
+  await tick()
+  clearEngine()
 })
 
 describe('to-factory', () => {
   it('does not build anything until a function branch is entered', () => {
+    const create = setup()
     let builds = 0
-    const memory = createMemoryHost()
-    setHost(memory.host)
 
     const factory = toFactory(() => {
       builds++
-      return memory.host.createElement('view')
+      return create('view')
     })
 
     expect(builds).toBe(0)
@@ -32,36 +47,43 @@ describe('to-factory', () => {
   })
 
   it('rebuilds a function branch on every entry, so its state resets', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
-    const factory = toFactory(() => memory.host.createElement('input'))
+    const create = setup()
+    const factory = toFactory(() => create('textarea'))
 
     const first = factory()
     // Stand-in for whatever state a real branch would hold — a half-typed
     // value, a scroll offset. Re-entering the branch has to lose it.
-    asElement(first).props['value'] = 'half typed'
+    fake(first).attrs['value'] = 'half typed'
     const second = factory()
 
     expect(second).not.toBe(first)
-    expect('value' in asElement(second).props).toBe(false)
+    expect('value' in fake(second).attrs).toBe(false)
   })
 
   it('reattaches the same node every time in the element form, so state survives', () => {
     // The reason the eager form exists: a branch that is expensive to rebuild,
     // or that holds something worth keeping, is built once and reused.
-    const memory = createMemoryHost()
-    setHost(memory.host)
-    const built = memory.host.createElement('input')
+    const create = setup()
+    const built = create('textarea')
     const factory = toFactory(built)
 
     const first = factory()
-    asElement(first).props['value'] = 'half typed'
+    fake(first).attrs['value'] = 'half typed'
     const second = factory()
 
     expect(second).toBe(built)
-    expect(asElement(second).props['value']).toBe('half typed')
+    expect(fake(second).attrs['value']).toBe('half typed')
+  })
+
+  it('builds the element form eagerly, before the branch is ever entered', () => {
+    // The other half of the trade. An already-built element is constructed up
+    // front even if the branch never shows, which is exactly what makes it able
+    // to keep state across re-entry.
+    const create = setup()
+    const built = create('view')
+
+    const factory = toFactory(built)
+
+    expect(factory()).toBe(built)
   })
 })
-
-/** The in-memory element behind an opaque handle. */
-const asElement = (element: HostElement): MemoryElement => element as unknown as MemoryElement

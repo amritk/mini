@@ -5,26 +5,26 @@
  * component is allowed to do beyond returning its own subtree: read something
  * an ancestor provided, put a subtree somewhere else, or survive one that
  * failed to build. Each is a small feature and each is load-bearing for an app
- * that ships to two targets.
+ * of any size.
  *
- * **{@link createContext}** is the one with a cross-platform argument behind
- * it. `@amritk/mini` refuses context on purpose and is right to — it
- * prop-drills, and its consumer is a byte-budgeted widget. The calculus differs
- * here specifically because the things that vary by platform (theme, insets,
- * navigation, locale, colour scheme) are exactly the things you do not want in
- * a component's signature: prop-drill them and every intermediate component
- * grows a platform-shaped prop it does not use, which is write-once eroding one
+ * **{@link createContext}** is the one that needs an argument, because
+ * `@amritk/mini` refuses context on purpose and is right to — it prop-drills,
+ * and its consumer is a byte-budgeted widget. The calculus differs here because
+ * the things an app-shaped runtime has to carry ambiently (theme, safe-area
+ * insets, navigation, locale, colour scheme) are exactly the things you do not
+ * want in a component's signature: prop-drill them and every intermediate
+ * component grows a prop it does not use, which is write-once eroding one
  * signature at a time.
  *
- * **{@link Portal}** takes an explicit target rather than asking the host for
- * an overlay root, which keeps the `Host` contract at its size and puts the
- * question — where is the top of the screen — to the app, which wrote its own
- * shell and knows.
+ * **{@link Portal}** takes an explicit target rather than nominating an overlay
+ * root of its own, which puts the question — where is the top of the screen —
+ * to the app, which wrote its own shell and knows whether it has an
+ * `<overlay>`.
  *
  * **{@link ErrorBoundary}** catches a throw during construction. Components run
  * exactly once here, so a throw leaves a half-built tree with no second render
- * to recover on, and what that looks like differs sharply per target: a blank
- * area on the web, a dead app on a device.
+ * to recover on — on a device that is a dead app and a crash report, with no
+ * reload to fall back on.
  *
  * ## The rule that runs through all three
  *

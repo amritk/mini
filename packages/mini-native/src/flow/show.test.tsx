@@ -1,31 +1,54 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createMemoryHost, type MemoryElement } from '../hosts/create-memory-host'
-import { serializeMemoryTree } from '../hosts/serialize-memory-tree'
-import { clearHost, mount, onCleanup, setHost, signal } from '../index'
+import { clearEngine, mount, onCleanup, setEngine, signal } from '../index'
+import { createFakeEngine, type FakeElement, type FakeEngine } from '../testing/create-fake-engine'
 import { Show } from './show'
 
 afterEach(() => {
-  clearHost()
+  clearEngine()
 })
+
+/**
+ * Every run of text currently in the tree, in document order.
+ *
+ * A branch's content is asserted through this rather than by searching the
+ * serialised tree for a substring, so each case pins what is NOT rendered as
+ * firmly as what is — which is the whole question a conditional raises.
+ */
+const texts = (engine: FakeEngine): string[] => engine.findAll('raw-text').map((node) => String(node.attrs['text']))
+
+/** The wrapper `Show` owns its slot in, which is the mounted tree's only child. */
+const wrapperOf = (engine: FakeEngine): FakeElement => engine.page.children[0] as FakeElement
 
 describe('show', () => {
   it('renders the children branch while the condition is truthy', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const open = signal(true)
 
-    mount(memory.rootElement, () => <Show when={open}>{() => <text>open</text>}</Show>)
+    mount(engine.pageElement, () => <Show when={open}>{() => <text>open</text>}</Show>)
 
-    expect(serializeMemoryTree(memory.root)).toContain('"open"')
+    expect(texts(engine)).toEqual(['open'])
+  })
+
+  it('owns its slot with a wrapper rather than a real box', () => {
+    // The same reason `For`'s default container is a wrapper: a conditional must
+    // not change what the surrounding tree means, and a `view` here would join
+    // both the flex layout and the accessibility tree.
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+
+    mount(engine.pageElement, () => <Show when={true}>{() => <text>open</text>}</Show>)
+
+    expect(wrapperOf(engine).tag).toBe('wrapper')
   })
 
   it('swaps to the fallback when the condition goes falsy', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const open = signal(true)
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Show when={open} fallback={() => <text>closed</text>}>
         {() => <text>open</text>}
       </Show>
@@ -33,48 +56,45 @@ describe('show', () => {
 
     open(false)
 
-    const tree = serializeMemoryTree(memory.root)
-    expect(tree).toContain('"closed"')
-    expect(tree).not.toContain('"open"')
+    expect(texts(engine)).toEqual(['closed'])
   })
 
   it('renders nothing when falsy and no fallback is given', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const open = signal(false)
 
-    mount(memory.rootElement, () => <Show when={open}>{() => <text>open</text>}</Show>)
+    mount(engine.pageElement, () => <Show when={open}>{() => <text>open</text>}</Show>)
 
     // The wrapper element still exists; it is simply empty.
-    const wrapper = memory.root.children[0] as MemoryElement
-    expect(wrapper.children).toHaveLength(0)
+    expect(wrapperOf(engine).children).toHaveLength(0)
   })
 
   it('switches on truthiness rather than a strict boolean', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const user = signal<{ name: string } | null>(null)
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Show when={user} fallback={() => <text>anonymous</text>}>
         {() => <text>signed in</text>}
       </Show>
     ))
 
-    expect(serializeMemoryTree(memory.root)).toContain('"anonymous"')
+    expect(texts(engine)).toEqual(['anonymous'])
     user({ name: 'sam' })
-    expect(serializeMemoryTree(memory.root)).toContain('"signed in"')
+    expect(texts(engine)).toEqual(['signed in'])
   })
 
   it('tears the hidden branch down so it stops reacting', () => {
     // This is the difference between `Show` and the `show` prop: `show` hides
     // an element that keeps running, while `Show` removes the subtree outright.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const open = signal(true)
     let cleaned = false
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Show when={open}>
         {() => {
           onCleanup(() => {
@@ -91,26 +111,26 @@ describe('show', () => {
   })
 
   it('hands the function child a getter for the narrowed value', () => {
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const user = signal<{ name: string } | null>({ name: 'sam' })
 
-    mount(memory.rootElement, () => <Show when={user}>{(value) => <text>{() => value().name}</text>}</Show>)
+    mount(engine.pageElement, () => <Show when={user}>{(value) => <text>{() => value().name}</text>}</Show>)
 
-    expect(serializeMemoryTree(memory.root)).toContain('"sam"')
+    expect(texts(engine)).toEqual(['sam'])
   })
 
   it('updates the child through the getter without rebuilding the branch', () => {
     // The whole reason the child receives a getter rather than a raw value: a
     // truthy→truthy change has to flow into the existing branch, because
     // rebuilding it would drop whatever state it held — a focused input, say.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const user = signal<{ name: string } | null>({ name: 'sam' })
     let builds = 0
     let cleaned = false
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Show when={user}>
         {(value) => {
           builds += 1
@@ -125,7 +145,7 @@ describe('show', () => {
     expect(builds).toBe(1)
     user({ name: 'alex' })
 
-    expect(serializeMemoryTree(memory.root)).toContain('"alex"')
+    expect(texts(engine)).toEqual(['alex'])
     // Built once and never torn down: the branch survived the change.
     expect(builds).toBe(1)
     expect(cleaned).toBe(false)
@@ -136,17 +156,17 @@ describe('show', () => {
     // to falsy the child can be read one last time. The getter answers with the
     // previous value instead of the falsy one, so `value().name` cannot throw
     // regardless of which effect runs first.
-    const memory = createMemoryHost()
-    setHost(memory.host)
+    const engine = createFakeEngine()
+    setEngine(engine.api)
     const user = signal<{ name: string } | null>({ name: 'sam' })
 
-    mount(memory.rootElement, () => (
+    mount(engine.pageElement, () => (
       <Show when={user} fallback={() => <text>anonymous</text>}>
         {(value) => <text>{() => value().name}</text>}
       </Show>
     ))
 
     expect(() => user(null)).not.toThrow()
-    expect(serializeMemoryTree(memory.root)).toContain('"anonymous"')
+    expect(texts(engine)).toEqual(['anonymous'])
   })
 })

@@ -1,21 +1,30 @@
-import { effect } from 'alien-signals'
-
-import { requireHost, scheduleFlush } from './current-host'
-import type { HostElement, MiniChildren } from './types'
+import type { LynxElement } from './engine/element-api'
+import { effect } from './signals'
+import { createRawText, insert, setText } from './tree'
+import type { MiniChildren } from './types'
 
 /**
  * Attaches children to an element.
  *
- * Strings and numbers become text nodes, host nodes are moved in, arrays
- * recurse, and `null`, `undefined`, and booleans vanish — which is what makes
- * `{condition && <text>…</text>}` work as a build-time conditional.
+ * Strings and numbers become `raw-text` elements, already-built elements are
+ * moved in, arrays recurse, and `null`, `undefined` and booleans vanish — which
+ * is what makes `{condition && <text>…</text>}` work as a build-time
+ * conditional.
  *
- * A FUNCTION child is the reactive case: it gets its own text node bound to
- * whatever signals it reads. The dedicated node matters, because it means a
- * reactive child sitting next to static siblings only ever rewrites itself and
- * never clobbers them.
+ * A FUNCTION child is the reactive case: it gets its own `raw-text` node bound
+ * to whatever signals it reads. The dedicated node matters, because it means a
+ * reactive child sitting beside static siblings only ever rewrites itself and
+ * never clobbers them — which on Lynx is also the difference between updating
+ * one attribute and rebuilding a text run.
+ *
+ * ## A string is an element here
+ *
+ * On the web a text node is a different kind of thing from an element. In Lynx
+ * it is not: a run of text is a `raw-text` ELEMENT that lives inside a `<text>`,
+ * and nowhere else. That is why `<view>hello</view>` is a compile error in this
+ * package rather than a blank screen on a device — see `ContainerChildren`.
  */
-export const appendChildren = (element: HostElement, children: MiniChildren): void => {
+export const appendChildren = (element: LynxElement, children: MiniChildren): void => {
   if (children === null || children === undefined || typeof children === 'boolean') return
 
   if (Array.isArray(children)) {
@@ -23,38 +32,31 @@ export const appendChildren = (element: HostElement, children: MiniChildren): vo
     return
   }
 
-  const host = requireHost()
-
   if (typeof children === 'function') {
     const get = children
-    const text = host.createText('')
+    const node = createRawText('')
     effect(() => {
       const value = get()
-      host.setText(text, value === null || value === undefined || value === false ? '' : String(value))
-      scheduleFlush()
+      setText(node, value === null || value === undefined || value === false ? '' : String(value))
     })
-    host.insert(element, text, null)
-    scheduleFlush()
+    insert(element, node, null)
     return
   }
 
-  if (isHostNode(children)) {
-    host.insert(element, children, null)
-    scheduleFlush()
+  if (isElement(children)) {
+    insert(element, children, null)
     return
   }
 
-  host.insert(element, host.createText(String(children)), null)
-  scheduleFlush()
+  insert(element, createRawText(String(children)), null)
 }
 
 /**
- * Distinguishes an already-built host node from a primitive child.
+ * Distinguishes an already-built element from a primitive child.
  *
- * Host nodes are opaque to the runtime, so there is nothing structural to test
- * for. What we can say is that every remaining primitive child is a string or a
- * number by this point, so anything that is an object came out of the host and
- * belongs in the tree as-is.
+ * Engine elements are opaque to the runtime, so there is nothing structural to
+ * test for. What we can say is that every remaining primitive child is a string
+ * or a number by this point, so anything that is an object came out of the
+ * engine and belongs in the tree as-is.
  */
-const isHostNode = (child: unknown): child is Exclude<MiniChildren, readonly unknown[]> & object =>
-  typeof child === 'object' && child !== null
+const isElement = (child: unknown): child is LynxElement => typeof child === 'object' && child !== null

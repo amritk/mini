@@ -1,17 +1,17 @@
 {
   "name": "@amritk/mini-native",
   "version": "0.0.0",
-  "description": "A React-Native-shaped signals UI runtime on mini's model: real host nodes created once, mutated forever by signals, rendered through a pluggable host.",
+  "description": "A signals runtime for Lynx: real elements created once and mutated forever, driving Lynx's Element PAPI directly, with no virtual tree.",
   "type": "module",
   "license": "MIT",
   "author": "amritk",
   "sideEffects": false,
   "keywords": [
+    "lynx",
     "signals",
     "reactive",
     "jsx",
     "native",
-    "lynx",
     "ui",
     "typescript",
     "mjst"
@@ -38,7 +38,7 @@
   },
   "scripts": {
     "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
-    "types:check": "tsgo -p . --noEmit && tsgo -p tsconfig.dom.json --noEmit",
+    "types:check": "tsgo -p . --noEmit",
     "test": "NODE_ENV=production vitest run --root ../.. packages/mini-native/"
   },
   "dependencies": {
@@ -64,11 +64,11 @@
       "import": "./dist/jsx-dev-runtime.js",
       "default": "./dist/jsx-dev-runtime.js"
     },
-    "./host": {
-      "development": "./src/host.ts",
-      "types": "./dist/host.d.ts",
-      "import": "./dist/host.js",
-      "default": "./dist/host.js"
+    "./engine": {
+      "development": "./src/engine/index.ts",
+      "types": "./dist/engine/index.d.ts",
+      "import": "./dist/engine/index.js",
+      "default": "./dist/engine/index.js"
     },
     "./flow": {
       "development": "./src/flow/index.ts",
@@ -76,11 +76,11 @@
       "import": "./dist/flow/index.js",
       "default": "./dist/flow/index.js"
     },
-    "./ui": {
-      "development": "./src/ui/index.ts",
-      "types": "./dist/ui/index.d.ts",
-      "import": "./dist/ui/index.js",
-      "default": "./dist/ui/index.js"
+    "./composition": {
+      "development": "./src/composition/index.ts",
+      "types": "./dist/composition/index.d.ts",
+      "import": "./dist/composition/index.js",
+      "default": "./dist/composition/index.js"
     },
     "./router": {
       "development": "./src/router/index.ts",
@@ -88,17 +88,11 @@
       "import": "./dist/router/index.js",
       "default": "./dist/router/index.js"
     },
-    "./router/browser": {
-      "development": "./src/router/create-browser-history.ts",
-      "types": "./dist/router/create-browser-history.d.ts",
-      "import": "./dist/router/create-browser-history.js",
-      "default": "./dist/router/create-browser-history.js"
-    },
-    "./gestures": {
-      "development": "./src/gestures/index.ts",
-      "types": "./dist/gestures/index.d.ts",
-      "import": "./dist/gestures/index.js",
-      "default": "./dist/gestures/index.js"
+    "./forms": {
+      "development": "./src/forms/index.ts",
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
     },
     "./query": {
       "development": "./src/query/index.ts",
@@ -106,68 +100,24 @@
       "import": "./dist/query/index.js",
       "default": "./dist/query/index.js"
     },
-    "./forms": {
-      "development": "./src/forms/index.ts",
-      "types": "./dist/forms/index.d.ts",
-      "import": "./dist/forms/index.js",
-      "default": "./dist/forms/index.js"
-    },
-    "./animate": {
-      "development": "./src/animate/index.ts",
-      "types": "./dist/animate/index.d.ts",
-      "import": "./dist/animate/index.js",
-      "default": "./dist/animate/index.js"
-    },
-    "./composition": {
-      "development": "./src/composition/index.ts",
-      "types": "./dist/composition/index.d.ts",
-      "import": "./dist/composition/index.js",
-      "default": "./dist/composition/index.js"
-    },
-    "./platform": {
-      "development": "./src/platform/index.ts",
-      "types": "./dist/platform/index.d.ts",
-      "import": "./dist/platform/index.js",
-      "default": "./dist/platform/index.js"
-    },
-    "./hosts/dom": {
-      "development": "./src/hosts/create-dom-host.ts",
-      "types": "./dist/hosts/create-dom-host.d.ts",
-      "import": "./dist/hosts/create-dom-host.js",
-      "default": "./dist/hosts/create-dom-host.js"
-    },
-    "./hosts/lynx": {
-      "development": "./src/hosts/create-lynx-host.ts",
-      "types": "./dist/hosts/create-lynx-host.d.ts",
-      "import": "./dist/hosts/create-lynx-host.js",
-      "default": "./dist/hosts/create-lynx-host.js"
-    },
-    "./hosts/memory": {
-      "development": "./src/hosts/create-memory-host.ts",
-      "types": "./dist/hosts/create-memory-host.d.ts",
-      "import": "./dist/hosts/create-memory-host.js",
-      "default": "./dist/hosts/create-memory-host.js"
-    },
-    "./hosts/memory/serialize": {
-      "development": "./src/hosts/serialize-memory-tree.ts",
-      "types": "./dist/hosts/serialize-memory-tree.d.ts",
-      "import": "./dist/hosts/serialize-memory-tree.js",
-      "default": "./dist/hosts/serialize-memory-tree.js"
-    },
-    "./hosts/memory/dispatch": {
-      "development": "./src/hosts/dispatch-memory-event.ts",
-      "types": "./dist/hosts/dispatch-memory-event.d.ts",
-      "import": "./dist/hosts/dispatch-memory-event.js",
-      "default": "./dist/hosts/dispatch-memory-event.js"
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
     }
   },
   "peerDependencies": {
     "@amritk/runtime-validators": ">=0.8.0",
+    "@lynx-js/types": ">=4.0.0",
     "@tanstack/query-core": "^5",
     "typescript": "^5"
   },
   "peerDependenciesMeta": {
     "@amritk/runtime-validators": {
+      "optional": true
+    },
+    "@lynx-js/types": {
       "optional": true
     },
     "@tanstack/query-core": {
@@ -179,6 +129,7 @@
   },
   "devDependencies": {
     "@amritk/runtime-validators": "^0.9.0",
+    "@lynx-js/types": "^4.0.0",
     "@tanstack/query-core": "^5.101.2",
     "typescript": "^5"
   }

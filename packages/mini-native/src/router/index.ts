@@ -1,19 +1,18 @@
 /**
  * Routing — the half that is arithmetic, and a seam for the half that is not.
  *
- * The split is the entire design here, and it is what makes routing portable at
- * all. **Matching a pattern against a path is string arithmetic**: it has no
- * platform in it, and `@amritk/mini`'s router uses the same function for the
- * same reason. **Moving between locations is not**: a browser has an address
- * bar, a back button, and a session history the user shares across tabs; a
- * device has a navigation stack the app owns outright and nothing the user can
- * type into. Pretending those are one thing is how a router ends up with a
- * `window` reference in the middle of a screen.
+ * The split is the entire design here. **Matching a pattern against a path is
+ * string arithmetic**: there is nothing underneath it, and `@amritk/mini`'s
+ * router uses the same function for the same reason, which is why the two agree
+ * about what a route pattern means. **Moving between locations is not**: an app
+ * owns a stack of screens, the gesture that unwinds it arrives from outside, and
+ * an app embedded in a host shell may not own the stack at all.
  *
- * So the router takes a {@link RouterHistory}. `createMemoryHistory` is here
- * and is platform-free — the right shape for a device *and* for a test.
- * `createBrowserHistory` lives on its own entry, `@amritk/mini-native/router/browser`,
- * so importing the router never drags a browser assumption along.
+ * So the router takes a {@link RouterHistory}, and {@link createMemoryHistory}
+ * is the default — a complete implementation rather than a test double, because
+ * a stack of screens the app holds is genuinely what navigation is here. The
+ * seam stays because an app that is one screen of a larger native shell needs
+ * to hand its own in.
  *
  * ```tsx
  * import { createMemoryHistory, createRouter, RouteView } from '@amritk/mini-native/router'
@@ -31,17 +30,16 @@
  *
  * ## What is deliberately not here
  *
- * **A navigation stack.** `RouteView` renders one slot: `/users/1` → `/users/2`
- * keeps the screen and updates its params, and a different route swaps the
- * subtree. A native stack — where the second user PUSHES a screen over the
- * first and animates between them — is a layer above this, needs an animation
- * seam that does not exist yet, and would be the wrong default for the web.
+ * **A rendered navigation stack.** `RouteView` renders one slot: `/users/1` →
+ * `/users/2` keeps the screen and updates its params, and a different route
+ * swaps the subtree. The history underneath IS a stack, so `back` and
+ * `canGoBack` mean what they say; what is missing is the presentation — the
+ * second screen sliding over the first with both alive at once — which needs an
+ * animation seam that does not exist yet.
  *
- * **The web-only obligations.** Document title, scroll restoration, and keeping
- * the URL continuously correct are real work that only one target owes, and
- * they belong in the app's web entry point rather than in a shared router. They
- * are named here so they are known rather than discovered late, in the shape of
- * "we cannot ship the web build".
+ * **A browser history.** There is no web target here, so there is nothing for
+ * one to drive. An earlier version of this package shipped `createBrowserHistory`
+ * on its own entry point; it went with the DOM host.
  *
  * **Guards and lazy routes.** Both are expressible today — a guard is a
  * `replace` in a `watch` on `route()`, and a lazy route is a `view` that

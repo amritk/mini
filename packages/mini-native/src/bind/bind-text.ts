@@ -1,20 +1,19 @@
-import { effect } from 'alien-signals'
-
-import { requireHost, scheduleFlush } from '../current-host'
-import type { Dispose, HostText } from '../types'
+import type { LynxElement } from '../engine/element-api'
+import { effect } from '../signals'
+import { setText } from '../tree'
+import type { Dispose } from '../types'
 
 /**
- * Keeps a text node's content equal to the getter's value.
+ * Keeps a text run's content equal to the getter's value.
  *
- * This writes through the host's text API and never through anything that
- * parses markup, so bound data cannot inject elements into the tree. That is
- * true on every target by construction — there is no raw-markup sink in the
- * host contract at all.
+ * The node is an ordinary element here — a `raw-text`, which is what a string
+ * IS in Lynx — so updating it writes one attribute rather than replacing a
+ * node. That is also why `appendChildren` gives every reactive child a
+ * `raw-text` of its own: rewriting the run costs a single attribute write and
+ * leaves its static siblings alone.
+ *
+ * Nothing on this path parses markup, and there is no call in the PAPI this
+ * package drives that would accept any, so bound data cannot inject elements
+ * into the tree.
  */
-export const bindText = (node: HostText, get: () => string): Dispose => {
-  const host = requireHost()
-  return effect(() => {
-    host.setText(node, get())
-    scheduleFlush()
-  })
-}
+export const bindText = (node: LynxElement, get: () => string): Dispose => effect(() => setText(node, get()))

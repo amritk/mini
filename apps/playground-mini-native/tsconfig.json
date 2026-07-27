@@ -1,10 +1,11 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // The app gets the DOM libs — unlike the package it consumes, which
-    // deliberately withholds them so a stray `document` in the runtime fails to
-    // compile. An APP is allowed to know it is on the web: it picks the host,
-    // and picking `createDomHost` is that decision made explicitly.
+    // The app gets the DOM libs; the package it consumes deliberately does not,
+    // because Lynx's main-thread context is not a browser. An APP previewing in
+    // one is allowed to know that — it supplies the engine, and calling
+    // `createDomPapi()` in `src/main.tsx` is that decision made explicitly and
+    // in exactly one place.
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "jsx": "react-jsx",

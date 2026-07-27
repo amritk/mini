@@ -1,29 +1,22 @@
-import { setHost } from '../../src/current-host'
-import { createDomHost, domRoot } from '../../src/hosts/create-dom-host'
-import { mount } from '../../src/mount'
+import { renderPage } from '../../src/entry'
 import { createBenchmarkApp } from './main'
 
 /**
- * Entry point for `index.html`, running the benchmark in a browser through the
- * DOM host.
+ * The main-thread entry point, for running the benchmark on a device.
  *
- * The host is installed before anything renders, which is the one boot-order
- * rule this runtime has — `createBenchmarkApp` builds elements, so it cannot run
- * first.
+ * A Lynx bundle's contract with its main-thread chunk is one global —
+ * `renderPage`, which the engine calls exactly once at startup — so this is the
+ * whole of it. `renderPage` from the runtime installs the injected engine, mounts
+ * into the page element the engine already owns, and emits the `firstScreen`
+ * lifecycle event the platform waits for.
  *
- * The app itself is unchanged from the one the headless harness times: same
- * store, same rows, same vocabulary. The only thing that differs between a
- * wall-clock number here and one from `scripts/bench-reconciler.ts` is which
- * host is installed, which is as close as this package gets to a controlled
- * experiment on what a platform costs.
+ * The app itself is unchanged from the one a headless harness times: same store,
+ * same rows, same tags. The only thing that differs between a wall-clock number
+ * here and one from a fake engine is which engine is installed, which is as close
+ * as this package gets to a controlled experiment on what the platform costs.
  *
- * Run with a bundler that resolves the workspace — `npx vite` from this
- * directory (see README).
+ * There is deliberately no browser entry any more. The DOM host is gone — Lynx
+ * already renders to the web, one layer down, and a second web target maintained
+ * here would be the divergence this package removed itself to avoid.
  */
-setHost(createDomHost())
-
-const container = document.getElementById('main')
-if (container) {
-  const app = createBenchmarkApp()
-  mount(domRoot(container), () => app.element)
-}
+renderPage(() => createBenchmarkApp().element)

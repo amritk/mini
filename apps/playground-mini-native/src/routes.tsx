@@ -1,18 +1,21 @@
-import { createRouter, type Route, type Router } from '@amritk/mini-native/router'
-import { createBrowserHistory } from '@amritk/mini-native/router/browser'
+import { createMemoryHistory, createRouter, type Route, type Router } from '@amritk/mini-native/router'
 
-import { CompositionScreen } from './screens/composition'
+import { ComposeScreen } from './screens/compose'
+import { DataScreen } from './screens/data'
+import { ElementsScreen } from './screens/elements'
+import { EngineScreen } from './screens/engine'
+import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
-import { GesturesScreen } from './screens/gestures'
-import { PlatformScreen } from './screens/platform'
+import { FormsScreen } from './screens/forms'
+import { ListScreen } from './screens/list'
 import { RoutingScreen } from './screens/routing'
-import { UiScreen } from './screens/ui'
-import { VocabularyScreen } from './screens/vocabulary'
+import { StylingScreen } from './screens/styling'
+import { TextScreen } from './screens/text'
 
 /**
  * The route table and the one router the app runs on.
  *
- * Route metadata is opaque to the router, so `label` and `nav` ride along on
+ * Route metadata is opaque to the router, so `label` and `badge` ride along on
  * each definition and the tab bar reads them straight off the table rather than
  * keeping a second list in sync with it.
  */
@@ -21,21 +24,21 @@ export type AppRoute = Route & {
   readonly label: string
   /** Two or three characters for the tab bar — no icon set, and none needed. */
   readonly badge: string
-  /** Whether the route gets a tab. The `:owner` variant does not. */
   readonly nav: boolean
 }
 
 const ROUTES: readonly AppRoute[] = [
-  { path: '/', label: 'Vocabulary', badge: '五', nav: true, view: () => <VocabularyScreen /> },
-  { path: '/ui', label: 'UI', badge: 'ui', nav: true, view: () => <UiScreen /> },
+  { path: '/', label: 'Elements', badge: '◻', nav: true, view: () => <ElementsScreen /> },
+  { path: '/text', label: 'Text', badge: 'Aa', nav: true, view: () => <TextScreen /> },
+  { path: '/list', label: 'List', badge: '☰', nav: true, view: () => <ListScreen /> },
+  { path: '/styling', label: 'Styling', badge: '◐', nav: true, view: () => <StylingScreen /> },
+  { path: '/events', label: 'Events', badge: '✋', nav: true, view: () => <EventsScreen /> },
   { path: '/flow', label: 'Flow', badge: '⇄', nav: true, view: () => <FlowScreen /> },
-  { path: '/gestures', label: 'Gestures', badge: '✋', nav: true, view: () => <GesturesScreen /> },
-  { path: '/platform', label: 'Platform', badge: '◍', nav: true, view: () => <PlatformScreen /> },
-  { path: '/composition', label: 'Compose', badge: '⧉', nav: true, view: () => <CompositionScreen /> },
+  { path: '/compose', label: 'Compose', badge: '⧉', nav: true, view: () => <ComposeScreen /> },
+  { path: '/forms', label: 'Forms', badge: '✎', nav: true, view: () => <FormsScreen /> },
+  { path: '/data', label: 'Data', badge: '⇅', nav: true, view: () => <DataScreen /> },
+  { path: '/engine', label: 'Engine', badge: '◆', nav: true, view: () => <EngineScreen /> },
   { path: '/routing', label: 'Routing', badge: '↦', nav: true, view: (params) => <RoutingScreen params={params} /> },
-  // The same screen under a params pattern. Moving between the two keeps it
-  // mounted and only updates the params getter — `RouteView` renders one slot,
-  // and a native navigation STACK is a layer above this that does not exist yet.
   {
     path: '/routing/:owner',
     label: 'Routing',
@@ -51,17 +54,16 @@ export type AppRouter = Router<AppRoute>
 export const TABS = ROUTES.filter((route) => route.nav)
 
 /**
- * `history` mode, so every screen has a real URL. That is a deployment
- * requirement rather than a free choice: `wrangler.jsonc` sets
- * `not_found_handling: "single-page-application"`, which is what makes a hard
- * reload of `/gestures` serve `index.html` instead of a 404. `hash` mode needs
- * no server configuration and is the right pick when you cannot arrange one.
+ * A memory history, which is the only kind there is now.
  *
- * The browser history lives on its own entry point — `@amritk/mini-native/router/browser`
- * — precisely so that `@amritk/mini-native/router` stays platform-free and a
- * device build cannot drag a `window` reference along by importing the router.
+ * The browser history went with the DOM host: this package targets Lynx, and a
+ * Lynx app has no URL bar to keep continuously correct. Navigation state lives
+ * in memory and deep links arrive as data from the platform, which is what
+ * `createMemoryHistory` models. The browser preview loses shareable URLs as a
+ * result, and that is the honest trade — a preview should not have affordances
+ * the real target does not.
  */
 export const router: AppRouter = createRouter<AppRoute>({
-  history: createBrowserHistory({ mode: 'history' }),
+  history: createMemoryHistory(),
   routes: ROUTES,
 })

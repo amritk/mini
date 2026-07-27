@@ -3,12 +3,12 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    // The build emits every host, including the DOM one, so this pass needs the
-    // browser types — the DOM-free rule is a type-check invariant (see
-    // `tsconfig.json` / `tsconfig.dom.json`), not an emit one. `types` is
-    // re-asserted because the shared `../../tsconfig.build.json` (applied last
-    // in `extends`) resets `lib`/`types` back to the Node-only defaults.
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    // No DOM library, and no exception to it. Lynx's main-thread context is not
+    // a browser, so a build that compiled against browser types would accept
+    // code that cannot run on the target — see `tsconfig.json`. `lib` and
+    // `types` are re-asserted because the shared `../../tsconfig.build.json`
+    // (applied last in `extends`) resets them to the Node-only defaults.
+    "lib": ["ESNext"],
     "types": [],
     "jsx": "react-jsx",
     "jsxImportSource": "@amritk/mini-native"

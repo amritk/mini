@@ -1,6 +1,6 @@
 import { onCleanup } from '../on-cleanup'
 import { type ReadonlySignal, signal } from '../signals'
-import type { Dispose, HostElement } from '../types'
+import type { Dispose, LynxElement } from '../types'
 import type { RouterHistory, RouterLocation } from './history'
 import { matchRoute, type RouteParams } from './match-route'
 import { parseQuery } from './parse-query'
@@ -20,7 +20,7 @@ import { parseQuery } from './parse-query'
  */
 export type Route = {
   path: string
-  view: (params: () => RouteParams) => HostElement
+  view: (params: () => RouteParams) => LynxElement
 } & Record<string, unknown>
 
 /** The current location, matched against the route table. */
@@ -48,9 +48,9 @@ export type RouterOptions<R extends Route> = {
   /** The route table, tried top to bottom; the first pattern that matches wins. */
   routes: readonly R[]
   /**
-   * How navigation happens on this target. `createMemoryHistory()` for a device
-   * or a test, `createBrowserHistory()` from `@amritk/mini-native/router/browser`
-   * for the web.
+   * How navigation happens. `createMemoryHistory()` unless the app is embedded
+   * in a shell that owns the screen stack, in which case hand that shell's
+   * navigation in behind the same interface.
    */
   history: RouterHistory
 }
@@ -77,11 +77,11 @@ export type Router<R extends Route> = {
  * given, matches it against the route table into a reactive `route` signal, and
  * keeps that signal in sync as the app navigates.
  *
- * The split that makes this portable is in the history rather than here.
- * Matching is string arithmetic and ports for nothing; only *moving between
- * locations* has a per-target answer, and that answer is the object passed in.
- * Nothing in this file knows whether it is driving an address bar or a
- * navigation stack.
+ * The interesting half is deliberately elsewhere. Matching is string arithmetic
+ * and this file is the bookkeeping around it; *moving between locations* is the
+ * part with something underneath it, and that is the object passed in. Nothing
+ * here knows whether it is driving a stack the app holds or one a native shell
+ * does.
  *
  * ```ts
  * const router = createRouter({

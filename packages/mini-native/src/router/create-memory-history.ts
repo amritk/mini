@@ -2,14 +2,15 @@ import type { Dispose } from '../types'
 import type { RouterHistory, RouterLocation } from './history'
 
 /**
- * A navigation stack held in memory.
+ * A navigation stack held in memory — the router's default history, and the
+ * only one this package ships.
  *
- * This is the *native* history as much as it is the test one, which is worth
- * saying because "memory history" usually means "the fake". A device has no
- * address bar and no shared session history — it has a stack of screens the app
- * owns — so an in-memory stack is not a stand-in for the real thing there, it
- * IS the real thing. That it also makes routing testable in plain node, with no
- * browser and no engine, is the same property paying twice.
+ * "Memory history" usually means "the fake", and here it means the opposite,
+ * which is worth saying plainly. A Lynx app has no address bar and no session
+ * history shared with anything else: it has a stack of screens it owns
+ * outright. So an in-memory stack is not a stand-in for the real thing, it IS
+ * the real thing — and that the same object makes routing testable in plain
+ * node, with no engine at all, is the same property paying twice.
  *
  * ```ts
  * const history = createMemoryHistory({ path: '/' })

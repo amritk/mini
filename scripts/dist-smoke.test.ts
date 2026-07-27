@@ -117,40 +117,41 @@ describe('dist-smoke', () => {
     expect(missing).toEqual([])
   })
 
-  it('the built mini-native reorders a keyed list through the memory host', async () => {
+  it('the built mini-native reorders a keyed list through the fake engine', async () => {
     // A real end-to-end exercise of the compiled artifacts: mount's scope
-    // ownership, the host indirection, the keyed reconciler, the text binding,
+    // ownership, the engine indirection, the keyed reconciler, the text binding
     // and the signals re-export all have to survive the build for this to
-    // produce the right tree. The memory host involves no platform at all, so
-    // it runs under plain Node exactly as shipped.
+    // produce the right tree. The fake engine is a complete Element PAPI with
+    // no platform behind it, so it runs under plain Node exactly as shipped —
+    // and unlike a test double it is the same API a device exposes.
     const nativeDist = pathToFileURL(join(PACKAGES_DIR, 'mini-native/dist')).href
     const script = `
-      const { bindText, list, mount, setHost, signal } = await import('${nativeDist}/index.js')
-      const { createMemoryHost } = await import('${nativeDist}/hosts/create-memory-host.js')
-      const { serializeMemoryTree } = await import('${nativeDist}/hosts/serialize-memory-tree.js')
+      const { bindText, createElement, createRawText, insert, list, mount, setEngine, signal } =
+        await import('${nativeDist}/index.js')
+      const { createFakeEngine, serializeTree } = await import('${nativeDist}/testing/index.js')
 
-      const memory = createMemoryHost()
-      setHost(memory.host)
+      const engine = createFakeEngine()
+      setEngine(engine.api)
 
       const first = signal('first')
       const rows = signal([{ id: 'a', label: first }, { id: 'b', label: signal('second') }])
 
-      mount(memory.rootElement, () => {
-        const container = memory.host.createElement('view')
+      mount(engine.pageElement, () => {
+        const container = createElement('view')
         list(container, rows, (row) => row.id, (row) => {
-          const item = memory.host.createElement('text')
-          const text = memory.host.createText('')
+          const item = createElement('text')
+          const text = createRawText('')
           bindText(text, () => row.label())
-          memory.host.insert(item, text, null)
+          insert(item, text, null)
           return item
         })
         return container
       })
 
-      const labels = () => [...serializeMemoryTree(memory.root).matchAll(/"([^"]*)"/g)].map((m) => m[1]).join(',')
+      const labels = () => [...serializeTree(engine.page).matchAll(/"([^"]*)"/g)].map((m) => m[1]).join(',')
       const check = (expected) => {
         if (labels() !== expected) {
-          console.error('expected ' + expected + ', got ' + labels() + '\\n' + serializeMemoryTree(memory.root))
+          console.error('expected ' + expected + ', got ' + labels() + '\\n' + serializeTree(engine.page))
           process.exit(1)
         }
       }

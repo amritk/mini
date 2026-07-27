@@ -1,6 +1,6 @@
-import { requireHost } from '../current-host'
 import { type ChildFactory, renderChild } from '../render-child'
-import type { HostElement } from '../types'
+import { createWrapper } from '../tree'
+import type { LynxElement } from '../types'
 import type { Route, Router } from './create-router'
 import type { RouteParams } from './match-route'
 
@@ -8,7 +8,7 @@ import type { RouteParams } from './match-route'
 export type RouteViewProps<R extends Route> = {
   router: Router<R>
   /** Rendered when nothing matched. Nothing renders when it is omitted. */
-  fallback?: () => HostElement
+  fallback?: () => LynxElement
 }
 
 /**
@@ -25,17 +25,20 @@ export type RouteViewProps<R extends Route> = {
  * every change to what it read, and it is the reason each route gets exactly
  * one factory, remembered here.
  *
- * A native navigation STACK — where `/users/1` → `/users/2` pushes a second
- * screen and animates — is a layer above this and is not built. This is the
- * single-slot version, which is what the web wants and what a device wants for
- * a tab's root.
+ * The slot is a `wrapper`, so nothing the router interposes takes part in
+ * layout or in the accessibility tree — a screen sits directly inside whatever
+ * the `RouteView` was written in.
+ *
+ * A rendered navigation STACK — where `/users/1` → `/users/2` slides a second
+ * screen over the first with both alive at once — is a layer above this and is
+ * not built. This is the single-slot version, which is what a tab's root wants.
  *
  * ```tsx
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
  */
-export const RouteView = <R extends Route>(props: RouteViewProps<R>): HostElement => {
-  const wrapper = requireHost().createFlowHost()
+export const RouteView = <R extends Route>(props: RouteViewProps<R>): LynxElement => {
+  const wrapper = createWrapper()
 
   // One stable factory per route, so a params-only change resolves to the same
   // reference and `renderChild` leaves the screen alone. Keyed weakly, because

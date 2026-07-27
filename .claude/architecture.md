@@ -4,8 +4,7 @@
 
 `mini` is a **Bun monorepo** holding a deliberately tiny signals UI runtime in
 two shapes: `@amritk/mini` renders to the DOM, `@amritk/mini-native` renders to
-whatever a pluggable `Host` puts in front of it — a native view tree, the DOM,
-or plain objects. Both are compilerless (no build-step transform beyond the
+Lynx, through its Element PAPI. Both are compilerless (no build-step transform beyond the
 standard `react-jsx` transform pointed at their own runtime) and both are built
 on `alien-signals`.
 
@@ -32,10 +31,10 @@ the reconciler, and there is none here to port.
 mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
-│   └── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+│   └── mini-native/           # @amritk/mini-native — the same runtime on Lynx's Element PAPI
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
-│   └── playground-mini-native/# every @amritk/mini-native entry point, through the DOM host
+│   └── playground-mini-native/# every @amritk/mini-native entry point, through a DOM Element PAPI
 ├── .claude/                   # Developer guidelines
 ├── .changeset/                # Changesets config (release automation)
 ├── .github/                   # CI, release, bench, issue & PR templates
@@ -91,49 +90,57 @@ reactivity is decided by value shape.
 
 ### `@amritk/mini-native` (`packages/mini-native`)
 
-The same runtime with the browser taken out of the core: signals, compilerless
-JSX, and build-once-mutate-forever nodes, but every platform call goes through a
-**`Host`** the caller installs with `setHost`. `JSX.IntrinsicElements` is a
-native vocabulary (`view`/`text`/`image`/`scroll-view`/`input`), not
-`HTMLElementTagNameMap` — which inverts the usual relationship: the DOM host is
-a **preview target for a native app** (`view` → `<div>`, `text` → `<span>`), not
-the real target that native approximates.
+The same idea — real nodes created once, mutated forever by signals, no virtual
+tree — pointed at **Lynx**, and at nothing else. It drives Lynx's Element PAPI
+directly: `JSX.IntrinsicElements` is the engine's own vocabulary (34 tags,
+`view`/`text`/`list`/`scroll-view`/`textarea`/`svg`/…), attributes are spelled
+the way the engine spells them, and events are `bindtap`/`catchtap`/
+`capture-bindtap`. **There is no translation table anywhere in the package.**
 
-- **Porting is one file.** The absence of a reconciler is what makes that true —
-  there is no virtual tree to diff, so a new target means implementing `Host`
-  (about 15 functions) and nothing else. Its one hard requirement: the target's
-  node tree must be **mutable**. Three hosts ship: `hosts/memory` (plain
-  objects, the reference implementation and what the suite runs against),
-  `hosts/dom` (web preview), and `hosts/lynx` (Lynx's Element PAPI, taken as an
-  argument so it is testable against a fake engine).
-- **The core is platform-free, enforced by the compiler.** `tsconfig.json` omits
-  `lib.dom` and Node's ambient types, so a stray `document` anywhere outside
-  `hosts/create-dom-host.ts` fails `types:check`; that one file is excluded
-  there and checked by `tsconfig.dom.json` instead (the `types:check` script
-  runs both passes). Every suite but the DOM host's runs in the node
-  environment, where `document` genuinely does not exist.
-- **Subpaths, each its own module graph:** `@amritk/mini-native/flow` (`Show`,
-  `Switch`/`Match`, `Dynamic`, `For`, `Index`), `@amritk/mini-native/ui` (the
-  component layer — `Text`, `Heading`, `Button`, `Link`, `Stack`/`Row`,
-  `List`/`ListItem`, `Screen`), `@amritk/mini-native/platform`
-  (`platform.os`/`platform.select` plus `colorScheme`/`dimensions`/`safeArea` as
-  signals), `@amritk/mini-native/composition` (`createContext`, `Portal`,
-  `ErrorBoundary`), `@amritk/mini-native/gestures` (`pan`, `swipe`, arithmetic
-  over a pointer stream the host normalises), `@amritk/mini-native/router`
-  (pattern matching, which is pure, plus a pluggable `RouterHistory`; the
-  browser implementation sits on `/router/browser` so the router itself stays
-  platform-free), the three hosts, and `@amritk/mini-native/host` for the
-  contract on its own. `/ui` ships semantics and no appearance: it is pure composition over
-  the vocabulary's `role` prop, so it needs no host machinery, and screens
-  written in it keep the vocabulary confined to a dozen components rather than
-  spread across every screen.
-- **`Host` carries two optional fields beyond its ~15 functions** — `platform`
-  (what the target calls itself) and `environment` (colour scheme, dimensions,
-  safe area, each an optional signal). Fields rather than methods on purpose:
-  the function count is the porting cost of a new target, and a string that
-  never changes should not be spent against it. Prefer the environment to the
-  name — a name is a proxy for the thing an app actually cares about, and
-  proxies rot.
+That is a reversal of what this package used to be, and the reasoning is in
+[`docs/mini-native-lynx-runtime.md`](../docs/mini-native-lynx-runtime.md). In
+short: it used to own a five-tag platform-neutral vocabulary, a `Host` contract
+and three implementations of it, so a component could run on a device and in a
+browser. Lynx already solves that one layer down, so the abstraction was paying
+for cross-platform twice — and capping what an app could reach at whatever the
+vocabulary had named.
+
+- **The platform boundary is the engine's API, not one we invented.**
+  `LynxElementApi` is injectable for the same reason `Host` was — so the runtime
+  can be driven off-device — but it is the *real* target's API, so a test
+  against the fake is a test against what ships. `@amritk/mini-native/testing`
+  is that fake: a complete in-memory Element PAPI, and what the whole suite runs
+  against.
+- **The runtime is main-thread, because the PAPI is.** Not a choice; it falls
+  out of driving the PAPI directly. A handler runs in the frame of the gesture
+  with no thread hop — what `main-thread:bindtap` buys a ReactLynx app one
+  handler at a time — at the cost that heavy work in a handler blocks rendering,
+  and that the main-thread context is not the background one (`fetch` and timers
+  are an engine-version question).
+- **An event listener is a worklet handle, never a closure.** `__AddEvent` takes
+  a handler name or `{ type: 'worklet', value }`; a raw function is stored and
+  then silently never invoked on the fiber architecture. `events/worklet-registry.ts`
+  hands out integer tokens and installs the `runWorklet` global the engine calls
+  back into, which is what keeps this compilerless where ReactLynx and Vue Lynx
+  both need a transform. **That token round-trip is verified against the fake
+  engine and not yet on a device** — the caveat is carried in `AGENTS.md`,
+  `AI.md` and the design note.
+- **The core is platform-free, enforced by the compiler, with no exception left.**
+  `tsconfig.json` omits `lib.dom` and Node's ambient types, and now nothing is
+  excluded from that: Lynx's main-thread context is not a browser, so a stray
+  `document` is a bug on the only target there is. The second `tsconfig.dom.json`
+  pass went with the DOM host.
+- **Subpaths, each its own module graph:** `/flow` (`Show`, `Switch`/`Match`,
+  `Dynamic`, `For`, `Index`), `/composition` (`createContext`, `Portal`,
+  `ErrorBoundary`), `/router` (pattern matching, which is pure, plus a pluggable
+  `RouterHistory`; `createMemoryHistory` is the only one that ships, because a
+  Lynx app has no URL bar), `/forms`, `/query`, `/engine` (the boundary on its
+  own) and `/testing`. There is no `/ui`, `/platform`, `/gestures` or `/animate`:
+  Lynx has elements, CSS, a gesture system and `@keyframes`.
+- **The vocabulary is derived, not written.** `vocabulary/intrinsic.ts` maps over
+  `@lynx-js/types` — a **types-only optional peer** — so the tags and attributes
+  track the engine version an app pins rather than this package's releases, and
+  a new engine attribute needs no release here to become usable.
 - **Depends on:** `alien-signals` only, re-exported from `src/signals.ts` so
   nothing else imports it.
 - **Build:** `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`, the
@@ -151,12 +158,26 @@ in `history` mode survives a hard reload).
 that is what they are for rather than a side effect. The suites test the
 packages from the inside, against source, one primitive at a time; a playground
 composes the whole surface into a running app and is therefore where the
-composition-level defects show up. Three did, on the way in, and all three are
-fixed in `packages/` with regression tests: `renderChild` subscribing the branch
-swap to signals a component body read while building, the DOM host reading
-`lineHeight` as CSS's multiplier rather than as dp, and `pan` measuring the end
-velocity across the lift rather than across the last movement — which meant
-`swipe` could not fire in a browser at all.
+composition-level defects show up. Several have, and each is fixed in
+`packages/` with a regression test: `renderChild` subscribing the branch swap to
+signals a component body read while building; `pan` measuring the end velocity
+across the lift rather than across the last movement; a style key reaching the
+engine in the camelCase spelling a bag was written with, which it parses as CSS
+and drops in silence; a CSS-string `style` being wiped when an element was
+hidden and shown again; `applyProp` reading `false` as an absence when on Lynx
+it is a stated value, so `flatten={false}` never reached the engine; and Lynx's
+own unitless properties (`linear-weight`, the `relative-*` family) picking up a
+`px` that made the engine discard them.
+
+The last three are worth dwelling on together, because they share a shape this
+repository is otherwise blind to: **each renders correctly in a browser and is
+wrong only on a device.** The old arrangement could not see them — a DOM host
+translated, a memory host stored things verbatim, and the two agreed with each
+other while disagreeing with the only target that mattered. What sees them now
+is that there is one target and the tests run against its own API. A target
+nobody can look at is a target nobody is checking; a target you have replaced
+with an abstraction is worse, because the abstraction looks like it is being
+checked.
 
 Two conventions keep them honest, and both are worth preserving:
 
@@ -165,9 +186,12 @@ Two conventions keep them honest, and both are worth preserving:
   run in a fresh clone with no prior `bun run build`. Packaging is deliberately
   not their job — `scripts/consumer-e2e.test.ts` packs and installs real
   tarballs for that.
-- **The root `build` and `types:check` include them**, so a breaking change to a
-  package fails CI in the playground too. `bun run test` does not: they carry no
-  tests of their own, which is why the root script filters to `./packages/*`.
+- **The root `build`, `types:check` and `test` include them**, so a breaking
+  change to a package fails CI in the playground too. `playground-mini-native`
+  now carries tests of its own — its DOM Element PAPI has a suite, and
+  `src/screens.test.ts` mounts every screen and checks it builds and disposes
+  without throwing, which is the cheapest guard against a screen that only fails
+  for whoever next opens that tab.
 
 `bun run check:reactivity` scans `apps/` alongside `packages/` for the same
 reason — the called-signal footgun is a consumer's mistake to make, so the
@@ -175,10 +199,15 @@ consumer-shaped code is where it is most likely to appear.
 
 ## How the two relate
 
-They are siblings, not layers: `mini-native` does **not** import `mini`. It is
-the same design re-derived without a hardcoded platform, so the DOM fast paths
-`mini` is allowed to take (writing `textContent` directly, cloning a static
-template) have no equivalent there.
+They are siblings, not layers: `mini-native` does **not** import `mini`. The
+division is now the plainest it has ever been — **`mini` renders to the DOM,
+`mini-native` renders to Lynx**, and neither wraps the other. It used to be
+muddier, because `mini-native` also had a DOM host and so overlapped with its
+sibling on the one target `mini` exists for; that overlap is gone.
+
+Each is allowed the fast paths its target offers and the other cannot copy:
+`mini` writes `textContent` directly and clones a static template; `mini-native`
+uses the engine's per-tag creators and its layout-transparent `wrapper`.
 
 That independence is deliberate and it has a cost: a defect found in one is
 usually latent in the other. Both the scope-ownership bug (`run-detached.ts`)
