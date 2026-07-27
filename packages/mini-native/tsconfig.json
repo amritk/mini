@@ -24,7 +24,12 @@
       "@amritk/mini-native/jsx-runtime": ["./src/jsx-runtime.ts"],
       "@amritk/mini-native/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"],
       "@amritk/mini-native": ["./src/index.ts"]
-    }
+    },
+    // Resolve `@amritk/mini-helpers` to the workspace's SOURCE through the
+    // `development` condition it already declares, rather than to its `dist`.
+    // CI type-checks BEFORE it builds, so without this a fresh clone would look
+    // for a `.d.ts` that does not exist yet.
+    "customConditions": ["development"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "examples/**/*.tsx"],
   "exclude": ["dist", "node_modules", "examples/js-framework-benchmark/bootstrap.ts"]

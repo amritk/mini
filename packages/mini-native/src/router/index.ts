@@ -28,14 +28,22 @@
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
  *
- * ## What is deliberately not here
+ * ## Two ways to render, and the difference matters
  *
- * **A rendered navigation stack.** `RouteView` renders one slot: `/users/1` →
- * `/users/2` keeps the screen and updates its params, and a different route
- * swaps the subtree. The history underneath IS a stack, so `back` and
- * `canGoBack` mean what they say; what is missing is the presentation — the
- * second screen sliding over the first with both alive at once — which needs an
- * animation seam that does not exist yet.
+ * `RouteView` renders ONE slot: `/users/1` → `/users/2` keeps the screen and
+ * updates its params, and a different route swaps the subtree. The screen that
+ * left is gone.
+ *
+ * `RouteStack` renders a stack, which is what a device actually does: a pushed
+ * screen sits on the one below, the one below stays alive with its scroll
+ * position and its half-typed form, and going back reveals it rather than
+ * rebuilding it. It is `router.depth` that makes that expressible — the matched
+ * route cannot tell a push from a replace, because `/users/1` → `/users/2` is
+ * two screens one way and one screen the other.
+ *
+ * Reach for `RouteView` for a tab body and `RouteStack` for navigation.
+ *
+ * ## What is deliberately not here
  *
  * **A browser history.** There is no web target here, so there is nothing for
  * one to drive. An earlier version of this package shipped `createBrowserHistory`
@@ -47,6 +55,8 @@
  * before a real app has asked for one twice.
  */
 
+export { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+
 export { createMemoryHistory } from './create-memory-history'
 export {
   createRouter,
@@ -57,7 +67,13 @@ export {
   type RouteState,
 } from './create-router'
 export type { RouterHistory, RouterLocation } from './history'
-export { matchRoute, type RouteParams } from './match-route'
-export { parseQuery } from './parse-query'
 export { RouteLink, type RouteLinkProps } from './route-link'
+export { RouteStack, type RouteStackProps } from './route-stack'
 export { RouteView, type RouteViewProps } from './route-view'
+export {
+  fadeTransition,
+  type StackChange,
+  type StackTransition,
+  type StackTransitionContext,
+  type TransitionTiming,
+} from './stack-transition'

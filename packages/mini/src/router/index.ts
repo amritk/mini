@@ -8,6 +8,14 @@
  * Composition is explicit — `<Link>` takes `router.navigate` as a prop rather
  * than reading an ambient context, matching mini's prop-drilling charter.
  */
+
+// Re-exported rather than owned: pattern matching is pure string arithmetic
+// with no platform in it, so it lives in `@amritk/mini-helpers` where
+// `@amritk/mini-native`'s router reads the same copy and the two cannot drift
+// about what a route pattern means.
+export type { RouteParams } from '@amritk/mini-helpers'
+export { matchRoute } from '@amritk/mini-helpers'
+
 export type {
   NavigateOptions,
   Route,
@@ -19,7 +27,5 @@ export type {
 export { createRouter } from './create-router'
 export type { LinkProps } from './link'
 export { Link } from './link'
-export type { RouteParams } from './match-route'
-export { matchRoute } from './match-route'
 export type { RouterViewProps } from './view'
 export { RouterView } from './view'

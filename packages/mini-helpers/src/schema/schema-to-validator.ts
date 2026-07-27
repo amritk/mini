@@ -12,6 +12,12 @@ export type FormErrors = Record<string, string>
  * validation stack and stay CSP-safe (no `new Function`, works under a strict
  * Content-Security-Policy). Only the first error per field is surfaced; a form
  * shows one message per input.
+ *
+ * Shared because a schema has no platform in it: this is the arm of `/forms`
+ * that never sees a control. What DID have to be rewritten for the native port
+ * is how a control is wired to a field — the web version inspects the element
+ * it is handed, the native one reads the type of the field's initial value —
+ * and that file stays in each package, where it belongs.
  */
 export const schemaToValidator = (schema: object): ((values: Record<string, unknown>) => FormErrors) => {
   const run = validate(schema)

@@ -15,7 +15,15 @@
       "@amritk/mini/jsx-runtime": ["./src/jsx-runtime.ts"],
       "@amritk/mini/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"],
       "@amritk/mini": ["./src/index.ts"]
-    }
+    },
+    // Resolve `@amritk/mini-helpers` to the workspace's SOURCE through the
+    // `development` condition it already declares, rather than to its `dist`.
+    // CI type-checks BEFORE it builds, so without this a fresh clone would look
+    // for a `.d.ts` that does not exist yet. The playgrounds resolve the
+    // packages the same way for the same reason — a condition the exports map
+    // already carries beats a `paths` table that has to be kept in sync with it.
+    // Undone in `tsconfig.build.json`, where the emit must resolve to `dist`.
+    "customConditions": ["development"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

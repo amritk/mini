@@ -183,6 +183,15 @@ Honesty about the trade:
   about anything element-creation-specific.
 - **`@amritk/mini` is unaffected.** It remains the DOM package, which is the
   other half of why this is the right trade: the web already had a renderer here.
+- **Reduced motion is a real regression, not an oversight.** `/animate` read
+  `host.environment.reduceMotion` and skipped a non-essential timeline on its
+  own, so honouring the preference cost an app nothing. Nothing in the runtime
+  can read it now: the preference lives on `SystemInfo` or arrives through
+  `globalProps`, both of which are the app's to consult. So it became the app's
+  call — pass no `transition` to a `RouteStack`, do not add the animation
+  class — and that is worse ergonomics for an accessibility feature, which is
+  exactly the kind of thing that quietly stops being done. If one accessor
+  earns its way back into this package, it is this one.
 
 ---
 

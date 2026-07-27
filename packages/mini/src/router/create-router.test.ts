@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { effectScope } from '../signals'
 import { createRouter, type Route } from './create-router'
 
 const routes: Route[] = [
@@ -116,6 +117,19 @@ describe('create-router', () => {
     window.history.replaceState(null, '', '/users/1')
     window.dispatchEvent(new Event('popstate'))
     // The listener is detached, so the signal holds its last value.
+    expect(router.route().route?.['name']).toBe('home')
+  })
+
+  it('detaches its listener when the scope it was created in is disposed', () => {
+    // Every other primitive registers its teardown with `onCleanup`, so a router
+    // built inside a component must not outlive that component on `window`.
+    let router!: ReturnType<typeof createRouter<Route>>
+    const dispose = effectScope(() => {
+      router = createRouter({ routes })
+    })
+    dispose()
+    window.history.replaceState(null, '', '/users/1')
+    window.dispatchEvent(new Event('popstate'))
     expect(router.route().route?.['name']).toBe('home')
   })
 })

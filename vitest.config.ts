@@ -23,6 +23,15 @@ export default defineConfig({
         replacement: resolve(root, 'packages/mini-native/src/jsx-dev-runtime.ts'),
       },
       { find: /^@amritk\/mini-native$/, replacement: resolve(root, 'packages/mini-native/src/index.ts') },
+      // The helpers both packages share. Aliased for the same reason as the two
+      // above — the suite must run against this checkout's source with no prior
+      // `bun run build` — and the subpath must come first so the shorter
+      // pattern cannot swallow it.
+      {
+        find: /^@amritk\/mini-helpers\/schema$/,
+        replacement: resolve(root, 'packages/mini-helpers/src/schema/index.ts'),
+      },
+      { find: /^@amritk\/mini-helpers$/, replacement: resolve(root, 'packages/mini-helpers/src/index.ts') },
       { find: /^@amritk\/mini$/, replacement: resolve(root, 'packages/mini/src/index.ts') },
       // `@amritk/runtime-validators` is deliberately absent: it is an optional
       // peer published from the mjst repo, so it resolves from node_modules as

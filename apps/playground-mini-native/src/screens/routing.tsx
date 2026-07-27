@@ -1,6 +1,14 @@
 import { computed, type LynxElement, signal, watch } from '@amritk/mini-native'
 import { For, Index, Show } from '@amritk/mini-native/flow'
-import { createMemoryHistory, createRouter, matchRoute, parseQuery, RouteLink } from '@amritk/mini-native/router'
+import {
+  createMemoryHistory,
+  createRouter,
+  fadeTransition,
+  matchRoute,
+  parseQuery,
+  RouteLink,
+  RouteStack,
+} from '@amritk/mini-native/router'
 
 import { Action, Chip, Panel, Prose, Readout, Row, TextLine } from '../components'
 import { router } from '../routes'
@@ -45,6 +53,7 @@ export const RoutingScreen = (props: RoutingScreenProps): LynxElement => {
       <Navigation />
       <Query />
       <Matching />
+      <Stack />
       <SecondRouter />
       <NoBrowserHistory />
     </view>
@@ -315,6 +324,81 @@ const NoBrowserHistory = (): LynxElement => (
     </Prose>
   </Panel>
 )
+
+// ---------------------------------------------------------------------------
+// The navigation stack
+// ---------------------------------------------------------------------------
+
+/**
+ * `RouteStack` — the difference between a router and native navigation.
+ *
+ * `RouteView` renders one slot: the screen you are on replaces the screen you
+ * were on, and the one that left is gone. A device does not work that way. A
+ * pushed screen sits ON a stack, the one underneath stays alive with its scroll
+ * position and its half-typed form, and going back reveals it rather than
+ * rebuilding it.
+ *
+ * What makes that expressible is `router.depth`, and it is worth saying why the
+ * matched route is not enough: `/stack/1` → `/stack/2` is one route and two
+ * screens when it was pushed, and one route and one screen when it was
+ * replaced. Nothing in `route()` tells those apart. The depth does.
+ */
+const STACK_ROUTES = [
+  { path: '/', view: () => <StackScreen title="Root" tint="var(--surface-alt)" /> },
+  { path: '/one', view: () => <StackScreen title="One" tint="var(--surface)" /> },
+  { path: '/two', view: () => <StackScreen title="Two" tint="var(--surface-alt)" /> },
+]
+
+const Stack = (): LynxElement => {
+  // Its own router on its own in-memory history, so pushing here does not move
+  // the app around it — the same reason `SecondRouter` has one.
+  const stack = createRouter({ history: createMemoryHistory(), routes: STACK_ROUTES })
+
+  return (
+    <Panel
+      title="RouteStack"
+      blurb="Push twice and go back: the screen underneath was never torn down, so it comes back with whatever state it had. A single-slot RouteView would have rebuilt it."
+    >
+      <Row gap="sm" wrap>
+        <Action onTap={() => stack.navigate('/one')}>push /one</Action>
+        <Action onTap={() => stack.navigate('/two')}>push /two</Action>
+        <Action onTap={() => stack.navigate('/two', { replace: true })}>replace /two</Action>
+        <Action onTap={stack.back} disabled={() => !stack.canGoBack()}>
+          back
+        </Action>
+      </Row>
+
+      <RouteStack router={stack} transition={fadeTransition()} style={{ height: 190, marginTop: 8 }} />
+
+      <Readout>{() => `depth: ${stack.depth()}   path: ${stack.route().path}`}</Readout>
+
+      <Prose>
+        The transition is a cross-fade and it is the only one shipped, because opacity is the one property that composes
+        with whatever the screen underneath is doing. It leaves no style behind either — the settled tree is identical
+        whether it ran, was skipped for a reduced-motion preference, or was interrupted by a second navigation.
+      </Prose>
+
+      <Prose>
+        Buried screens are hidden rather than removed, so they stay out of the accessibility tree while keeping their
+        state. That is the same `display: none` the runtime uses for `show`, which is why hiding survives a style write
+        on the card.
+      </Prose>
+    </Panel>
+  )
+}
+
+/** One screen in the demo stack, with local state so surviving a push is visible. */
+const StackScreen = (props: { title: string; tint: string }): LynxElement => {
+  const taps = signal(0)
+
+  return (
+    <view style={{ flex: 1, padding: 12, gap: 6, backgroundColor: props.tint }}>
+      <TextLine>{props.title}</TextLine>
+      <Action onTap={() => taps(taps() + 1)}>tap me, then push and come back</Action>
+      <Readout>{() => `${props.title} has been tapped ${taps()} time(s)`}</Readout>
+    </view>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Local helpers

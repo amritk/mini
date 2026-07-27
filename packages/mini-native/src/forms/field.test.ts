@@ -246,6 +246,34 @@ describe('field', () => {
     expect(error.classes).toBe('field-error')
   })
 
+  it('styles each of its three parts through a style bag', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const form = createForm({ initialValues: { email: '' } })
+
+    mount(engine.pageElement, () =>
+      Field({
+        form,
+        name: 'email',
+        label: 'Email',
+        style: { gap: 4 },
+        labelStyle: { fontSize: 12 },
+        inputStyle: { padding: 10 },
+        errorStyle: { color: 'red' },
+      }),
+    )
+    const wrapper = engine.find('view') as FakeElement
+    const { label, control, error } = partsOf(engine)
+
+    // The two channels are good at different things — a class says something
+    // static once, a style bag is the one a signal can drive — so both have to
+    // reach every part of the field rather than only the wrapper.
+    expect(wrapper.styles).toEqual({ gap: '4px' })
+    expect((label as FakeElement).styles).toEqual({ 'font-size': '12px' })
+    expect(control.styles).toEqual({ padding: '10px' })
+    expect(error.styles['color']).toBe('red')
+  })
+
   it('renders no visible label when none was given', () => {
     const engine = createFakeEngine()
     setEngine(engine.api)

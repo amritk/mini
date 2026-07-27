@@ -67,22 +67,27 @@ const BUNDLE_CASES: readonly { package: string; name: string; entry: string; ext
   { package: 'mini', name: 'query', entry: 'packages/mini/src/query/index.ts', external: ['@tanstack/query-core'] },
   { package: 'mini-native', name: 'core (.)', entry: 'packages/mini-native/src/index.ts', external: [] },
   { package: 'mini-native', name: 'flow', entry: 'packages/mini-native/src/flow/index.ts', external: [] },
+  { package: 'mini-native', name: 'router', entry: 'packages/mini-native/src/router/index.ts', external: [] },
   {
     package: 'mini-native',
-    name: 'hosts/dom',
-    entry: 'packages/mini-native/src/hosts/create-dom-host.ts',
-    external: [],
+    name: 'forms',
+    entry: 'packages/mini-native/src/forms/index.ts',
+    external: ['@amritk/runtime-validators'],
   },
   {
     package: 'mini-native',
-    name: 'hosts/lynx',
-    entry: 'packages/mini-native/src/hosts/create-lynx-host.ts',
-    external: [],
+    name: 'query',
+    entry: 'packages/mini-native/src/query/index.ts',
+    external: ['@tanstack/query-core'],
   },
   {
     package: 'mini-native',
-    name: 'hosts/memory',
-    entry: 'packages/mini-native/src/hosts/create-memory-host.ts',
+    // Worth a row of its own even though no app ships it: it is a complete
+    // implementation of the Element PAPI, so it is the entry most likely to
+    // grow quietly, and the import-boundary suite's promise that it never
+    // reaches `.` is only interesting while it is big enough to matter.
+    name: 'testing',
+    entry: 'packages/mini-native/src/testing/index.ts',
     external: [],
   },
 ]
@@ -114,6 +119,13 @@ const measureBundle = async (tree: string, entry: string, external: readonly str
       platform: 'browser',
       target: 'es2022',
       external: [...external],
+      // Resolve workspace packages to their `src/` through the `development`
+      // condition they declare, the same way the playgrounds and both
+      // `types:check` passes do. This bench measures a source tree and never
+      // runs a build, so without it a cross-package import — `@amritk/mini`'s
+      // router reaching `@amritk/mini-helpers` — resolves to a `dist/` that is
+      // not there and the entry reports "measure failed" instead of a number.
+      conditions: ['development'],
     })
     return { median: gzipSync(result.outputFiles[0]?.contents ?? new Uint8Array()).length }
   } catch (error) {

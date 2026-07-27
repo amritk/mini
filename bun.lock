@@ -50,6 +50,7 @@
       "name": "@amritk/mini",
       "version": "0.5.0",
       "dependencies": {
+        "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
       },
       "devDependencies": {
@@ -71,10 +72,27 @@
         "vite",
       ],
     },
+    "packages/mini-helpers": {
+      "name": "@amritk/mini-helpers",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@amritk/runtime-validators": "^0.9.0",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@amritk/runtime-validators": ">=0.8.0",
+        "typescript": "^5",
+      },
+      "optionalPeers": [
+        "@amritk/runtime-validators",
+        "typescript",
+      ],
+    },
     "packages/mini-native": {
       "name": "@amritk/mini-native",
       "version": "0.0.0",
       "dependencies": {
+        "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
       },
       "devDependencies": {
@@ -102,6 +120,8 @@
   },
   "packages": {
     "@amritk/mini": ["@amritk/mini@workspace:packages/mini"],
+
+    "@amritk/mini-helpers": ["@amritk/mini-helpers@workspace:packages/mini-helpers"],
 
     "@amritk/mini-native": ["@amritk/mini-native@workspace:packages/mini-native"],
 

@@ -3,21 +3,17 @@
  * alone.
  *
  * A style bag accepts both spellings — `fontSize` and `font-size` are the same
- * property everywhere in this package, and the `/ui` layer, `defaultTheme` and
- * every example are written in the camelCase one. A target that is handed a
- * DECLARATION rather than a property-name lookup therefore has to translate,
- * because CSS has never had a `fontSize` property and an unrecognised
- * declaration is dropped in silence rather than reported.
+ * property everywhere in this package, and most examples are written in the
+ * camelCase one. The engine is handed DECLARATIONS, though — `__SetInlineStyles`
+ * takes a map it parses as CSS — and CSS has never had a `fontSize` property.
+ * An unrecognised declaration is dropped in silence rather than reported, which
+ * is why this conversion is not optional and why it lives in one place.
  *
- * Both real hosts need exactly this, which is why it is here rather than inside
- * one of them: the DOM host calls `style.setProperty`, and the Lynx host hands
- * `__SetInlineStyles` a map the engine parses as CSS. It is the mirror image of
- * `to-keyframe.ts`, which converts the other way for the same underlying
- * reason — a keyframe is a plain object read by property name, so there the IDL
- * spelling is the correct one.
- *
- * Nothing platform-specific may creep in here: the core type-check pass runs
- * without the DOM library and this is shared by the hosts that check under it.
+ * This is the direction that is easy to get backwards. A KEYFRAME, were one
+ * ever handed over, would want the IDL spelling instead, because a keyframe is
+ * a plain object read by property name rather than a declaration parsed as
+ * CSS. The rule is about how the value is CONSUMED, not about which package it
+ * came from.
  *
  * @example
  * ```ts

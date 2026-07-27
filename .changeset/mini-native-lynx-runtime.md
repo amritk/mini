@@ -19,3 +19,5 @@ Three findings shaped the implementation, all of them silent failures on a devic
 - **`parentComponentUniqueId: 0` is out of range**, and silently disables class, id and tag selector resolution — the tree renders and every stylesheet rule misses.
 
 The reasoning, the trade-offs and what this closes off are in `docs/mini-native-lynx-runtime.md`.
+
+Merged with `main`'s router work rather than replacing it: the navigation stack (`RouteStack`, `StackTransition`) is ported to the engine, `createRouter` keeps the batched `depth` signal and the announce-once guard a stack depends on, and `matchRoute`, `parseQuery` and `schemaToValidator` now come from `@amritk/mini-helpers` rather than from copies in this package.

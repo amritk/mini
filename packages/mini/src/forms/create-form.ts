@@ -1,8 +1,9 @@
+import { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
+
 import { bindChecked, bindSelect, bindValue } from '../bind'
 import { onCleanup } from '../on-cleanup'
 import type { ReadonlySignal, Signal } from '../signals'
 import { batch, computed, effect, signal } from '../signals'
-import { type FormErrors, schemaToValidator } from './schema-to-validator'
 
 /** A single field's value. Text inputs give strings; checkboxes give booleans; number inputs give numbers. */
 export type FieldValue = string | number | boolean

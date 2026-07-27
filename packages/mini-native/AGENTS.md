@@ -71,7 +71,7 @@ src/
   bind/                   bind-text, bind-prop, bind-show, bind-value
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
   composition/            createContext, Portal, ErrorBoundary
-  router/                 Pattern matching (pure) + a pluggable history; memory ships
+  router/                 A pluggable history, RouteView, RouteLink, RouteStack + its transitions
   forms/                  createForm, Field, bindField, schema validation
   query/                  createQuery over @tanstack/query-core
 examples/
@@ -81,6 +81,15 @@ examples/
 There is no `hosts/`, no `ui/`, no `platform/`, no `gestures/`, no `animate/`,
 no `elements.ts` and no `host.ts`. All of them were deleted rather than moved —
 §3 of the design note is the table of what replaced each.
+
+Two things this package no longer owns and re-exports instead:
+`matchRoute`/`parseQuery` and `schemaToValidator` live in
+[`@amritk/mini-helpers`](../mini-helpers/AGENTS.md), because they turned out
+identical in `@amritk/mini` and here and a defect in one was latent in the
+other. `/router` and `/forms` re-export them, so a consumer's imports are
+unchanged. That package's charter is **no reactivity, no platform**, and its
+own suite enforces it — do not reach for it from anywhere that would need
+either.
 
 ## Invariants — do not break these
 

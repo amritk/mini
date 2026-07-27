@@ -1,8 +1,9 @@
+import type { RouteParams } from '@amritk/mini-helpers'
+
 import { type ChildFactory, renderChild } from '../render-child'
 import { createWrapper } from '../tree'
 import type { LynxElement } from '../types'
 import type { Route, Router } from './create-router'
-import type { RouteParams } from './match-route'
 
 /** Props for {@link RouteView}. */
 export type RouteViewProps<R extends Route> = {
@@ -29,9 +30,9 @@ export type RouteViewProps<R extends Route> = {
  * layout or in the accessibility tree — a screen sits directly inside whatever
  * the `RouteView` was written in.
  *
- * A rendered navigation STACK — where `/users/1` → `/users/2` slides a second
- * screen over the first with both alive at once — is a layer above this and is
- * not built. This is the single-slot version, which is what a tab's root wants.
+ * This is the SINGLE-SLOT version, which is what a tab's root wants: the screen
+ * that left is gone. When `/users/1` → `/users/2` should push a second screen
+ * over a first that stays alive underneath, reach for `RouteStack` instead.
  *
  * ```tsx
  * <RouteView router={router} fallback={() => <NotFound />} />

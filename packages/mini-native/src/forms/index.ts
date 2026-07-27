@@ -52,8 +52,9 @@
  * ```
  */
 
+export { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
+
 export { bindField } from './bind-field'
 export type { Field as FieldState, FieldValue, FieldValues, Form, FormConfig, FormValidate } from './create-form'
 export { createForm } from './create-form'
 export { Field, type FieldConfirmType, type FieldProps, type FieldType } from './field'
-export { type FormErrors, schemaToValidator } from './schema-to-validator'

@@ -26,6 +26,13 @@ two shapes:
   same model rendered through a pluggable `Host`, so it targets a native view
   tree, the DOM, or plain objects.
 
+Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
+`@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*
+in both (route matching, query parsing, JSON Schema compilation). It is a leaf:
+it imports neither package, and its charter is **no reactivity, no platform**,
+enforced by `src/purity.test.ts`. Neither package's public surface changed —
+both re-export it from the subpath it already lived on.
+
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 

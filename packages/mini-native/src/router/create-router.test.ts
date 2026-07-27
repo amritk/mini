@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { appendChildren } from '../append-children'
 import { clearEngine, setEngine } from '../engine/current-engine'
 import type { LynxElement } from '../engine/element-api'
+import { effect } from '../signals'
 import { createFakeEngine } from '../testing/create-fake-engine'
 import { createElement } from '../tree'
 import { createMemoryHistory } from './create-memory-history'
@@ -110,5 +111,40 @@ describe('create-router', () => {
 
     expect(router.route().params).toEqual({ rest: 'a/b' })
     expect(engine.calls()).toEqual([])
+  })
+  it('reports the depth a push added and a replace did not', () => {
+    const router = createRouter({ routes, history: createMemoryHistory() })
+    expect(router.depth()).toBe(0)
+
+    router.navigate('/users/1')
+    expect(router.depth()).toBe(1)
+
+    // The distinction a stack is built on, and the one the matched route
+    // cannot make: same route, same params shape, different number of screens.
+    router.navigate('/users/2', { replace: true })
+    expect(router.depth()).toBe(1)
+
+    router.back()
+    expect(router.depth()).toBe(0)
+  })
+
+  it('announces a navigation once, not once per way it was told', () => {
+    const router = createRouter({ routes, history: createMemoryHistory() })
+    let announced = 0
+    const stop = effect(() => {
+      router.route()
+      announced++
+    })
+    announced = 0
+
+    // `back` reaches the refresh twice — an in-memory history notifies because
+    // a hardware gesture calls it from outside, and the router refreshes
+    // because a browser would answer asynchronously. One navigation is still
+    // one change, and anything mid-transition depends on it.
+    router.navigate('/users/1')
+    router.back()
+
+    expect(announced).toBe(2)
+    stop()
   })
 })

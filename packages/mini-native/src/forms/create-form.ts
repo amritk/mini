@@ -1,9 +1,10 @@
+import { type FormErrors, schemaToValidator } from '@amritk/mini-helpers/schema'
+
 import { addEvent } from '../add-event'
 import { onCleanup } from '../on-cleanup'
 import { batch, computed, effect, type ReadonlySignal, type Signal, signal } from '../signals'
 import type { LynxElement } from '../types'
 import { bindField } from './bind-field'
-import { type FormErrors, schemaToValidator } from './schema-to-validator'
 
 /** A single field's value. Text controls give strings; toggles give booleans; numeric controls give numbers. */
 export type FieldValue = string | number | boolean

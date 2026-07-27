@@ -40,6 +40,11 @@ const PEER_BACKED_SUBPATHS: Record<string, string> = {
   // and is deliberately not duplicated.
   '@amritk/mini-native/forms': '@amritk/runtime-validators',
   '@amritk/mini-native/query': '@tanstack/query-core',
+  // Both `/forms` entries above reach the validator THROUGH this one now: the
+  // schema arm is the part of a form that never touches a control, so it is
+  // shared rather than ported. `@amritk/mini-helpers`'s own `.` entry is
+  // deliberately absent from this table — it has no dependency at all.
+  '@amritk/mini-helpers/schema': '@amritk/runtime-validators',
 }
 
 /** The optional peers a consumer installs to use the subpaths above. */
@@ -48,6 +53,13 @@ const OPTIONAL_PEERS: Record<string, string> = {
   '@tanstack/query-core': '^5.101.2',
   typescript: '^5',
 }
+
+/**
+ * Every package the release publishes. `@amritk/mini-helpers` is here because
+ * both of the others depend on it at runtime, so a consumer install that did
+ * not carry it would fail on the first `/router` or `/forms` import.
+ */
+const PUBLISHED = ['@amritk/mini', '@amritk/mini-helpers', '@amritk/mini-native'] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 
@@ -117,7 +129,7 @@ describe('consumer-e2e', () => {
       dependencies[pkg.name] = `file:${join(packDir, stdout.trim().split('\n').at(-1) ?? '')}`
       subpaths.push(...declaredSubpaths(pkg))
     }
-    expect(Object.keys(dependencies).sort()).toEqual(['@amritk/mini', '@amritk/mini-native'])
+    expect(Object.keys(dependencies).sort()).toEqual([...PUBLISHED])
 
     // `overrides` forces every transitive @amritk/* edge onto our tarballs.
     // Without it the installer is free to satisfy one from the registry, which
@@ -147,7 +159,7 @@ describe('consumer-e2e', () => {
   })
 
   it('installs manifests with every catalog: and workspace: specifier resolved', async () => {
-    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+    for (const name of PUBLISHED) {
       const pkg = await readManifest(join(bareDir, 'node_modules', name, 'package.json'))
       for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
         for (const [dep, spec] of Object.entries(pkg[field] ?? {})) {
@@ -155,8 +167,18 @@ describe('consumer-e2e', () => {
         }
       }
       // The catalog is the single source of truth for the shared reactive core,
-      // so what ships has to be the version the catalog pins.
-      expect(pkg.dependencies?.['alien-signals']).toBe(catalog['alien-signals'])
+      // so what ships has to be the version the catalog pins. `mini-helpers` has
+      // no entry to check: it is barred from importing signals at all, which is
+      // the charter its own `purity.test.ts` enforces.
+      if (name !== '@amritk/mini-helpers') {
+        expect(pkg.dependencies?.['alien-signals'], `${name} alien-signals`).toBe(catalog['alien-signals'])
+      }
+      // The `workspace:*` edge onto mini-helpers has to come out as the concrete
+      // version being published alongside it, or the tarball is uninstallable.
+      if (name !== '@amritk/mini-helpers') {
+        const shared = await readManifest(join(bareDir, 'node_modules/@amritk/mini-helpers/package.json'))
+        expect(pkg.dependencies?.['@amritk/mini-helpers'], `${name} @amritk/mini-helpers`).toBe(shared.version)
+      }
     }
   })
 
@@ -170,9 +192,9 @@ describe('consumer-e2e', () => {
   })
 
   it('ships src without a development condition that would resolve to it', async () => {
-    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+    for (const name of PUBLISHED) {
       const packageDir = join(bareDir, 'node_modules', name)
-      // Both packages ship their sources for source maps and go-to-definition,
+      // Every package ships its sources for source maps and go-to-definition,
       // which is precisely why the condition must be gone: it points at real
       // files in the tarball, so a bundler honouring `development` would hand a
       // consumer raw TypeScript instead of the built JS.
@@ -183,7 +205,7 @@ describe('consumer-e2e', () => {
   })
 
   it('keeps test files out of the published tarballs', async () => {
-    for (const name of ['@amritk/mini', '@amritk/mini-native']) {
+    for (const name of PUBLISHED) {
       const packageDir = join(bareDir, 'node_modules', name)
       const files = await readdir(packageDir, { recursive: true })
       expect(
