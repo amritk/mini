@@ -31,6 +31,7 @@
     "test:seq": "bun run --workspaces --sequential test",
     "test:dist": "vitest run --config vitest.dist.config.ts",
     "bench": "bun run scripts/bench-compare.ts",
+    "bench:reconciler": "bun run scripts/bench-reconciler.ts",
     "generate-llms": "bun run scripts/generate-llms.ts",
     "release:version": "changeset version && bun install --no-frozen-lockfile",
     "release:publish": "bun run scripts/resolve-workspace-protocol.ts && bun run scripts/strip-development-exports.ts && bun run scripts/copy-license.ts && changeset publish"
