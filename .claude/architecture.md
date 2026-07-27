@@ -33,6 +33,9 @@ mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
 │   └── mini-native/           # @amritk/mini-native — the same runtime through a pluggable Host
+├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
+│   ├── playground-mini/       # every @amritk/mini entry point, running
+│   └── playground-mini-native/# every @amritk/mini-native entry point, through the DOM host
 ├── .claude/                   # Developer guidelines
 ├── .changeset/                # Changesets config (release automation)
 ├── .github/                   # CI, release, bench, issue & PR templates
@@ -135,6 +138,40 @@ the real target that native approximates.
   nothing else imports it.
 - **Build:** `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`, the
   same pipeline as `@amritk/mini`.
+
+## The playgrounds (`apps/`)
+
+Two private, unpublished apps — `@amritk/playground-mini` and
+`@amritk/playground-mini-native` — that exercise every public entry point of
+their package and deploy to Cloudflare Workers as static SPAs (assets-only
+Workers with `not_found_handling: "single-page-application"`, so a client router
+in `history` mode survives a hard reload).
+
+**They are the only code in the repo written the way a consumer writes it**, and
+that is what they are for rather than a side effect. The suites test the
+packages from the inside, against source, one primitive at a time; a playground
+composes the whole surface into a running app and is therefore where the
+composition-level defects show up. Three did, on the way in, and all three are
+fixed in `packages/` with regression tests: `renderChild` subscribing the branch
+swap to signals a component body read while building, the DOM host reading
+`lineHeight` as CSS's multiplier rather than as dp, and `pan` measuring the end
+velocity across the lift rather than across the last movement — which meant
+`swipe` could not fire in a browser at all.
+
+Two conventions keep them honest, and both are worth preserving:
+
+- **They resolve the packages through the `development` condition**, pinned in
+  each app's `vite.config.ts` and `tsconfig.json`, so they build from `src` and
+  run in a fresh clone with no prior `bun run build`. Packaging is deliberately
+  not their job — `scripts/consumer-e2e.test.ts` packs and installs real
+  tarballs for that.
+- **The root `build` and `types:check` include them**, so a breaking change to a
+  package fails CI in the playground too. `bun run test` does not: they carry no
+  tests of their own, which is why the root script filters to `./packages/*`.
+
+`bun run check:reactivity` scans `apps/` alongside `packages/` for the same
+reason — the called-signal footgun is a consumer's mistake to make, so the
+consumer-shaped code is where it is most likely to appear.
 
 ## How the two relate
 

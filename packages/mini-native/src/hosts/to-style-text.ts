@@ -37,6 +37,17 @@ export const toStyleText = (key: string, value: string | number): string => {
  * Kept short on purpose: this covers what a layout actually reaches for, and an
  * unlisted property that turns out to need it is a one-line addition. The names
  * are stored normalised so both spellings of a key match.
+ *
+ * `line-height` is deliberately ABSENT even though CSS treats a bare number
+ * there as a multiplier, and that is the dp rule winning over the web's local
+ * convention rather than an oversight. A style bag is read the same way on
+ * every target, and every native toolkit — React Native included — measures
+ * line height in dp; letting one property mean something else on one target is
+ * exactly the invisible divergence this package exists to remove. The shipped
+ * `defaultTheme` is the proof: `{ fontSize: 18, lineHeight: 28 }` means 28dp on
+ * a device, and read as a multiplier it is a 504px line on the web. An app that
+ * genuinely wants the ratio can still say so with a string (`lineHeight: '1.5'`),
+ * which is the same escape hatch every other length has.
  */
 const UNITLESS = new Set([
   'opacity',
@@ -45,7 +56,6 @@ const UNITLESS = new Set([
   'flexgrow',
   'flexshrink',
   'order',
-  'lineheight',
   'fontweight',
   'zoom',
   'aspectratio',

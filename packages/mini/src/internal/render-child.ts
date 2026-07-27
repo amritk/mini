@@ -1,5 +1,8 @@
 import { computed, effect, effectScope } from 'alien-signals'
 
+import { onCleanup } from '../on-cleanup'
+import { runDetached } from '../run-detached'
+
 /** Builds the node to display, or returns `null` to display nothing. */
 export type ChildFactory = () => Node | null
 
@@ -25,22 +28,27 @@ export type ChildFactory = () => Node | null
  * at all is what avoids that: the branch scope is only ever torn down on a real
  * flip, right before the next one is built.
  *
- * That same engine behaviour is what gives the branch its lifetime, so it is
- * worth stating plainly: alien-signals disposes a scope created inside an effect
- * when that effect re-runs (before the new run's body starts) and when the
- * effect itself is disposed. So the branch scope is already tied to the swap
- * effect, and the swap effect is already tied to whatever scope `renderChild`
- * was called in — the component's. Both handovers therefore happen on their own:
- * a real flip disposes the outgoing branch, and unmounting the component
- * disposes the last one. That is why `Show` and friends can ignore the returned
- * teardown without leaking a branch.
+ * The branch itself is built DETACHED — `runDetached` around the `effectScope`,
+ * exactly as `list` builds a row — and that is load-bearing twice over, which is
+ * why it is not left to the engine even though the engine would nearly do it.
  *
- * The explicit `dispose?.()` calls are kept anyway. They are idempotent — a
- * second dispose of an already-disposed scope does nothing, and its `onCleanup`s
- * still fire exactly once — and they make the branch's lifetime legible right
- * where it changes, instead of resting silently on an engine detail. Contrast
- * `list`, which cannot lean on that detail at all: its rows must outlive the
- * effect that builds them, so it detaches them and owns their teardown outright.
+ * The first reason is dependencies, and it is the one that bites. A component
+ * body runs inside this effect, so any signal it reads SYNCHRONOUSLY while
+ * building — not inside one of its own bindings, but in the body itself, the way
+ * `createQuery` reads its options getter to seed the observer — would be
+ * recorded as a dependency of the swap effect. Writing that signal would then
+ * re-run the swap, rebuild the branch from scratch, and hand the component a
+ * fresh set of local signals: state silently resets on a change that selected no
+ * new branch at all. Detaching means only `select` decides when the branch is
+ * rebuilt, which is the whole contract of this function.
+ *
+ * The second is ownership. alien-signals disposes a scope created inside an
+ * effect when that effect re-runs, so leaving the branch attached would make its
+ * teardown a side effect of the swap rather than something this function
+ * controls. Detaching hands the lifetime back here: `dispose?.()` tears the
+ * outgoing branch down on a real flip, and the `onCleanup` below tears the last
+ * one down when the enclosing component unmounts — which is what keeps `Show`
+ * and friends free to ignore the returned teardown without leaking a branch.
  */
 export const renderChild = (host: Element, select: () => ChildFactory | null): (() => void) => {
   let dispose: (() => void) | null = null
@@ -53,16 +61,27 @@ export const renderChild = (host: Element, select: () => ChildFactory | null): (
     // Tear down the branch we are replacing before building the next one.
     dispose?.()
     // effectScope runs its body synchronously; the assignment is definite,
-    // just invisible to the compiler — hence the non-null assertion.
+    // just invisible to the compiler — hence the initialiser plus reassignment.
     let node: Node | null = null
-    dispose = effectScope(() => {
-      node = factory ? factory() : null
-    })
+    dispose = runDetached(() =>
+      effectScope(() => {
+        node = factory ? factory() : null
+      }),
+    )
     if (node) host.replaceChildren(node)
     else host.replaceChildren()
   })
-  return () => {
+
+  const tearDown = (): void => {
     stop()
     dispose?.()
+    dispose = null
   }
+
+  // The branch scope is detached from the swapping effect, so the enclosing
+  // scope has to be told about it explicitly — otherwise a component unmounting
+  // would leave its last-rendered branch still reacting.
+  onCleanup(tearDown)
+
+  return tearDown
 }

@@ -1,0 +1,23 @@
+{
+  "name": "@amritk/playground-mini-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kitchen-sink playground for @amritk/mini-native, rendered through the DOM host and deployed to Cloudflare Workers as a static SPA.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "types:check": "tsgo -p . --noEmit",
+    "deploy": "bun run build && wrangler deploy",
+    "deploy:dry": "bun run build && wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "@amritk/mini-native": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vite": "^8",
+    "wrangler": "^4"
+  }
+}

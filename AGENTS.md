@@ -29,20 +29,28 @@ two shapes:
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 
+Alongside them sit two private kitchen-sink playgrounds — `apps/playground-mini`
+and `apps/playground-mini-native` — that exercise every public entry point and
+deploy to Cloudflare Workers as static SPAs. They are the only code here written
+the way a consumer writes it, which makes them the fastest way to see a change
+and the place composition-level defects surface first.
+
 ## Workflow
 
 ```bash
 bun install                 # install workspace deps
-bun run test                # run every package's tests
+bun run test                # run every package's tests (packages/* only)
 bun run check               # biome lint + format check
-bun run check:reactivity    # guard the compilerless-JSX called-signal footgun
-bun run types:check         # type-check all packages
-bun run build               # build both packages
+bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
+bun run types:check         # type-check both packages and both playgrounds
+bun run build               # build both packages and both playgrounds
 bun run test:dist           # load and drive the built dist/ artifacts (needs a prior build)
 bun run bench -- --baseline <dir>   # bundle-size delta against another checkout
 ```
 
 Per package: `bun run --filter='@amritk/<name>' test` (and `build`, `types:check`).
+Per playground: `bun run --filter='@amritk/playground-mini' dev` (and `build`,
+`preview`, `deploy`).
 
 ## The one rule both packages share
 

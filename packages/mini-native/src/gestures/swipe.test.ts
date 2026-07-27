@@ -85,6 +85,23 @@ describe('swipe', () => {
     expect(swipes).toEqual([])
   })
 
+  it('recognises a flick whose pointer lifted where it last moved', () => {
+    // The shape every browser actually produces: `pointerup` carries the final
+    // `pointermove`'s coordinates, so the lift itself has no displacement. Read
+    // naively that is a velocity of zero and this — the ordinary flick — would
+    // never be recognised at all. The velocity of the last MOVEMENT is what
+    // describes the gesture.
+    const { element, pointer } = setup()
+    const swipes: SwipeEvent[] = []
+    swipe(element, { onSwipe: (event) => swipes.push(event), velocity: 50 })
+
+    pointer('down', { x: 300, y: 0 })
+    pointer('move', { x: 100, y: 0 })
+    pointer('up', { x: 100, y: 0 })
+
+    expect(swipes[0]).toMatchObject({ direction: 'left', distance: 200 })
+  })
+
   it('never fires on a cancelled gesture', () => {
     const { element, pointer } = setup()
     const swipes: SwipeEvent[] = []

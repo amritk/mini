@@ -1,0 +1,58 @@
+name: Deploy playgrounds
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - ".github/workflows/deploy-playgrounds.yml"
+  # The playgrounds are also the fastest way to look at a change by hand, so a
+  # manual run can point at any branch.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    # Nothing to deploy to without a token. Skipping keeps a fork (and a
+    # checkout that has never been wired to Cloudflare) green rather than red
+    # for a reason that is not about the code.
+    if: ${{ github.repository == 'amritk/mini' }}
+    strategy:
+      # Two independent Workers; one failing tells you nothing about the other.
+      fail-fast: false
+      matrix:
+        app:
+          - playground-mini
+          - playground-mini-native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The apps resolve `@amritk/mini` and `@amritk/mini-native` through the
+      # `development` condition, so they build straight from `src` and need no
+      # prior package build. Type-checking them is still worth the seconds: a
+      # broken playground should fail here rather than deploy.
+      - name: Type check
+        run: bun run --filter "@amritk/${{ matrix.app }}" types:check
+
+      - name: Build
+        run: bun run --filter "@amritk/${{ matrix.app }}" build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/${{ matrix.app }}
+          # `build` already ran above, so this only uploads.
+          command: deploy

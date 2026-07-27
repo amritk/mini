@@ -85,6 +85,31 @@ describe('render-child', () => {
     expect(childrenOf(wrapper)).toHaveLength(0)
   })
 
+  it('does not subscribe the swap to signals the branch reads while building', () => {
+    // The other half of building the branch detached, and the half without a
+    // test until the same hole was found in `@amritk/mini`'s renderChild. A
+    // component body runs inside the swap effect, so a signal it reads
+    // SYNCHRONOUSLY while building — not in one of its own bindings — would be
+    // recorded as a dependency of the swap if the build were attached. Writing
+    // it would then rebuild the branch and reset every signal the component
+    // owns, on a change that selected no new branch at all.
+    const memory = createMemoryHost()
+    setHost(memory.host)
+    const wrapper = memory.host.createFlowHost()
+    const readInBody = signal('a')
+    let builds = 0
+    const branch = (): HostElement => {
+      builds++
+      readInBody()
+      return memory.host.createElement('view')
+    }
+
+    renderChild(wrapper, () => branch)
+    expect(builds).toBe(1)
+    readInBody('b')
+    expect(builds).toBe(1)
+  })
+
   it('disposes the mounted branch when torn down', () => {
     const memory = createMemoryHost()
     setHost(memory.host)

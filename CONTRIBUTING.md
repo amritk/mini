@@ -20,11 +20,19 @@ You'll need [Bun](https://bun.sh) ≥ 1.1.
 | `bun run check` | Lint with biome |
 | `bun run format` | Auto-format with biome |
 | `bun run check:reactivity` | Catch signals frozen by being called in JSX |
-| `bun run types:check` | Type-check both packages |
-| `bun run build` | Build both packages |
+| `bun run types:check` | Type-check both packages and both playgrounds |
+| `bun run build` | Build both packages and both playgrounds |
 | `bun run test:dist` | Load, drive and npm-install the built artifacts (needs a prior build) |
 
 Per package: `bun run --filter='@amritk/mini' test` (and `build`, `types:check`).
+
+`bun run test` covers `packages/*` only — the kitchen-sink playgrounds under
+`apps/` carry no tests of their own, and `bun run build` / `bun run types:check`
+are what keep them honest. Run one with
+`bun run --filter='@amritk/playground-mini' dev`, and see
+[`apps/playground-mini`](./apps/playground-mini/README.md) and
+[`apps/playground-mini-native`](./apps/playground-mini-native/README.md) for what
+each demonstrates.
 
 ## Workflow
 

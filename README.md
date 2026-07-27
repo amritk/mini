@@ -116,6 +116,25 @@ package READMEs:
   `/flow` `/ui` `/platform` `/composition` `/gestures` `/animate` `/router`
   `/forms` `/query` subpaths.
 
+## Playgrounds
+
+Two kitchen-sink demos live in [`apps/`](./apps), each exercising every public
+entry point of its package and deployed to Cloudflare Workers as a static SPA:
+
+- [`playground-mini`](./apps/playground-mini/README.md) — signals, the JSX
+  runtime, every binding, `/flow`, `/forms`, `/query`, and `/router` (which the
+  app itself runs on).
+- [`playground-mini-native`](./apps/playground-mini-native/README.md) — the
+  five-tag vocabulary, `/ui`, `/flow`, `/gestures`, `/platform`, `/composition`
+  and `/router`, rendered through the DOM host as a **web preview of a native
+  app**. It swaps in the in-memory host live and prints the object tree the same
+  components produce there.
+
+```sh
+bun run --filter '@amritk/playground-mini' dev
+bun run --filter '@amritk/playground-mini-native' dev
+```
+
 ## For AI agents & LLMs
 
 Each package ships an **`AI.md`** next to its `README.md`: a mental model, a
