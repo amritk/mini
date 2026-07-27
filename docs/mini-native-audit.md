@@ -7,11 +7,13 @@ that neither package has yet.
 Every defect below was reproduced against the package's own hosts (memory, DOM
 via happy-dom, Lynx via the fake PAPI engine) before being written down.
 
-> **Status: sections 1 and 2 are done.** Every defect in section 1 is fixed and
-> carries a regression test, and the section 2 parity gaps are closed apart from
-> the three feature subpaths. Section 3 — the native story — is untouched and is
-> the roadmap. Each item below is marked with what actually shipped, because the
-> reasoning is worth keeping even once the code has moved on.
+> **Status: closed.** Every defect in section 1 is fixed and carries a regression
+> test, every section 2 parity gap is now closed including the three feature
+> subpaths, and every item in section 3 — the native story, which was the roadmap
+> — has shipped. This document is a record rather than a plan; the live list of
+> what is still missing is the package README's *Known gaps*, which is shorter
+> and different in kind. Each item below is marked with what actually shipped,
+> because the reasoning is worth keeping even once the code has moved on.
 
 Core size at the time of the audit: `.` entry 6.5 KB raw / 2.5 KB gzipped,
 `/flow` 2.4 KB gzipped, DOM host 731 B, Lynx host 768 B. There is now a
@@ -323,40 +325,64 @@ tsconfig was enforcing it.
 These are not `mini` parity gaps — `mini` does not have them either — but a
 runtime that calls itself React-Native-shaped is measured against them.
 
-**Accessibility.** There are no accessibility props anywhere in the vocabulary.
+> **All done.** Each item below carries its own note. The order they were
+> tackled in is the order they are written in, which turned out to be the right
+> one: accessibility first because retrofitting it is the expensive kind of
+> change, and the animation seam last but one because two things already shipped
+> — gestures and routing — were incomplete without it.
+
+**Accessibility.** *Done — `Role` in `elements.ts`, mapped by both real hosts,
+with the vocabulary-coverage suite holding the line.* There are no accessibility
+props anywhere in the vocabulary.
 `image alt` is the only one. No `role`, `accessibilityLabel`,
 `accessibilityHint`, `accessible`, no focus order, no live regions. This is the
 single largest omission: an inaccessible native app is not shippable in either
 app store's practical review climate, and retrofitting it across a vocabulary is
 far more expensive than designing it in while the vocabulary is five tags.
 
-**Virtualised lists.** `For` over 10,000 rows creates 10,000 host elements.
+**Virtualised lists.** *Done — `VirtualFor` in `/flow`, but NOT the way this
+paragraph proposed: it is not bound to a platform recycler. This runtime already
+has the recycler's model, since `Index` hands a row a getter for whatever
+occupies its slot, so the window is the ordinary keyed list keyed by slot rather
+than by item. Nothing new on the host contract, and identical on all three
+targets.* `For` over 10,000 rows creates 10,000 host elements.
 Lynx ships a `<list>` element with recycling precisely because this is the
 defining native performance problem. A `<VirtualFor>` bound to it — falling back
 to plain `For` on the DOM — is the highest-value native-only addition.
 
-**Gestures.** `onTap` and `onLongPress` only. No pan, swipe, pinch, or
+**Gestures.** *Done — `/gestures` ships `pan` and `swipe` over a host-normalised
+pointer stream. Pinch and rotate are writable over the same stream and stay
+unshipped on purpose: their thresholds want tuning against a real screen.*
+`onTap` and `onLongPress` only. No pan, swipe, pinch, or
 touch-start/move/end, so no drag-to-dismiss, no swipe-to-delete, no pull to
 refresh — the interactions that make an app feel native.
 
-**Animation.** No story at all. Driving an animation from a signal means one
+**Animation.** *Done — `Host.animate` plus the `/animate` subpath, and the seam
+turned on a rule this paragraph did not anticipate: there is no `fill`, so an
+animation never leaves a style behind. The signal is the state and the animation
+is only how it gets there, which is what makes reduced motion expressible as
+"do not run it".* No story at all. Driving an animation from a signal means one
 property write per frame across the bridge. Native runtimes solve this with
 declarative, host-driven animation descriptors; this needs at minimum a
 `Host.animate` seam so the engine owns the timeline.
 
-**Platform environment.** No safe-area insets, no dimensions/orientation
+**Platform environment.** *Done — `/platform`, and `reduceMotion` joined the
+three named here once the animation seam needed it.* No safe-area insets, no dimensions/orientation
 signal, no colour-scheme (dark mode) signal. Every one of these is reactive
 state a host can expose cheaply, and every real app needs all three.
 
-**Context.** With no component instances there is no implicit way to pass
+**Context.** *Done — `createContext` in `/composition`; `provide` takes a
+function, because JSX builds eagerly.* With no component instances there is no implicit way to pass
 theme, locale, navigation, or auth down a tree — everything is module globals or
 prop drilling. A scope-keyed provide/inject built on `effectScope` fits the
 model and is small.
 
-**Portal.** Modals, sheets, toasts, and tooltips all need to escape their
+**Portal.** *Done — `/composition`.* Modals, sheets, toasts, and tooltips all need to escape their
 parent view. There is no way to render outside the current subtree.
 
-**Error boundaries.** A throw during a component's single run leaves a partially
+**Error boundaries.** *Done — `/composition`, covering construction. A throw
+inside an effect, a handler, or a promise happens after every component has
+finished running and belongs to whoever started it.* A throw during a component's single run leaves a partially
 built tree and no recovery path.
 
 **Fragments.** Deliberately absent, and defensible — but it means every
@@ -396,28 +422,54 @@ reproduced there against happy-dom before being fixed:
 
 `mini`'s gzipped core budget moved 3050 → 3200 to cover them (measured 3137).
 
-### Loose ends
+### Loose ends — all closed
 
-- Port `forms` and `query` from `mini`; both are close to platform-free.
-- A router, with a native nav-stack shim standing in for `window.history`.
-- Point consumers at `@amritk/mini/vite` for the called-signal check, or
-  re-export it, rather than shipping a second copy.
-- A benchmark, mirroring the js-framework-benchmark example `mini` grew. The
-  reconciler now has a move-minimal guarantee measured in host calls; a wall
-  clock number would be better.
+- **`forms` and `query` ported.** `query` went over verbatim; `forms` needed one
+  file rewritten, because a form eventually has to touch a control and a host
+  node here is opaque. Which binding a field gets is now decided by the type of
+  its initial value rather than by inspecting the element — which the web
+  version's own documentation already claimed while its implementation derived
+  it from the DOM.
+- **The router shipped**, with history as the pluggable half: matching is pure,
+  `createMemoryHistory` works everywhere, and `createBrowserHistory` sits on its
+  own entry so `/router` stays platform-free.
+- **The called-signal check is documented, not duplicated.** `mini`'s scanner is
+  purely syntactic, so it already catches the identical mistake here. The README
+  now covers both build shapes, which is what was actually missing: the Vite
+  plugin for a web preview, and `findCalledSignalBindings` as a CLI gate for a
+  device build that is not Vite.
+- **The benchmark exists**, in `examples/js-framework-benchmark`, with
+  `bun run bench:reconciler` timing it against the memory host. Two of `mini`'s
+  four techniques turned out to be unavailable — there is no template cloning
+  without an HTML parser, and no delegation without a bubbling phase — which is
+  the more interesting result than the milliseconds.
 
-### The native story, in priority order
+### The native story — shipped
 
-1. **Accessibility props** across the vocabulary and in the `Host` contract.
-   Still the largest single omission, and still far cheaper to design in while
-   the vocabulary is five tags than to retrofit later.
-2. **A virtualised list** bound to Lynx's recycler. `For` over ten thousand rows
-   creates ten thousand host elements.
-3. **Gestures beyond tap and long-press**, and a `Host.animate` seam so the
-   engine owns the timeline instead of taking a bridge write per frame.
-4. **Context, `Portal`, and error boundaries.**
-5. **Safe-area, dimensions, and colour-scheme signals** — all cheap for a host
-   to expose, all needed by every real app.
+Every item is done. In the order they were tackled, which was the priority order
+below:
+
+1. **Accessibility props.** `Role` across the vocabulary, mapped by both real
+   hosts, with a coverage suite holding the line.
+2. **A virtualised list** — `VirtualFor`, but *not* bound to Lynx's recycler.
+   That was the plan and it was wrong: this runtime already has the recycler's
+   model, since `Index` hands a row a getter for whatever occupies its slot. The
+   window is the ordinary keyed list keyed by slot, and the host contract grew
+   by nothing.
+3. **Gestures** (`pan`, `swipe` over a normalised pointer stream) and the
+   **`Host.animate` seam**. The seam landed last of the two and turned on a rule
+   this document did not anticipate: no `fill`, so an animation never leaves a
+   style behind. The signal is the state; the animation is only how it gets
+   there.
+4. **Context, `Portal`, and error boundaries** — `/composition`.
+5. **Safe-area, dimensions, and colour-scheme signals** — `/platform`, joined by
+   `reduceMotion` once the animation seam needed somewhere to ask.
+
+What is still missing is now a shorter and different list, and it lives in the
+package README's *Known gaps* rather than here: pinch and rotate, variable row
+sizes, a responsive primitive, capability flags, a navigation stack. None of them
+is a hole in the architecture, which is the difference between that list and this
+document.
 
 Fragments stay deliberately absent, at the known cost of one container view per
 component. That is the flattening native performance work usually targets, so it
