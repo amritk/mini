@@ -48,12 +48,18 @@
         "alien-signals": "catalog:",
       },
       "devDependencies": {
+        "@amritk/runtime-validators": "^0.9.0",
+        "@tanstack/query-core": "^5.101.2",
         "typescript": "^5",
       },
       "peerDependencies": {
+        "@amritk/runtime-validators": ">=0.8.0",
+        "@tanstack/query-core": "^5",
         "typescript": "^5",
       },
       "optionalPeers": [
+        "@amritk/runtime-validators",
+        "@tanstack/query-core",
         "typescript",
       ],
     },

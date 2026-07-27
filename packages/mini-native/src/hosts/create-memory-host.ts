@@ -1,4 +1,4 @@
-import type { Host, HostEventHandler } from '../host'
+import type { AnimationEnd, AnimationTiming, Host, HostEventHandler, Keyframes } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
@@ -24,6 +24,26 @@ export type MemoryText = {
 
 export type MemoryNode = MemoryElement | MemoryText
 
+/**
+ * An animation this host was asked to run, and the controls to end it.
+ *
+ * The descriptor is kept verbatim rather than interpreted, because what a test
+ * wants to know about an animation is almost always what was ASKED for — did
+ * dismissing the row animate the row, for how long, in which direction — and
+ * never what colour it was halfway through.
+ */
+export type MemoryAnimation = {
+  readonly element: MemoryElement
+  readonly keyframes: Keyframes
+  readonly timing: AnimationTiming
+  /** `running` until something ends it, then how it ended. */
+  state: 'running' | AnimationEnd
+  /** Ends it at the last frame, settling `finished`. */
+  finish: () => void
+  /** Ends it where it is, settling `finished`. */
+  cancel: () => void
+}
+
 /** What {@link createMemoryHost} hands back: the host plus a way to reach the tree it builds. */
 export type MemoryHost = {
   host: Host
@@ -31,6 +51,16 @@ export type MemoryHost = {
   root: MemoryElement
   /** The root typed for the runtime, so it can be passed straight to `mount`. */
   rootElement: HostElement
+  /**
+   * Every animation started through this host, oldest first, still listed after
+   * it has ended.
+   *
+   * Kept rather than pruned because the interesting assertion is usually about
+   * an animation that is already over — "dismissing the row faded it out first"
+   * is a fact about the past, and a list that emptied itself would make it
+   * unobservable a tick later.
+   */
+  animations: MemoryAnimation[]
 }
 
 /**
@@ -48,6 +78,7 @@ export type MemoryHost = {
  */
 export const createMemoryHost = (): MemoryHost => {
   const root = element('root')
+  const animations: MemoryAnimation[] = []
 
   const host: Host = {
     platform: 'memory',
@@ -152,9 +183,59 @@ export const createMemoryHost = (): MemoryHost => {
       const next = siblings[siblings.indexOf(child) + 1]
       return next === undefined ? null : toHostNode(next)
     },
+
+    /**
+     * Records the timeline and hands back a handle nothing but the caller can
+     * advance.
+     *
+     * There is no clock here, and inventing one would be the worse choice twice
+     * over: a headless tree has no frames to draw, and a test that has to wait
+     * out a 240ms transition in real time is a test that will one day be flaky
+     * on a loaded machine. So the animation simply stays `running` until
+     * something ends it, which makes "the row faded out and then was removed"
+     * assertable as a sequence rather than as a race.
+     *
+     * The element's style is deliberately untouched, and that is this host
+     * demonstrating the contract rather than dodging it: an animation releases
+     * the element to its own style at the end, so a host that never moved it in
+     * the first place already ends up where every other host does. It is the
+     * cheapest possible proof that nothing about the finished tree depends on
+     * whether the target could animate.
+     */
+    animate: (target, keyframes, timing) => {
+      let settle: (end: AnimationEnd) => void = () => {}
+      const finished = new Promise<AnimationEnd>((resolve) => {
+        settle = resolve
+      })
+
+      const end = (how: AnimationEnd) => () => {
+        if (record.state !== 'running') return
+        record.state = how
+        settle(how)
+      }
+
+      const record: MemoryAnimation = {
+        element: fromHostElement(target),
+        keyframes,
+        timing,
+        state: 'running',
+        // An endless animation has no last frame to jump to, so finishing one is
+        // a cancel — the same resolution every host in this package reaches, and
+        // the contract says so rather than leaving it per-target.
+        finish: end(timing.iterations === Number.POSITIVE_INFINITY ? 'cancelled' : 'finished'),
+        cancel: end('cancelled'),
+      }
+      animations.push(record)
+
+      return {
+        finish: () => record.finish(),
+        cancel: () => record.cancel(),
+        finished,
+      }
+    },
   }
 
-  return { host, root, rootElement: toHostElement(root) }
+  return { host, root, rootElement: toHostElement(root), animations }
 }
 
 /**

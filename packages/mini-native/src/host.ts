@@ -50,7 +50,100 @@ export type HostEnvironment = {
   readonly colorScheme?: ReadonlySignal<ColorScheme>
   readonly dimensions?: ReadonlySignal<Dimensions>
   readonly safeArea?: ReadonlySignal<Insets>
+  /**
+   * Whether the user has asked the system to cut down on motion.
+   *
+   * Every platform this runtime targets has this setting and every one of them
+   * means it: for a person with a vestibular disorder a sliding sheet is not a
+   * flourish, it is nausea. It sits here rather than in an app's own settings
+   * because the answer belongs to the system, and because putting it in the
+   * environment is what lets {@link Host.animate} honour it without a single
+   * call site remembering to ask.
+   */
+  readonly reduceMotion?: ReadonlySignal<boolean>
 }
+
+/**
+ * How an animation stopped.
+ *
+ * A caller usually has to know: fading a toast out and then removing it is
+ * correct only if the fade actually reached the end, and wrong if something
+ * interrupted it — the toast is back on screen and the removal would tear it
+ * out from under the user.
+ */
+export type AnimationEnd = 'finished' | 'cancelled'
+
+/**
+ * The timing half of an animation: how long, how many times, and in what shape.
+ *
+ * There is no `fill` here, and its absence is the design rather than an
+ * oversight. A filled animation leaves the element holding a style nothing else
+ * knows about, so the truth about what the element looks like moves out of the
+ * signal graph and into a timeline — and the next `setStyle` either fights it or
+ * loses to it. The rule this package keeps instead: **the signal is the state
+ * and the animation is only how it gets there**. Write the settled value, then
+ * animate from wherever it was; the element releases to its own style at the end
+ * because its own style is already right.
+ *
+ * That rule is worth more than the feature it costs. It is what makes an
+ * animation safely removable — by a host that cannot animate, by a user who
+ * asked for less motion, by a test — without any of them changing what is on
+ * screen when the dust settles.
+ */
+export type AnimationTiming = {
+  /** How long one iteration takes, in milliseconds. */
+  readonly duration: number
+  /** How long to wait before the first iteration. Defaults to none. */
+  readonly delay?: number
+  /**
+   * The easing curve, spelled the way CSS spells it — a keyword or a
+   * `cubic-bezier(…)`. Left as a string rather than a union because every target
+   * this runtime has met parses CSS timing functions, and enumerating them here
+   * would only mean rejecting a curve some engine understands.
+   */
+  readonly easing?: string
+  /** How many times to run. `Infinity` is allowed and means until cancelled. Defaults to once. */
+  readonly iterations?: number
+  /** Which direction each iteration runs in. Defaults to `normal`. */
+  readonly direction?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse'
+}
+
+/**
+ * A running animation, as the host hands it back.
+ *
+ * `finished` RESOLVES on a cancel rather than rejecting, reporting which
+ * happened. A rejection would make the ordinary "clean up afterwards" case —
+ * far and away the common one — require a `catch` that exists only to swallow
+ * something that is not an error, and forgetting it costs an unhandled
+ * rejection. Reporting the outcome as a value keeps the interesting case
+ * (finished, so remove the node) a plain comparison.
+ */
+export type HostAnimation = {
+  /** Stops the animation where it is and releases the element to its own style. */
+  cancel: () => void
+  /**
+   * Jumps to the last frame and ends.
+   *
+   * On an animation with infinite `iterations` this behaves as {@link cancel},
+   * because there is no final frame to jump to, and `finished` reports
+   * `cancelled` accordingly.
+   */
+  finish: () => void
+  /** Settles when the animation stops, with how it stopped. Never rejects. */
+  readonly finished: Promise<AnimationEnd>
+}
+
+/**
+ * Two or more style bags to animate between.
+ *
+ * A tuple rather than an array, because one keyframe is not an animation: it
+ * describes a destination with no stated origin, leaving the host to read the
+ * element's current computed style — which the web can do and a native view tree
+ * generally cannot. Requiring the origin is what keeps an animation mean the
+ * same thing on both, and a tuple makes leaving it out a compile error instead
+ * of a target-dependent surprise.
+ */
+export type Keyframes = readonly [StyleValue, StyleValue, ...StyleValue[]]
 
 /**
  * The renderer contract — the entire platform surface this framework needs.
@@ -243,6 +336,28 @@ export type Host = {
   focus?: (element: HostElement) => void
 
   blur?: (element: HostElement) => void
+
+  /**
+   * Hands a whole timeline to the engine and returns a handle to it.
+   *
+   * This is the one method that exists to AVOID work rather than to do it.
+   * Everything else in this contract is a single mutation the runtime asks for
+   * when a signal says so, and an animation driven that way is one property
+   * write per displayed frame — sixty a second, each one a bridge crossing on a
+   * native target, all of them competing with whatever else the app is doing on
+   * the JavaScript thread. Describing the whole animation once lets the engine
+   * run it on the thread that composites, where a dropped JavaScript frame does
+   * not become a dropped animation frame.
+   *
+   * The element is released back to its own style when the animation ends,
+   * however it ends. See {@link AnimationTiming} for why there is no `fill` and
+   * why that release is the point rather than a limitation.
+   *
+   * Optional, like {@link focus}: a target with no notion of time should not
+   * have to fake one. The runtime skips straight to the settled state when it is
+   * missing, which is correct precisely BECAUSE nothing here is load-bearing.
+   */
+  animate?: (element: HostElement, keyframes: Keyframes, timing: AnimationTiming) => HostAnimation
 
   /**
    * Commits pending mutations, for targets that batch rather than apply

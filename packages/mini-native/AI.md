@@ -21,6 +21,14 @@ compiler analysing your code:
 <view onTap={() => n(n() + 1)}>    {/* ✅ calls are fine inside handlers */}
 ```
 
+Nothing at runtime can catch rule 1 — the call already happened at the JSX call
+site, so the runtime sees an ordinary value and so does the type checker. The
+source is the only place left, and `@amritk/mini`'s scanner is purely syntactic,
+so it catches the identical mistake here: add `catchCalledSignals()` from
+`@amritk/mini/vite` to a Vite preview build, or call `findCalledSignalBindings`
+from a CLI gate for a device build that is not Vite. This package deliberately
+ships no second copy.
+
 **2. The elements are native, not HTML.** `JSX.IntrinsicElements` is
 `view | text | image | scroll-view | input`. There is no `<div>`, and there never
 will be — the DOM is a *preview target* here, not the real one. Writing
@@ -101,9 +109,12 @@ structurally, use the control-flow components.
 | Import | Purpose |
 |---|---|
 | `@amritk/mini-native` | signals, `mount`, `list`, binds, `setHost`, JSX types |
-| `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey` |
+| `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `VirtualFor` / `defaultKey`. Reach for `VirtualFor` once a list is long enough that a node per row is wrong — it builds a screenful and recycles it, and needs a fixed `itemSize` |
 | `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags. Plus `ThemeContext` and `systemTheme()` for the scales they resolve against |
-| `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` as signals. Prefer the environment to the OS name |
+| `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` / `reduceMotion` as signals. Prefer the environment to the OS name |
+| `@amritk/mini-native/animate` | `animate(element, keyframes, timing)` — the timeline goes to the engine in one call. It never leaves a style behind: write the settled value, then animate from where the element was. Skipped outright under reduced motion, which is safe precisely because of that |
+| `@amritk/mini-native/forms` | `createForm` / `Field` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
+| `@amritk/mini-native/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s, verbatim |
 | `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
 | `@amritk/mini-native/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |
 | `@amritk/mini-native/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` — platform-free |
