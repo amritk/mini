@@ -31,7 +31,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router']
+const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router', 'animate']
 
 /**
  * Drops comments before the specifiers are read.
@@ -172,6 +172,15 @@ describe('import-boundary', () => {
     const router = walk(resolve(SRC, 'router', 'index.ts'))
     expect(leaksFrom(router.files, ['hosts'])).toEqual([])
     expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
+  })
+
+  it('keeps the animation subpath free of any host', () => {
+    // `animate` describes a timeline and hands it to whichever host is
+    // installed. Reaching for a concrete one would mean the description had
+    // learned what engine was going to run it, which is the seam collapsing.
+    const animate = walk(resolve(SRC, 'animate', 'index.ts'))
+    expect(leaksFrom(animate.files, ['hosts'])).toEqual([])
+    expect([...animate.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { For } from '../flow'
 import type { HostElement } from '../index'
@@ -405,5 +405,86 @@ describe('create-lynx-host events', () => {
     fire(asFake(view), 'swipe', payload)
 
     expect(seen).toBe(payload)
+  })
+})
+
+/**
+ * The animation seam, wired through the host rather than exercised in isolation.
+ *
+ * `lynx-transition-animator.test.ts` covers what the animator does with the
+ * PAPI. What is worth checking HERE is the join: the animator ends by asking the
+ * host to put the element back the way its own `style` prop says, and only the
+ * host knows what that is. Get that wrong and an animation permanently strips
+ * whatever the element was styled with — a failure that appears one frame after
+ * the animation ends, which is the worst possible place to look for it.
+ */
+describe('create-lynx-host animation', () => {
+  it('releases the element back to its own style bag', async () => {
+    vi.useFakeTimers()
+    try {
+      const engine = createFakeEngine()
+      // The SAME host instance that rendered the element, which is the whole
+      // point: what an element's own style bag is, is something this host
+      // remembers per element rather than something the engine can be asked.
+      const host = createLynxHost(engine.api)
+      setHost(host)
+      mount(lynxRoot(toLynx(engine.root)), () => <view style={{ opacity: 1, width: 100 }} />)
+      const view = engine.root.children[0] as FakeElement
+
+      const running = host.animate?.(view as unknown as HostElement, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: 200,
+      })
+      await vi.runAllTimersAsync()
+      await running?.finished
+
+      // Not merely "opacity is 1 again" — the whole bag is back, and the
+      // transition the animator added is gone with it.
+      expect(view.styles).toEqual({ opacity: '1', width: '100px' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not un-hide an element that `show` had hidden', async () => {
+    vi.useFakeTimers()
+    try {
+      const engine = createFakeEngine()
+      const host = createLynxHost(engine.api)
+      setHost(host)
+      const visible = signal(false)
+      mount(lynxRoot(toLynx(engine.root)), () => <view show={visible} style={{ opacity: 1 }} />)
+      const view = engine.root.children[0] as FakeElement
+
+      const running = host.animate?.(view as unknown as HostElement, [{ opacity: 0 }, { opacity: 1 }], {
+        duration: 200,
+      })
+      await vi.runAllTimersAsync()
+      await running?.finished
+
+      // The same invariant a plain `setStyle` has to keep, reached by a second
+      // route. Releasing an animation rewrites the inline styles wholesale, so
+      // it is exactly the operation that would quietly show a hidden element.
+      expect(view.styles['display']).toBe('none')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('prefers an engine-native animator when one is supplied', () => {
+    const engine = createFakeEngine()
+    const asked: number[] = []
+    const host = createLynxHost(engine.api, {
+      animate: (_element, _keyframes, timing) => {
+        asked.push(timing.duration)
+        return { finish: () => {}, cancel: () => {}, finished: Promise.resolve('finished') }
+      },
+    })
+
+    host.animate?.(toLynx(engine.root) as unknown as HostElement, [{ opacity: 0 }, { opacity: 1 }], { duration: 42 })
+
+    // The transition-based default is the most the declared PAPI can express,
+    // not a claim that nothing better exists. An engine build with a real
+    // animation API should win outright.
+    expect(asked).toEqual([42])
   })
 })

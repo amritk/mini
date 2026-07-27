@@ -606,3 +606,149 @@ describe('create-dom-host vocabulary', () => {
     expect(submitted).toEqual([])
   })
 })
+
+/**
+ * The animation seam, which needs a browser API happy-dom does not implement.
+ *
+ * The Web Animations API is absent here entirely, so these cases supply the
+ * smallest thing that behaves like one. That is a real cost and worth naming:
+ * what is verified is the ADAPTER — which keyframes and options the host hands
+ * over, and how it turns the API's outcomes back into the contract's — and not
+ * that a browser then interpolates them correctly. The first is this package's
+ * code and the second is the browser's.
+ *
+ * It also documents the omission itself. Under an unmodified happy-dom the host
+ * declares no `animate` at all, which is what keeps the runtime's skip path
+ * exercised on every run rather than only in theory.
+ */
+type FakeAnimation = {
+  keyframes: unknown
+  options: unknown
+  finish: () => void
+  cancel: () => void
+}
+
+/** Installs a minimal Web Animations API and hands back what it recorded. */
+const withFakeAnimations = (): { started: FakeAnimation[]; restore: () => void } => {
+  const started: FakeAnimation[] = []
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+
+  Object.defineProperty(Element.prototype, 'animate', {
+    configurable: true,
+    writable: true,
+    value(keyframes: unknown, options: unknown) {
+      let settle: (value: unknown) => void = () => {}
+      let fail: (reason: unknown) => void = () => {}
+      const finished = new Promise((resolve, reject) => {
+        settle = resolve
+        fail = reject
+      })
+      const record: FakeAnimation = {
+        keyframes,
+        options,
+        finish: () => settle(undefined),
+        // Exactly how a browser reports a cancellation: a rejection, which the
+        // host is responsible for turning back into an ordinary outcome.
+        cancel: () => fail(new Error('AbortError')),
+      }
+      started.push(record)
+      return { finished, finish: record.finish, cancel: record.cancel }
+    },
+  })
+
+  return {
+    started,
+    restore: () => {
+      if (original) Object.defineProperty(Element.prototype, 'animate', original)
+      else Reflect.deleteProperty(Element.prototype, 'animate')
+    },
+  }
+}
+
+describe('create-dom-host animation', () => {
+  it('declares no animate when the browser has no Web Animations API', () => {
+    // happy-dom is that browser. A host reports what its target actually knows,
+    // and the runtime skips straight to the settled state when this is missing —
+    // which is only safe because an animation never owns its end state.
+    expect(createDomHost().animate).toBeUndefined()
+  })
+
+  it('hands the keyframes over with units added and keys in their IDL spelling', () => {
+    const animations = withFakeAnimations()
+    try {
+      const host = createDomHost()
+      const element = host.createElement('view')
+
+      host.animate?.(element, [{ 'background-color': 'red', translateY: 40 }, { opacity: 0.5 }], { duration: 200 })
+
+      expect(animations.started[0]?.keyframes).toEqual([
+        { backgroundColor: 'red', translateY: '40px' },
+        { opacity: '0.5' },
+      ])
+    } finally {
+      animations.restore()
+    }
+  })
+
+  it('fills in the timing defaults and leaves fill alone', () => {
+    const animations = withFakeAnimations()
+    try {
+      const host = createDomHost()
+      const element = host.createElement('view')
+
+      host.animate?.(element, [{ opacity: 0 }, { opacity: 1 }], { duration: 200 })
+
+      // `fill` is absent on purpose, so it stays at the API's default of `none`
+      // and the element is released to its own style the instant the timeline
+      // ends. That release is the rule the whole design rests on.
+      expect(animations.started[0]?.options).toEqual({
+        duration: 200,
+        delay: 0,
+        easing: 'ease',
+        iterations: 1,
+        direction: 'normal',
+      })
+    } finally {
+      animations.restore()
+    }
+  })
+
+  it('reports a cancellation as an outcome rather than a rejection', async () => {
+    const animations = withFakeAnimations()
+    try {
+      const host = createDomHost()
+      const element = host.createElement('view')
+
+      const running = host.animate?.(element, [{ opacity: 0 }, { opacity: 1 }], { duration: 200 })
+      running?.cancel()
+
+      // The browser rejects `finished` with an `AbortError` for what is an
+      // entirely ordinary outcome. Left alone that would make cleaning up after
+      // a cancelled animation require a `catch` that swallows a non-error, and
+      // forgetting it would cost an unhandled rejection.
+      await expect(running?.finished).resolves.toBe('cancelled')
+    } finally {
+      animations.restore()
+    }
+  })
+
+  it('cancels rather than finishes an endless animation', async () => {
+    const animations = withFakeAnimations()
+    try {
+      const host = createDomHost()
+      const element = host.createElement('view')
+
+      const spin = host.animate?.(element, [{ rotate: '0deg' }, { rotate: '360deg' }], {
+        duration: 900,
+        iterations: Number.POSITIVE_INFINITY,
+      })
+      spin?.finish()
+
+      // `finish()` throws `InvalidStateError` on an infinite animation, because
+      // there is no end to seek to. Cancelling is what the caller meant.
+      await expect(spin?.finished).resolves.toBe('cancelled')
+    } finally {
+      animations.restore()
+    }
+  })
+})

@@ -100,6 +100,12 @@
       "import": "./dist/gestures/index.js",
       "default": "./dist/gestures/index.js"
     },
+    "./animate": {
+      "development": "./src/animate/index.ts",
+      "types": "./dist/animate/index.d.ts",
+      "import": "./dist/animate/index.js",
+      "default": "./dist/animate/index.js"
+    },
     "./composition": {
       "development": "./src/composition/index.ts",
       "types": "./dist/composition/index.d.ts",

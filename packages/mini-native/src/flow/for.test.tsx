@@ -167,7 +167,7 @@ describe('For container semantics', () => {
       </For>
     ))
 
-    expect(serializeMemoryTree(containerOf({ host, root, rootElement }))).toBe(
+    expect(serializeMemoryTree(root.children[0] as MemoryElement)).toBe(
       [
         '<view label="tags" role="list">',
         '  <text role="listitem">',

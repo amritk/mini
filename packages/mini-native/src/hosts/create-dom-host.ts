@@ -1,8 +1,9 @@
-import type { Host } from '../host'
+import type { AnimationEnd, AnimationTiming, Host, HostAnimation, Keyframes } from '../host'
 import type { HostElement, HostNode, HostText } from '../types'
 import { createDomEnvironment } from './dom-environment'
 import { installDomReset, RESET_CONTAINER_MARKER, RESET_MARKER } from './dom-reset'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
+import { toKeyframe } from './to-keyframe'
 import { toStyleText } from './to-style-text'
 
 /**
@@ -308,6 +309,15 @@ export const createDomHost = ({ reset = true }: DomHostOptions = {}): Host => {
       fromHostElement(element).blur()
     },
 
+    // Feature-detected rather than assumed, and OMITTED rather than stubbed when
+    // the Web Animations API is missing. A host reports what its target actually
+    // knows — the same rule the environment fields follow — and the runtime's
+    // skip path is only reachable if some host genuinely declines. It is not a
+    // hypothetical: happy-dom, which this package's own DOM suite runs under,
+    // implements no animations at all, so the omission is exercised on every
+    // test run rather than only in a browser old enough to matter.
+    ...(supportsWebAnimations() ? { animate: animateWithWebAnimations } : {}),
+
     createElement: (tag, props) => {
       const element = document.createElement(htmlTag(tag, props))
       if (reset) {
@@ -490,6 +500,58 @@ export type DomHostOptions = {
 }
 
 export const domRoot = (element: Element): HostElement => toHostElement(element)
+
+/** Whether this browser has the Web Animations API at all. See where it is used. */
+const supportsWebAnimations = (): boolean =>
+  typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function'
+
+/**
+ * Runs a timeline through the Web Animations API.
+ *
+ * This is the browser doing precisely what the seam exists for. A WAAPI
+ * animation is handed to the compositor and runs there, so it keeps its frame
+ * rate through a busy main thread — which is the difference between a screen
+ * transition that feels native and one that stutters whenever the app happens to
+ * be parsing a response.
+ *
+ * `fill` is left at its default of `none`, deliberately and in line with the
+ * contract: the element releases to its own style the instant the timeline ends.
+ * See `AnimationTiming` for why that is the rule rather than a shortcoming.
+ */
+const animateWithWebAnimations = (
+  target: HostElement,
+  keyframes: Keyframes,
+  timing: AnimationTiming,
+): HostAnimation => {
+  const element = fromHostElement(target)
+  const endless = timing.iterations === Number.POSITIVE_INFINITY
+
+  const animation = element.animate(keyframes.map(toKeyframe), {
+    duration: timing.duration,
+    delay: timing.delay ?? 0,
+    easing: timing.easing ?? 'ease',
+    iterations: timing.iterations ?? 1,
+    direction: timing.direction ?? 'normal',
+  })
+
+  return {
+    // Cancelling rejects `animation.finished` with an `AbortError`, which is the
+    // browser reporting an ordinary outcome as a failure. The contract says
+    // otherwise, so the rejection is turned back into the value it always was.
+    // Attaching the handler here rather than lazily also matters: a caller that
+    // never touches `finished` would otherwise get an unhandled rejection for
+    // cancelling an animation, which is a warning about nothing.
+    finished: animation.finished.then<AnimationEnd, AnimationEnd>(
+      () => 'finished',
+      () => 'cancelled',
+    ),
+    // `finish()` throws `InvalidStateError` on an infinite animation, because
+    // there is no end to seek to. Cancelling is what the caller meant and what
+    // the contract promises for this case.
+    finish: () => (endless ? animation.cancel() : animation.finish()),
+    cancel: () => animation.cancel(),
+  }
+}
 
 /**
  * What the DOM host remembers about an element that the element itself cannot

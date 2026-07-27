@@ -1,6 +1,7 @@
 import type { Host, HostEnvironment, HostEventHandler } from '../host'
 import type { HostElement, HostNode, HostText, StyleValue } from '../types'
 import { globalLynxApi, type LynxElement, type LynxElementApi } from './lynx-element-api'
+import { createTransitionAnimator } from './lynx-transition-animator'
 import { NAMED_EVENTS_WITHOUT_DATA } from './named-events'
 import { toStyleText } from './to-style-text'
 import { isAbsent, TRI_STATE_PROPS } from './tri-state-props'
@@ -59,22 +60,45 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: L
   const handlers = new WeakMap<LynxElement, Map<string, Set<HostEventHandler>>>()
 
   /**
-   * What the host remembers about an element's visibility.
+   * What the host remembers about an element that its inline styles cannot say.
    *
-   * Lynx expresses both a style bag and visibility through inline styles, and
-   * `__SetInlineStyles` overwrites wholesale, so a style write would otherwise
-   * un-hide an element the runtime had hidden. Remembering the two separately
-   * lets a style write re-assert the hidden state, and lets showing an element
-   * again restore the display its own style asked for.
+   * Lynx expresses a style bag, visibility, and an animation's current frame
+   * through one channel, and `__SetInlineStyles` overwrites wholesale — so a
+   * style write would otherwise un-hide an element the runtime had hidden.
+   * Remembering the parts separately lets a style write re-assert the hidden
+   * state, lets showing an element again restore the display its own style asked
+   * for, and lets an animation put the element back exactly as it found it.
    */
-  const visibility = new WeakMap<LynxElement, LynxVisibility>()
+  const state = new WeakMap<LynxElement, LynxElementState>()
 
-  const visibilityOf = (element: LynxElement): LynxVisibility => {
-    const existing = visibility.get(element)
+  const stateOf = (element: LynxElement): LynxElementState => {
+    const existing = state.get(element)
     if (existing) return existing
-    const created: LynxVisibility = { styleDisplay: null, hidden: false }
-    visibility.set(element, created)
+    const created: LynxElementState = { style: null, styleDisplay: null, hidden: false }
+    state.set(element, created)
     return created
+  }
+
+  /**
+   * Applies an element's own style bag, which is both what `setStyle` does and
+   * what an animation does when it releases the element at the end.
+   *
+   * Named rather than inlined precisely so the animator can reach it: "put this
+   * element back the way its style prop says it should be" is one operation, and
+   * having two spellings of it is how the visibility invariant would come to be
+   * honoured in one of them and not the other.
+   */
+  const applyOwnStyle = (element: LynxElement, value: StyleValue | null): void => {
+    const current = stateOf(element)
+    current.style = value
+    // Passing an empty bag is how a style is cleared: it replaces whatever
+    // was set before, since `__SetInlineStyles` overwrites wholesale.
+    const styles = value === null ? {} : toStyleStrings(value)
+    current.styleDisplay = styles['display'] ?? null
+    api.__SetInlineStyles(element, styles)
+    // That wholesale replacement is exactly what would un-hide a hidden
+    // element, so the runtime's visibility is put back on top of it.
+    if (current.hidden) api.__AddInlineStyle(element, 'display', 'none')
   }
 
   return {
@@ -132,28 +156,24 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: L
 
     getProperty: (target, name) => api.__GetAttributes(fromHostElement(target))[ATTRIBUTES[name] ?? name],
 
-    setStyle: (target, value) => {
-      const element = fromHostElement(target)
-      const state = visibilityOf(element)
-      // Passing an empty bag is how a style is cleared: it replaces whatever
-      // was set before, since `__SetInlineStyles` overwrites wholesale.
-      const styles = value === null ? {} : toStyleStrings(value)
-      state.styleDisplay = styles['display'] ?? null
-      api.__SetInlineStyles(element, styles)
-      // That wholesale replacement is exactly what would un-hide a hidden
-      // element, so the runtime's visibility is put back on top of it.
-      if (state.hidden) api.__AddInlineStyle(element, 'display', 'none')
-    },
+    setStyle: (target, value) => applyOwnStyle(fromHostElement(target), value),
 
     setVisible: (target, visible) => {
       const element = fromHostElement(target)
-      const state = visibilityOf(element)
-      state.hidden = !visible
+      const current = stateOf(element)
+      current.hidden = !visible
       // Showing an element restores what its own style bag asked for. Lynx lays
       // elements out with flex by default, so a bag that said nothing about
       // display gets `flex` back rather than the property being cleared.
-      api.__AddInlineStyle(element, 'display', visible ? (state.styleDisplay ?? DEFAULT_DISPLAY) : 'none')
+      api.__AddInlineStyle(element, 'display', visible ? (current.styleDisplay ?? DEFAULT_DISPLAY) : 'none')
     },
+
+    // The engine's own animation APIs are not in the Element PAPI, so this is
+    // built from inline transitions — the most the declared contract can express
+    // — and an app whose engine version has something better supplies it through
+    // `options.animate`. See `lynx-transition-animator.ts` for what that costs.
+    animate:
+      options.animate ?? createTransitionAnimator(api, (element) => applyOwnStyle(element, stateOf(element).style)),
 
     addEventListener: (target, name, handler) => {
       const element = fromHostElement(target)
@@ -244,19 +264,31 @@ export const createLynxHost = (api: LynxElementApi = globalLynxApi(), options: L
  * asked for rather than guessed at.
  */
 export type LynxHostOptions = {
-  /** Colour scheme, dimensions, and safe-area insets, as signals. */
+  /** Colour scheme, dimensions, safe-area insets, and the motion preference, as signals. */
   environment?: HostEnvironment
   /** Moves keyboard focus to an element. */
   focus?: (element: HostElement) => void
   /** Takes keyboard focus away from an element. */
   blur?: (element: HostElement) => void
+  /**
+   * Runs a timeline, replacing the transition-based default.
+   *
+   * The only option here that is an UPGRADE rather than a capability the adapter
+   * lacks entirely. Inline transitions genuinely animate, and the engine
+   * genuinely owns the interpolation, but the sequencing between keyframes and
+   * between repeats is a JavaScript timer — so an engine build with a real
+   * animation API should be handed here, where it will be frame-exact.
+   */
+  animate?: Host['animate']
 }
 
 export const lynxRoot = (element: LynxElement): HostElement => toHostElement(element)
 
-/** What the host remembers per element so a style write cannot disturb visibility. */
-type LynxVisibility = {
-  /** The `display` the element's own style bag asked for, or `null` when it asked for none. */
+/** What the host remembers per element, since one inline-style channel serves three features. */
+type LynxElementState = {
+  /** The bag the element's own `style` prop last asked for, so an animation can put it back. */
+  style: StyleValue | null
+  /** The `display` that bag asked for, or `null` when it asked for none. */
   styleDisplay: string | null
   /** Whether the runtime has hidden this element through `setVisible`. */
   hidden: boolean
