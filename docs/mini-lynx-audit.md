@@ -466,12 +466,13 @@ below:
    `reduceMotion` once the animation seam needed somewhere to ask.
 
 What is still missing is now a shorter and different list, and it lives in the
-package README's *Known gaps* rather than here: pinch and rotate, variable row
-sizes, a responsive primitive, capability flags, an interactive back gesture.
-None of them is a hole in the architecture, which is the difference between that
-list and this document. The navigation stack was on that list until the seam
-above made it buildable, and is now `RouteStack` — which needed no new `Host`
-method either, only the depth the router was already counting.
+package README's *Known gaps* rather than here. Note that the list which stood
+here when this document was closed — pinch and rotate, variable row sizes, a
+responsive primitive, capability flags, an interactive back gesture — was
+answering the cross-platform design's question, and the Lynx rewrite dissolved
+most of it rather than delivering it: gestures and windowing became the engine's,
+so they stopped being this package's to build. Read the README rather than this
+paragraph for what is outstanding today.
 
 Fragments stay deliberately absent, at the known cost of one container view per
 component. That is the flattening native performance work usually targets, so it

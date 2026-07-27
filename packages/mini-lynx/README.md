@@ -140,6 +140,61 @@ Each is its own module graph, so importing one pulls in none of the others.
 | `/query` | `createQuery` over `@tanstack/query-core` |
 | `/testing` | `createFakeEngine`, `serializeTree` |
 
+## Known gaps
+
+The ceiling is the engine's rather than this package's, so most of what an app
+might want is a matter of writing the tag. These are the places where that is
+not true — where the runtime itself is what is missing.
+
+**`<list>` does not recycle yet.** The engine's `__CreateList` does not take an
+id like the other creators; it takes the recycling callbacks
+(`componentAtIndex`, `enqueueComponent`) the framework is expected to implement,
+and the engine drives cell reuse by calling back into them. Until those exist a
+`<list>` is built through `__CreateElement`, which means every row is realised up
+front. Every other list feature — waterfall, sticky, snap, `full-span`, the gap
+properties — works today, because those belong to the engine's layout pass. Only
+virtualisation is missing, and for the collection sizes most screens have that is
+the same thing; for the ten thousand rows `<list>` exists for, it is not. This is
+the largest single piece of work outstanding, and a real one: a recycler's "the
+engine owns the cell, you fill it" is a different contract from the rest of this
+runtime.
+
+**No `SelectorQuery`, and so no UI methods.** A handful of capabilities are
+reached by invoking a method on an element rather than by setting an attribute —
+`scrollTo` on a scroller, `setTextSelection` and `getTextBoundingRect` on text,
+`setFoldExpanded` on a `scroll-coordinator`. All of them go through
+`SelectorQuery`, which is not on the engine boundary. An app can reach for it
+itself; nothing here wraps it.
+
+**No gesture composition.** Lynx's composable recognisers — the thing ReactLynx
+surfaces as gesture detectors — are not exposed. Ordinary events cover most of
+it: `bindtap`, the touch stream, `catch` interception and the exposure
+attributes all work, and the touch stream is enough to recognise a gesture by
+hand. What is missing is declaring one recogniser as related to another, which
+is what the engine's system is actually for.
+
+**Nothing about the background thread.** This runtime is main-thread, so
+`NativeModules`, `GlobalEventEmitter` events (the real `exposure`/`disexposure`,
+as distinct from the element-level `uiappear`) and the dual-thread bridge are the
+app's to reach for. `/query` is the sharp edge here: it wants `fetch` and timers,
+and whether those exist in the main-thread context is an engine-version question
+rather than a given. An app that cannot reach them should own its fetching on the
+background thread and push results in.
+
+**Reduced motion is a regression, and the one worth fixing.** The deleted
+`/animate` read the preference and skipped a non-essential timeline on its own,
+so honouring it cost an app nothing. Nothing in the runtime can read it now — it
+lives on `SystemInfo` or arrives through `globalProps`, both of which are the
+app's to consult — so it became the app's call to pass no `transition` to a
+`RouteStack` and to leave the animation class off. That is worse ergonomics for
+an accessibility feature, which is exactly the kind of thing that quietly stops
+being done. If one accessor earns its way back into this package, it is this one.
+
+Deliberately absent, and not on this list: component lifecycle, datasets,
+template parts, stylesheet adoption and lazy-bundle queries. None has a caller
+here, and an unused function on the engine boundary is a porting cost paid for
+nothing.
+
 ## Before you ship
 
 Events are bound as **worklet handles**, because Lynx does not usefully accept a

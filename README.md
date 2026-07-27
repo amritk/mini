@@ -113,7 +113,7 @@ import { mount, signal } from '@amritk/mini'
 mount(document.body, Counter)
 ```
 
-Full API, subpath modules, and the native runtime's host contract are in the
+Full API, subpath modules, and the Lynx runtime's engine boundary are in the
 package READMEs:
 
 - [`@amritk/mini`](./packages/mini/README.md) — DOM bindings, `list`,

@@ -25,6 +25,7 @@ export const ListScreen = (): LynxElement => (
     <LayoutPanel />
     <StickyPanel />
     <SnapPanel />
+    <RowGroupingPanel />
     <HonestyPanel />
   </view>
 )
@@ -285,6 +286,65 @@ const SnapPanel = (): LynxElement => {
 }
 
 /** What the preview cannot show, said plainly rather than faked. */
+/**
+ * `list-row` — the grouping tag, and the last one on this screen.
+ *
+ * Types-only: no docs page, no attributes of its own beyond the global ones. It
+ * groups items that should be laid out and measured as one unit inside a
+ * multi-column list, which is the thing `full-span` cannot express — `full-span`
+ * makes ONE item occupy a whole row, while this makes SEVERAL items into one.
+ *
+ * The items still carry their own `item-key`, because that is what the engine
+ * recycles on and grouping does not change the identity of what is inside.
+ */
+const RowGroupingPanel = (): LynxElement => {
+  const rows = makeRows(0, 12)
+
+  return (
+    <Panel
+      title="list-row"
+      blurb="Groups several items into one laid-out unit inside a multi-column list — which is a different thing from full-span, and the tag with the least documentation in the whole vocabulary."
+    >
+      <list
+        class="card"
+        style={{ height: 200, 'list-cross-axis-gap': '6px' }}
+        list-type="flow"
+        span-count={2}
+        scroll-orientation="vertical"
+      >
+        {rows.map((row, index) =>
+          index % 4 === 0 ? (
+            <list-row>
+              <list-item item-key={`${row.id}-a`}>
+                <RowBody row={row} />
+              </list-item>
+              <list-item item-key={`${row.id}-b`}>
+                <RowBody row={row} />
+              </list-item>
+            </list-row>
+          ) : (
+            <list-item item-key={row.id}>
+              <RowBody row={row} />
+            </list-item>
+          ),
+        )}
+      </list>
+
+      <Row gap="xs" wrap={true}>
+        <Chip tone="good">the nesting the engine accepts</Chip>
+        <Chip tone="bad">no grouping, no columns, no measurement</Chip>
+      </Row>
+
+      <Prose>
+        This one is written with a plain `map` rather than `For`, and that is the honest shape for it: the collection is
+        fixed, and `For` reconciles a flat run of rows against a key while this tree nests some of them a level deeper.
+        Keyed reconciliation into a `list-row` is not something the runtime offers, because the engine's own recycling
+        contract is what would have to define it.
+      </Prose>
+    </Panel>
+  )
+}
+
 const HonestyPanel = (): LynxElement => (
   <Panel
     title="what this preview is not telling you"

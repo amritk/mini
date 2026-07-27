@@ -46,9 +46,9 @@ The root `bun run build`, `types:check` and `test` all include this app.
 
 | Route | What it shows |
 | --- | --- |
-| `/` | The element gallery: `view`, `image`, `scroll-view`, `frame`, `wrapper`, and the exotic ones — `svg`, `blur-view`, `viewpager`, `refresh`, `overlay`, `webview` |
-| `/text` | `raw-text` inside `text`, `text-maxline`, inline images, `inline-truncation`, and Lynx's no-inheritance rule |
-| `/list` | `<list>` with grid and waterfall layout, sticky headers, snap and load-more — the element the old five-tag vocabulary could not express at all |
+| `/` | The element gallery: `view`, `image`, `scroll-view`, `frame`, `wrapper`, the `scroll-coordinator` family, and the exotic ones — `svg`, `blur-view`, `viewpager`, `refresh`, `overlay`, `webview`, `title-bar-view`, `video` |
+| `/text` | `raw-text` inside `text`, `text-maxline`, inline images, `inline-truncation`, `markdown` with its typewriter streaming, and Lynx's no-inheritance rule |
+| `/list` | `<list>` with grid and waterfall layout, sticky headers, snap, load-more and `list-row` grouping — the element the old five-tag vocabulary could not express at all |
 | `/styling` | CSS as a first-class channel: classes, custom properties, `@keyframes`, `linear` and `relative` layout, and the unit rule |
 | `/events` | Bubbling, `catch` interception, capture-phase handlers, and how a listener actually reaches a closure |
 | `/flow` | `Show`, `Switch`/`Match`, `For`, `Index`, `Dynamic`, `list`, and the `wrapper` control flow renders into |
@@ -57,6 +57,24 @@ The root `bun run build`, `types:check` and `test` all include this app.
 | `/data` | `createQuery` over `@tanstack/query-core` |
 | `/engine` | A second tree rendered through the in-memory Element PAPI, with the call log — what the runtime actually does to the engine |
 | `/routing` | `createRouter`, `RouteView`, `RouteLink`, `createMemoryHistory`, params |
+
+## Keeping up with the engine
+
+Every tag in the vocabulary is built on some screen above, and
+`src/vocabulary-coverage.test.ts` is what keeps that true. The vocabulary is
+derived from `@lynx-js/types` rather than transcribed, so a tag the engine adds
+arrives here with no release in the package — and with nothing to make anyone
+notice it is undemoed. The test reads the tag list out of the package's source
+and fails when one of them is not written anywhere in `src/`.
+
+Two tags are exempt, with the reason recorded next to them: `page` is the root
+the framework already generates, and `component` is Lynx's own component
+instantiation, which this runtime does not drive.
+
+Because the vocabulary is a type, that check is a source scan — it sees a tag
+that is *written*, not one that is genuinely exercised. That is the right
+approximation to accept: writing the tag is what pins its attribute spellings and
+its nesting rules, which is the part a preview can actually verify.
 
 Every public entry point of the package appears above. That is the bar this app
 is held to: a new subpath is not finished until a screen here exercises it.

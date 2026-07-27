@@ -21,6 +21,7 @@ export const TextScreen = (): LynxElement => (
     <NestedPanel />
     <MixedPanel />
     <SelectionPanel />
+    <MarkdownPanel />
     <InheritancePanel />
   </view>
 )
@@ -237,6 +238,86 @@ const SelectionPanel = (): LynxElement => {
 }
 
 /** The inheritance rule, which is the headline of this screen. */
+/**
+ * `markdown` — the tag that renders a document rather than a run.
+ *
+ * It is a LEAF: the markdown arrives as a string through `content` and the
+ * engine parses and lays it out, so there is no JSX inside it and no `raw-text`
+ * under it. That makes it the one place on this screen where a string is a
+ * plain attribute rather than an element.
+ *
+ * It is also where streaming lives — `animation-type="typewriter"` plus
+ * `content-complete={false}` is the LLM-output shape, where content keeps
+ * arriving and the element animates what it has instead of re-laying out the
+ * whole document on every token.
+ */
+const MarkdownPanel = (): LynxElement => {
+  const streaming = signal(false)
+  const parsed = signal('no parse event yet')
+
+  /** Grown a clause at a time, the way streamed output actually arrives. */
+  const PARTS = [
+    '# Streaming\n\nMarkdown arrives as a **string**, not as elements.',
+    '\n\n- the engine parses it\n- the engine lays it out',
+    '\n\n> and `content-complete` is how it knows the stream ended.',
+  ] as const
+  const step = signal<number>(PARTS.length)
+  const content = (): string => PARTS.slice(0, step()).join('')
+
+  return (
+    <Panel
+      title="markdown"
+      blurb="A whole document from one string attribute, with a typewriter animation for streamed content. Types-only upstream — there is no docs page for this tag."
+    >
+      <markdown
+        class="card"
+        content={content}
+        animation-type={() => (streaming() ? 'typewriter' : 'none')}
+        animation-velocity={40}
+        content-complete={() => step() >= PARTS.length}
+        text-maxline={12}
+        enable-selection={true}
+        bindparseEnd={() => parsed(`parsed ${content().length} characters`)}
+        binddrawEnd={() => parsed(`drew ${content().length} characters`)}
+      />
+
+      <Row gap="xs" wrap={true}>
+        <Action
+          onTap={() => {
+            step(step() >= PARTS.length ? 1 : step() + 1)
+            streaming(true)
+          }}
+        >
+          stream the next chunk
+        </Action>
+        <Chip tone={() => (step() >= PARTS.length ? 'good' : 'neutral')}>
+          {() => (step() >= PARTS.length ? 'content-complete' : `chunk ${step()} of ${PARTS.length}`)}
+        </Chip>
+      </Row>
+
+      <Readout>{parsed}</Readout>
+
+      <Row gap="xs" wrap={true}>
+        <Chip tone="good">the attribute names and the reactive content</Chip>
+        <Chip tone="bad">no parser here — the raw string is what you see</Chip>
+      </Row>
+
+      <Prose>
+        Worth pointing at because it is the one genuine irregularity in the whole vocabulary: this tag's events use
+        camelCase suffixes — binddrawStart, bindimageTap, bindparseEnd — where every other Lynx event is lower case.
+        That is transcribed from the shipped types literally rather than tidied up, because the engine string-compares
+        the name and a tidier spelling is a listener that never fires.
+      </Prose>
+
+      <Prose>
+        The preview renders the string as-is, since a browser has no markdown parser and inventing one would make this
+        screen lie about what the engine does. Everything above it is real: content is a getter, so appending a chunk
+        writes one attribute rather than rebuilding the document.
+      </Prose>
+    </Panel>
+  )
+}
+
 const InheritancePanel = (): LynxElement => (
   <Panel
     title="text does not inherit through a container"

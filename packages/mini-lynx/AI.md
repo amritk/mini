@@ -233,5 +233,31 @@ clearEngine()
   was given `flex-direction: row` is sound. Asserting how wide it ended up is
   not something any test outside a device should do.
 
+## What this runtime does not do
+
+The ceiling is the engine's, so most capabilities are a matter of writing the
+tag. These are the exceptions, and they are the ones worth knowing before you
+plan an app around them.
+
+- **`<list>` does not recycle.** Every other list feature works — waterfall,
+  sticky, snap, `full-span`, the gap properties — because those belong to the
+  engine's layout pass. Virtualisation does not: the engine's `__CreateList`
+  takes recycling callbacks this runtime has not implemented, so rows are all
+  realised up front. Fine at a few hundred rows; not at ten thousand.
+- **No `SelectorQuery`, so no UI methods.** `scrollTo`, `setTextSelection`,
+  `getTextBoundingRect`, `setFoldExpanded` are invoked rather than set, and
+  nothing here wraps that. Reach for it yourself.
+- **No gesture composition.** `bindtap`, the touch stream, `catch` interception
+  and the exposure attributes all work. Declaring one recogniser as related to
+  another does not.
+- **Nothing about the background thread.** `NativeModules`, `GlobalEventEmitter`
+  events and the bridge are yours. This matters most for `/query`, which wants
+  `fetch` and timers — whether those exist on the main thread is an
+  engine-version question, so an app that cannot reach them should fetch on the
+  background thread and push results in.
+- **Reduced motion is not read for you.** It lives on `SystemInfo` or arrives
+  through `globalProps`. If an app animates, it has to consult one of them and
+  skip the animation itself.
+
 Install: `bun add @amritk/mini-lynx` (or npm/pnpm/yarn). `@lynx-js/types` is
 an optional, types-only peer — install it to get the tag typings.

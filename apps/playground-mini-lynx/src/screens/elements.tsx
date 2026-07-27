@@ -21,6 +21,7 @@ export const ElementsScreen = (): LynxElement => (
     <ViewPanel />
     <ImagePanel />
     <ScrollPanel />
+    <ScrollCoordinatorPanel />
     <FramePanel />
     <GalleryPanel />
   </view>
@@ -247,6 +248,99 @@ const ScrollPanel = (): LynxElement => {
   )
 }
 
+/**
+ * `scroll-coordinator` — the collapsing-header shape, as five engine tags.
+ *
+ * This is the layout every content app builds and nobody builds well: a header
+ * that collapses as you scroll, a toolbar that pins under it, and an inner
+ * scroller that takes over once the header is out of the way. Doing it by hand
+ * means driving two scrollers from one gesture stream and reconciling them
+ * every frame, which is the kind of work that is fine at sixty frames per
+ * second right up until it is not.
+ *
+ * The engine owns the coordination, so the app declares the parts and stops.
+ * The layout invariant worth remembering is the one the types cannot state:
+ * the coordinator's height is the slot's height PLUS the toolbar's, and the
+ * scrollable distance is the header's height minus the toolbar's — which is
+ * exactly the `height` the offset event reports.
+ */
+const ScrollCoordinatorPanel = (): LynxElement => {
+  const offset = signal('no offset event yet')
+
+  return (
+    <Panel
+      title="scroll-coordinator"
+      blurb="A collapsing header, a pinned toolbar and an inner scroller, coordinated by the engine rather than by the app. Five tags, no gesture code."
+    >
+      <scroll-coordinator
+        class="card"
+        style={{ height: 180 }}
+        header-over-slot={false}
+        enable-scroll={true}
+        granularity={1}
+        refresh-mode="fold"
+        bindoffset={(event) => {
+          const detail = event.detail
+          offset(`offset ${Math.round(detail.offset)} of ${Math.round(detail.height)}`)
+        }}
+      >
+        {/*
+         * The header is positioned absolutely by the engine — giving it a
+         * `position` here would fight the thing that scrolls it.
+         */}
+        <scroll-coordinator-header style={{ height: 88, backgroundColor: '#eef1f8' }}>
+          <view class="gap-xs" style={{ padding: 12 }}>
+            <TextLine>the collapsing half</TextLine>
+            <TextLine class="card-meta">scrolls away under the toolbar</TextLine>
+          </view>
+        </scroll-coordinator-header>
+
+        {/* The bar that survives the collapse and pins between header and slot. */}
+        <scroll-coordinator-toolbar style={{ height: 36, backgroundColor: '#dfe5f4' }}>
+          <Row gap="xs">
+            <Chip>pinned</Chip>
+            <Chip>toolbar</Chip>
+          </Row>
+        </scroll-coordinator-toolbar>
+
+        <scroll-coordinator-slot style={{ height: 120 }}>
+          <scroll-view scroll-orientation="vertical" style={{ height: 120 }}>
+            <view>
+              {SCROLL_ROWS.map((label) => (
+                <TextLine class="card-meta">{label}</TextLine>
+              ))}
+            </view>
+          </scroll-view>
+        </scroll-coordinator-slot>
+      </scroll-coordinator>
+
+      <Readout>{offset}</Readout>
+
+      {/*
+       * The drag variant is a peer of the plain slot rather than a child of it,
+       * and it is types-only — no docs page anywhere, `enable-drag` its single
+       * attribute. It is built here and kept out of the way, because a second
+       * slot inside one coordinator is not a layout the engine promises
+       * anything about.
+       */}
+      <scroll-coordinator-slot-drag enable-drag={true} show={false} style={{ height: 0 }}>
+        <TextLine class="card-meta">the draggable slot variant</TextLine>
+      </scroll-coordinator-slot-drag>
+
+      <Row gap="xs" wrap={true}>
+        <Chip tone="good">the tree, the nesting and the attribute names</Chip>
+        <Chip tone="bad">no coordination — three stacked boxes here</Chip>
+      </Row>
+
+      <Prose>
+        Nothing coordinates in a browser: the preview draws three unknown elements in a column and the offset event
+        never fires, because there is no DOM event to source it from. What the preview is good for is the part that is
+        easy to get wrong anyway — that the four sub-elements nest in the one order the engine accepts.
+      </Prose>
+    </Panel>
+  )
+}
+
 /** `frame` — one Lynx page embedded inside another. */
 const FramePanel = (): LynxElement => (
   <Panel
@@ -396,9 +490,51 @@ const GalleryPanel = (): LynxElement => (
       />
     </GalleryItem>
 
+    <GalleryItem title="title-bar-view" note="Clay desktop only; inert everywhere else" tone="neutral">
+      {/*
+       * A draggable window region — the web's `app-region: drag`, for a desktop
+       * Lynx window. `moveable` is its one attribute, which makes it the
+       * smallest prop surface in the whole vocabulary.
+       */}
+      <title-bar-view moveable={true} style={{ width: '100%', height: 32, backgroundColor: '#eef1f8' }}>
+        <TextLine class="card-meta">drag the window by this strip</TextLine>
+      </title-bar-view>
+    </GalleryItem>
+
+    <GalleryItem title="video" note="global attributes only at the pinned types version" tone="neutral">
+      {/*
+       * The version-skew arm, visible. `video` arrived in `@lynx-js/types`
+       * 4.1.0 and this repo pins the peer floor, 4.0.0 — so the tag exists and
+       * takes every global attribute, while its OWN props (`src`, `loop`,
+       * `muted`) are not known to the compiler here. Writing `src` on it would
+       * be a type error in this file until the types are bumped.
+       *
+       * That is the derived vocabulary behaving correctly rather than a gap:
+       * the tag surface tracks the engine version the APP pins, so an app on
+       * 4.1.0 gets the props with no release in this package, and an app on the
+       * floor gets a usable tag instead of a compile error in ours.
+       *
+       * Biome's `useMediaCaption` is turned off for this package and this app
+       * because of this line, and the reason is not that captions do not
+       * matter. It is that the rule is asking for an HTML `<track>` child, and
+       * Lynx's `video` is a LEAF — there is no child to give it. Captioning a
+       * Lynx video is the engine's affair, not a JSX one, so the rule cannot be
+       * satisfied here rather than merely being inconvenient.
+       */}
+      <video style={{ width: 140, height: 64, borderRadius: 8, backgroundColor: '#eef1f8' }} />
+      <TextLine class="card-meta">@lynx-js/types 4.0.0 here — bump to 4.1.0 and src appears</TextLine>
+    </GalleryItem>
+
     <Prose>
       None of these needed a release in this package. That is the actual test of the rewrite: the ceiling moved from
       "what this package has named" to "what the engine can do", and those change at very different rates.
+    </Prose>
+
+    <Prose>
+      Two tags are left out on purpose rather than forgotten. `page` is the root the framework already generates, and
+      the engine forbids setting its size — authoring a second one inside this tree would be building a root inside a
+      root. `component` is Lynx's own component instantiation, and this runtime does not drive Lynx's component system:
+      it owns the whole tree and composes with plain functions instead.
     </Prose>
   </Panel>
 )
