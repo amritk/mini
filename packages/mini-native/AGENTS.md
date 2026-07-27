@@ -41,22 +41,29 @@ src/
   signals.ts              alien-signals re-exported (plus batch), so nothing else imports it
   warn.ts                 Recoverable-mistake reporting, without assuming a console
   bind/                   bind-text, bind-prop, bind-show, bind-value
-  flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
+  flow/                   Show, Switch/Match, Dynamic, For, Index, VirtualFor, defaultKey
   ui/                     The component layer — Text, Heading, Button, Link, Stack/Row, List/ListItem, Screen
   platform/               platform.os / platform.select, and the environment accessors
   composition/            createContext, Portal, ErrorBoundary
   gestures/               pan, swipe — arithmetic over the normalised pointer stream
+  animate/                animate() — a timeline described once and handed to the engine
   router/                 Pattern matching (pure) + a pluggable history; the browser one is its own entry
+  forms/                  createForm, Field, schema validation — ported from mini bar one file
+  query/                  createQuery over @tanstack/query-core — ported verbatim
   hosts/
     create-memory-host.ts The reference host — plain objects, no platform
     create-dom-host.ts    Web target (the ONLY file that knows about HTML, with the two below)
-    dom-environment.ts    Colour scheme, viewport and safe-area insets, read off the browser
+    dom-environment.ts    Colour scheme, viewport, safe-area insets, motion preference
     dom-reset.ts          The stylesheet that makes a browser lay out like Yoga
     create-lynx-host.ts   Native target, driving Lynx's Element PAPI
     lynx-element-api.ts   The PAPI subset, as an injectable type
+    lynx-transition-animator.ts  Timelines as inline transitions — the most the PAPI can express
     to-style-text.ts      Numbers → the target's unit, shared by the real hosts
+    to-keyframe.ts        A style bag → an animation keyframe, units and IDL names applied
     named-events.ts       Which events a host owes a normalised payload for
     tri-state-props.ts    The props where `false` is a value, not an absence
+examples/
+  js-framework-benchmark/ The keyed benchmark; `bun run bench:reconciler` times it
 ```
 
 ## Invariants — do not break these
@@ -334,20 +341,27 @@ cannot enforce) or a `div` with the role and synthesised activation.
 
 ## Known gaps
 
-See the README's *Known gaps* for the full list. The short version: `bindClass`
-and fragments are deliberate omissions; a virtualised list, gestures beyond tap,
-an animation seam, and the router / forms / query subpaths are simply not built
-yet. Accessibility props are **done** — see `Role` in `elements.ts` and the two
-host mappings — and so are the component layer (`/ui`), the platform layer
-(`/platform`), and the composition seams (`/composition`: context, portal, error
-boundaries).
+See the README's *Known gaps* for the full list, which is the one to trust — this
+is the short version.
 
-Two things are still deliberately missing from `/ui`, each waiting on something
-specific rather than on someone getting to it: `size` and `tone` want a type
-scale resolved against a theme, and the theme itself wants context. Adding
-either early would mean shipping a prop with nothing behind it, which is the
-class of documented lie `vocabulary-coverage.test.tsx` exists to catch one layer
-down. `docs/mini-native-audit.md`
-at the repo root carries the reasoning and the priority order.
+**Everything the audit called the native story has landed.** Accessibility props
+(`Role` in `elements.ts` and the two host mappings), the component layer
+(`/ui`) and its theme, the platform accessors (`/platform`), the composition
+seams (`/composition`), gestures (`/gestures`), routing (`/router`), the
+animation seam (`/animate` plus `Host.animate`), the virtualised list
+(`VirtualFor` in `/flow`), and the `/forms` and `/query` ports. `docs/mini-native-audit.md`
+carries the reasoning behind each and is now a record rather than a plan.
+
+What is genuinely still missing is smaller and mostly waiting on a real screen
+rather than on someone getting to it: pinch and rotate (thresholds worth tuning
+against a device rather than guessed at), variable row sizes in `VirtualFor`
+(needs a `measure` on the host contract), a responsive primitive, and capability
+flags. `bindClass` and fragments are deliberate omissions and should stay that
+way.
+
+Two rules that keep biting when this list is edited: do not add a prop with
+nothing behind it — `vocabulary-coverage.test.tsx` exists to catch exactly that
+class of documented lie — and do not describe something as missing here without
+checking the README, which is where the reasoning lives.
 
 Add a changeset for every change (`bunx changeset`).

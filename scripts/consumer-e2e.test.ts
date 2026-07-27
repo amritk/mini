@@ -34,6 +34,12 @@ const PEER_BACKED_SUBPATHS: Record<string, string> = {
   '@amritk/mini/forms': '@amritk/runtime-validators',
   '@amritk/mini/query': '@tanstack/query-core',
   '@amritk/mini/vite': 'typescript',
+  // The ports carry their siblings' peers across with them, which is the whole
+  // point of the ports being ports. `mini-native` has no third peer of its own:
+  // there is no `/vite` here, because the called-signal check is `@amritk/mini`'s
+  // and is deliberately not duplicated.
+  '@amritk/mini-native/forms': '@amritk/runtime-validators',
+  '@amritk/mini-native/query': '@tanstack/query-core',
 }
 
 /** The one subpath that exists purely to publish types — its compiled module is empty by design. */

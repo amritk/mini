@@ -87,6 +87,38 @@ The one prop this rule does not reach is `input multiline`, which is structural:
 
 Effects run synchronously on write. The flush scheduler already collapses a burst of writes into a single commit, but not the property writes leading up to it — wrap related writes in `batch` when each one would otherwise cross the bridge on its own.
 
+### Catching the frozen signal
+
+`show={visible()}` is the one mistake this runtime cannot catch for you. The call happens at the JSX call site, so the runtime never sees a signal at all — it sees a perfectly ordinary boolean — and a called signal is a valid value, so the type checker has nothing to object to either. The only place left to catch it is the source.
+
+**This package deliberately ships no linter of its own.** [`@amritk/mini`](../mini)'s scanner is purely syntactic: it looks for a zero-argument call to something it can see is a signal, inside a JSX binding that is not itself a function. Nothing in it knows which runtime the JSX belongs to, so it already catches the identical mistake in a `mini-native` codebase. A second copy would be a second thing to keep in step for no benefit.
+
+Use whichever adapter fits the build:
+
+```ts
+// vite.config.ts — for the web preview target
+import { catchCalledSignals } from '@amritk/mini/vite'
+
+export default { plugins: [catchCalledSignals()] }
+```
+
+That warns live in the dev server and fails `vite build`, so one plugin covers both the editor loop and the CI gate.
+
+A device build usually is not Vite — Lynx builds with rspack — so reach for the scanner directly there. It is bundler-agnostic and takes source text:
+
+```ts
+import { findCalledSignalBindings } from '@amritk/mini/vite'
+
+for (const { attribute, callee, line, column } of findCalledSignalBindings(await readFile(file, 'utf-8'))) {
+  // `attribute` is undefined for a child binding — `<text>{count()}</text>`
+  console.error(`${file}:${line}:${column}  ${attribute ?? ''}{${callee}()} is frozen at creation`)
+}
+```
+
+This repository's own `bun run check:reactivity` is exactly that, in about forty lines. Mark a deliberately static read with a `// mini-static-ok` comment on the line or the line above.
+
+`@amritk/mini` is a **dev** dependency for this — nothing from it reaches your bundle, and the web-only package does not follow your app onto the device.
+
 ---
 
 ## The element vocabulary is native, not HTML
@@ -186,11 +218,22 @@ interpose between a list and its items in the accessibility tree.
 | `<Dynamic>` | The general subtree swap both of the above are built on. |
 | `<For>` | Keyed collections, backed by `list`. Key on item identity; this is the right default. |
 | `<Index>` | Position-keyed collections, for values that can legitimately repeat. Each row receives a **getter** for whatever item currently occupies its slot. |
+| `<VirtualFor>` | A bounded window of rows, recycled as the collection scrolls past. `For` over ten thousand rows creates ten thousand host elements; this creates `viewport / itemSize + 2 × overscan` and no more. |
 | `defaultKey` | The identity function `For` uses when no `key` is given. |
 
 Each renders into a wrapper the host supplies via `createFlowHost` — a `display: contents` div on the web, an ordinary container view natively.
 
 `For` and `Index` differ in what identifies a row, and the choice is load-bearing. `For` keys on the item, so a row follows its data through a reorder and keeps its focus and input state; two items with the same key are reported and dropped. `Index` keys on the slot, which is what makes `['red', 'red', 'blue']` renderable — but a row then belongs to the position rather than to the item, so anything living inside it stays behind when the data moves.
+
+```tsx
+<VirtualFor each={rows} itemSize={64} viewport={() => dimensions()().height} role="list">
+  {(row) => <view role="listitem"><text>{() => row().label}</text></view>}
+</VirtualFor>
+```
+
+**`VirtualFor` is not bound to a platform recycler**, and the reason is worth knowing. A recycler's model is "the engine owns the cell, you fill it with data" — a different contract from the rest of this package, and one every target without a recycler would have to fake. It is also unnecessary, because this runtime already *has* that model: `Index` hands a row a getter for whatever occupies its slot, and a recycled cell is a node that stays put while its data changes. Those are the same idea. So the window is the ordinary keyed `list` **keyed by slot rather than by item**, and scrolling moves data through slots without touching a node. Nothing new on the host contract, identical behaviour on all three targets.
+
+`itemSize` is fixed. Variable rows need each row measured before it is on screen, which needs a `measure` the host contract does not have; estimating instead is how a virtualised list ends up jumping under the user's finger as the estimates are corrected.
 
 ### Components (`@amritk/mini-native/ui`)
 
@@ -258,6 +301,50 @@ A **cancel** is not an end. It is the target taking the gesture away — a scrol
 
 Pinch and rotate are writable over the same stream (`PointerEvent.id` is what makes multi-touch expressible) and are deliberately not shipped: their thresholds are worth tuning against a real screen rather than guessed at.
 
+### Animation (`@amritk/mini-native/animate`)
+
+| Export | Purpose |
+|:---|:---|
+| `animate(element, keyframes, options)` | Describes a timeline once and hands it to the engine. Returns `{ cancel, finish, finished }`. |
+| `AnimationTiming`, `AnimationEnd`, `Keyframes` | The descriptor types, shared with the `Host.animate` contract. |
+
+Driving an animation from signals is about ten lines and the wrong shape: one property write per displayed frame, which on a native target is a bridge crossing per frame, running at whatever rate the JavaScript thread has left over — least of all exactly when an animation is happening. So the whole timeline goes over in one call. The DOM host passes it to the Web Animations API, where it runs on the compositor; the Lynx host expresses it as inline transitions, so the engine still owns the interpolation.
+
+**The rule that makes it composable: the signal is the state, the animation is only how it gets there.** There is deliberately no `fill` — an animation never leaves a style behind, and the element is released to its own style bag when the timeline ends, however it ends. Write the settled value first, then animate from wherever the element used to be:
+
+```tsx
+const dismiss = async () => {
+  await animate(row, [{ opacity: 1 }, { opacity: 0 }], { duration: 160 }).finished
+  rows(rows().filter((candidate) => candidate.id !== id))
+}
+```
+
+That one rule buys three things. Reduced motion is honoured by simply not running the animation. A host with no `animate` is a host with instant transitions rather than a broken app. And a test against the memory host asserts the same final tree the device shows. An animation that owned its end state would break all three at once.
+
+`finished` resolves with `'finished'` or `'cancelled'` and never rejects — cleaning up after a cancelled animation should not need a `catch` that swallows something which is not an error. `{ essential: true }` opts out of the reduced-motion skip, and almost nothing qualifies: motion is essential when removing it removes *information*, not when removing it makes the app feel cheaper.
+
+### Forms (`@amritk/mini-native/forms`)
+
+| Export | Purpose |
+|:---|:---|
+| `createForm(config)` | Values, dirty/touched/error state, and submit handling, all as signals. |
+| `<Field form name label …>` | Label, bound control, and live error message, wired end to end. |
+| `schemaToValidator(schema)` | Compiles a JSON Schema into the same `(values) => errors` a hand-written validator is. |
+
+Ported from [`@amritk/mini`](../mini) almost unchanged, because a form is state and state has no platform. **One thing had to be rewritten**: the web version picks a binding by inspecting the element it is handed (`instanceof HTMLInputElement`, `element.type === 'checkbox'`), and a host node here is opaque by design. The type of the field's *initial value* decides instead — `''` binds text, `0` binds a coerced number, `false` binds a toggle — which is the better end of the trade: `initialValues` already says what each field is, in one place, before any element exists.
+
+`Field` has no `as`, because the vocabulary has no picker element and a picker is a platform-owned surface rather than something five tags can name honestly. `label` is one prop for both the visible text and the control's accessible name, since a native tree has no `<label for>` to associate them, and the error goes onto the control's `hint` as well as being rendered — text near a field with nothing tying the two together reaches a sighted user and nobody else.
+
+`@amritk/runtime-validators` is an optional peer, needed only for the schema arm.
+
+### Query (`@amritk/mini-native/query`)
+
+| Export | Purpose |
+|:---|:---|
+| `createQuery(client, options)` | Bridges a `@tanstack/query-core` `QueryObserver` to signals: `data`, `error`, `status`, `isPending`, `isFetching`, `refetch`, and the full `result`. |
+
+A verbatim port, which is the only interesting thing about it: fetching and caching have no platform in them, and query-core has no opinion about what renders the result. Options may be a getter, so a query key can depend on signals and refetch under the new key. The observer unsubscribes through `onCleanup`, so call it inside a component. `@tanstack/query-core` is an optional peer.
+
 ### Composition (`@amritk/mini-native/composition`)
 
 | Export | Purpose |
@@ -283,6 +370,7 @@ Context reaches subtrees that `Show`, `For`, and friends build *later* — those
 | `colorScheme()` | `'light'` / `'dark'`, as a signal. |
 | `dimensions()` | The drawable area in density-independent pixels, as a signal. |
 | `safeArea()` | Insets from each edge, as a signal. What `<Screen>` is built on. |
+| `reduceMotion()` | Whether the user asked the system for less motion, as a signal. `animate` already honours it; read it for motion the runtime cannot see — an autoplaying video, a self-advancing carousel. |
 
 **Prefer the environment to the OS name.** A name is a proxy for the thing you actually care about — whether there is a notch, whether hover exists, whether anything is addressable — and proxies rot: `os === 'web'` typechecks forever and is wrong the day a second web-shaped target appears. There is deliberately no capability registry (`canHover`, `hasBackButton`) yet: designing the flag set before three real branches exist would be guesswork.
 
@@ -381,16 +469,17 @@ Deliberate:
 
 Not built yet:
 
-- **No virtualised list.** `For` over ten thousand rows creates ten thousand host elements; Lynx ships a recycler this should bind to.
+- **`VirtualFor` needs a fixed `itemSize`.** Variable rows need each row measured before it is on screen, and there is no `measure` on the host contract. Estimating instead is how a virtualised list ends up jumping under the user's finger as the estimates are corrected — a worse failure than a stated limitation.
 - **No pinch or rotate.** Both are writable over the normalised pointer stream and neither is shipped: their thresholds are worth tuning against a real screen rather than guessed at.
 - **`ErrorBoundary` covers construction only.** A throw inside an effect, a handler, or a promise happens after every component has finished running, and belongs to whoever started it.
-- **No animation seam**, so an animation is a bridge write per frame on a native target.
+- **The Lynx animator sequences with timers.** Inline transitions are the most the declared Element PAPI can express, and the engine does own the interpolation — but the hops between keyframes and between repeats are JavaScript timers, so a multi-keyframe or repeating animation can drift under load where a single tween cannot. Pass an engine-native animator as `createLynxHost(api, { animate })` where the build has one.
 - **No responsive primitive.** `dimensions()` works and branching on it works, but there is no `@media`-shaped abstraction — a native target has no media queries, and inventing one before there are real call sites would be speculation.
 - **The reset is asserted, not observed.** Its suite checks that the rules are installed and stamped onto the right elements; it cannot check that a container then stacks its children, because happy-dom lays nothing out. Screenshots on two real targets are the only thing that would.
+- **The animation adapter is verified, the animation is not.** happy-dom implements no Web Animations API at all, so the DOM host's suite covers which keyframes and options are handed over and how the API's outcomes map back — not that a browser then interpolates them correctly. The first is this package's code; the second is the browser's.
 - **No capability flags** (`canHover`, `hasBackButton`). `platform.select` and the environment accessors cover the cases that exist; the flag set is worth designing once three real branches do.
 - **The Lynx host does not read its own environment.** It takes one as an argument instead — the PAPI subset it drives is element-level, and the engine's system-information globals vary by version with no fake to test against.
-- **No forms or query.** [`@amritk/mini`](../mini) has both, and both are close to platform-free — they are simply not ported yet.
-- **No navigation stack or transitions.** `RouteView` is a single slot; pushing a screen over another and animating between them needs an animation seam that does not exist.
+- **No navigation stack.** `RouteView` is a single slot. The animation seam it was waiting on now exists, so pushing a screen over another and animating between them is buildable — it is simply not built, and would be the wrong default for the web.
+- **No picker control.** `Field` has no `as="select"`: a picker is a platform-owned surface — a wheel, a sheet, a dropdown — rather than something a five-tag vocabulary can name honestly.
 
 ---
 

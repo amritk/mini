@@ -8,6 +8,7 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
   "include": [
+    "examples/js-framework-benchmark/bootstrap.ts",
     "src/hosts/create-dom-host.ts",
     "src/hosts/create-dom-host.test.tsx",
     "src/hosts/dom-environment.ts",

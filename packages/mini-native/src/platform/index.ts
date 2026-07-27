@@ -3,8 +3,9 @@
  *
  * Two things live here and they are in deliberate tension. {@link platform}
  * branches on the target's NAME; the environment accessors —
- * {@link colorScheme}, {@link dimensions}, {@link safeArea} — answer the
- * questions a name is usually standing in for.
+ * {@link colorScheme}, {@link dimensions}, {@link safeArea},
+ * {@link reduceMotion} — answer the questions a name is usually standing in
+ * for.
  *
  * Prefer the second. Branching on a capability beats branching on an OS name,
  * because the name is a proxy for the thing you actually care about and proxies
@@ -48,4 +49,5 @@
 export { colorScheme } from './color-scheme'
 export { dimensions } from './dimensions'
 export { type PlatformChoices, platform } from './platform'
+export { reduceMotion } from './reduce-motion'
 export { safeArea } from './safe-area'

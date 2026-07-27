@@ -112,7 +112,9 @@ package READMEs:
   `template`, and the `/router` `/flow` `/forms` `/query` `/hot` `/vite`
   subpaths.
 - [`@amritk/mini-native`](./packages/mini-native/README.md) — the `Host`
-  contract, the native element vocabulary, and the three shipped hosts.
+  contract, the native element vocabulary, the three shipped hosts, and the
+  `/flow` `/ui` `/platform` `/composition` `/gestures` `/animate` `/router`
+  `/forms` `/query` subpaths.
 
 ## For AI agents & LLMs
 

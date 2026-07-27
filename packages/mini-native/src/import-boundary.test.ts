@@ -31,7 +31,18 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['hosts', 'flow', 'ui', 'platform', 'composition', 'gestures', 'router']
+const SUBPATH_DIRS = [
+  'hosts',
+  'flow',
+  'ui',
+  'platform',
+  'composition',
+  'gestures',
+  'router',
+  'animate',
+  'forms',
+  'query',
+]
 
 /**
  * Drops comments before the specifiers are read.
@@ -172,6 +183,36 @@ describe('import-boundary', () => {
     const router = walk(resolve(SRC, 'router', 'index.ts'))
     expect(leaksFrom(router.files, ['hosts'])).toEqual([])
     expect([...router.files].map((file) => relative(SRC, file))).not.toContain('router/create-browser-history.ts')
+  })
+
+  it('keeps the animation subpath free of any host', () => {
+    // `animate` describes a timeline and hands it to whichever host is
+    // installed. Reaching for a concrete one would mean the description had
+    // learned what engine was going to run it, which is the seam collapsing.
+    const animate = walk(resolve(SRC, 'animate', 'index.ts'))
+    expect(leaksFrom(animate.files, ['hosts'])).toEqual([])
+    expect([...animate.externals].sort()).toEqual(['alien-signals'])
+  })
+
+  it('keeps the forms subpath free of any host', () => {
+    // A form is state, and state has no platform. The one part that touches an
+    // element does so through the installed host, which is exactly why the port
+    // from `@amritk/mini` changed one file and not the whole layer.
+    const forms = walk(resolve(SRC, 'forms', 'index.ts'))
+    expect(leaksFrom(forms.files, ['hosts'])).toEqual([])
+    // The validator is the schema arm's optional peer and the only external here
+    // beyond signals — listed rather than waved through, so a dependency added
+    // later has to be a deliberate edit to this line.
+    expect([...forms.externals].sort()).toEqual(['@amritk/runtime-validators', 'alien-signals'])
+  })
+
+  it('keeps the query subpath free of any host', () => {
+    // The easiest of the lot to keep honest, and the reason it ported verbatim:
+    // fetching and caching never touch an element, so there is nothing here
+    // that could reach for a host even carelessly.
+    const query = walk(resolve(SRC, 'query', 'index.ts'))
+    expect(leaksFrom(query.files, ['hosts'])).toEqual([])
+    expect([...query.externals].sort()).toEqual(['@tanstack/query-core', 'alien-signals'])
   })
 
   it('keeps every subpath directory out of the core graph at once', () => {

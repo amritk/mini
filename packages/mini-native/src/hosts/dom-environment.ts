@@ -25,6 +25,16 @@ export const createDomEnvironment = (): HostEnvironment => ({
     return size
   }),
 
+  reduceMotion: onFirstRead(() => {
+    // `reduce` is the only value that means anything; the media feature's other
+    // state is `no-preference`, so matching the negative would be wrong the day
+    // a third value is added.
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const reduce = signal(query.matches)
+    query.addEventListener('change', (event) => reduce(event.matches))
+    return reduce
+  }),
+
   safeArea: onFirstRead(() => {
     const insets = signal<Insets>(readInsets())
     // Rotation reports as a resize, and so does a keyboard opening on most
