@@ -117,14 +117,14 @@ describe('dist-smoke', () => {
     expect(missing).toEqual([])
   })
 
-  it('the built mini-native reorders a keyed list through the fake engine', async () => {
+  it('the built mini-lynx reorders a keyed list through the fake engine', async () => {
     // A real end-to-end exercise of the compiled artifacts: mount's scope
     // ownership, the engine indirection, the keyed reconciler, the text binding
     // and the signals re-export all have to survive the build for this to
     // produce the right tree. The fake engine is a complete Element PAPI with
     // no platform behind it, so it runs under plain Node exactly as shipped —
     // and unlike a test double it is the same API a device exposes.
-    const nativeDist = pathToFileURL(join(PACKAGES_DIR, 'mini-native/dist')).href
+    const nativeDist = pathToFileURL(join(PACKAGES_DIR, 'mini-lynx/dist')).href
     const script = `
       const { bindText, createElement, createRawText, insert, list, mount, setEngine, signal } =
         await import('${nativeDist}/index.js')

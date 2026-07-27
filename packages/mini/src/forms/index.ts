@@ -13,7 +13,7 @@
 
 // Re-exported from `@amritk/mini-helpers/schema`: compiling a schema is the arm
 // of this layer that never touches an element, so it is shared with
-// `@amritk/mini-native` rather than ported. `@amritk/runtime-validators` stays
+// `@amritk/mini-lynx` rather than ported. `@amritk/runtime-validators` stays
 // an optional peer, reached through that package instead of directly.
 export type { FormErrors } from '@amritk/mini-helpers/schema'
 export { schemaToValidator } from '@amritk/mini-helpers/schema'

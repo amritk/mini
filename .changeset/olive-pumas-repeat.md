@@ -1,6 +1,6 @@
 ---
 '@amritk/mini-helpers': minor
-'@amritk/mini-native': minor
+'@amritk/mini-lynx': minor
 '@amritk/mini': minor
 ---
 
@@ -14,7 +14,7 @@ platform**, and nothing on the `.` entry that carries a dependency at all.
 
 Neither package's public surface changes. `matchRoute`, `parseQuery` and
 `schemaToValidator` are still exported from `@amritk/mini/router`,
-`@amritk/mini/forms` and their `@amritk/mini-native` counterparts, so no import
+`@amritk/mini/forms` and their `@amritk/mini-lynx` counterparts, so no import
 in a consuming app needs to move. The new package is a runtime dependency of
 both, so an install picks it up automatically.
 

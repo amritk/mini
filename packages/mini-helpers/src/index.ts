@@ -1,5 +1,5 @@
 /**
- * `@amritk/mini-helpers` — the helpers `@amritk/mini` and `@amritk/mini-native`
+ * `@amritk/mini-helpers` — the helpers `@amritk/mini` and `@amritk/mini-lynx`
  * both need, factored out so they cannot drift apart.
  *
  * ## What belongs here, and what emphatically does not
@@ -20,7 +20,7 @@
  *    updating.
  * 2. **No platform.** No DOM, no Node, no host. The tsconfig withholds both
  *    ambient libraries so this is a compiler constraint rather than a
- *    convention, exactly as `@amritk/mini-native` does it.
+ *    convention, exactly as `@amritk/mini-lynx` does it.
  *
  * What survives both rules is pure functions over strings and plain objects.
  * `src/purity.test.ts` walks the source graph and enforces it, so the charter

@@ -107,7 +107,7 @@ describe('purity', () => {
 
   it('never imports either sibling package', () => {
     // Shared code is a leaf. An import back into `@amritk/mini` or
-    // `@amritk/mini-native` would turn the two siblings into a cycle through
+    // `@amritk/mini-lynx` would turn the two siblings into a cycle through
     // this package and quietly make each one depend on the other.
     for (const { externals } of [root, schema]) {
       expect([...externals].filter((name) => name.startsWith('@amritk/mini'))).toEqual([])

@@ -4,7 +4,7 @@ Contributor guide for AI agents editing **this package**. Repo-wide rules:
 [`../../AGENTS.md`](../../AGENTS.md) and [`../../CLAUDE.md`](../../CLAUDE.md).
 Consuming the package instead? See [`AI.md`](./AI.md).
 
-The helpers `@amritk/mini` and `@amritk/mini-native` both need, factored out so
+The helpers `@amritk/mini` and `@amritk/mini-lynx` both need, factored out so
 they cannot drift apart.
 
 ## Commands
@@ -45,7 +45,7 @@ src/
   and it is why the schema helper sits on `/schema` behind an optional peer
   instead. Anything new with a dependency needs its own entry too.
 - **This package is a leaf.** It must never import `@amritk/mini` or
-  `@amritk/mini-native` — that would turn two independent siblings into a cycle
+  `@amritk/mini-lynx` — that would turn two independent siblings into a cycle
   through this one.
 
 `src/purity.test.ts` enforces all four by walking the source graph from both
@@ -54,7 +54,7 @@ package and becoming a junk drawer.
 
 ## What belongs here — and what does not
 
-The bar is high on purpose. `mini` and `mini-native` are **siblings, not
+The bar is high on purpose. `mini` and `mini-lynx` are **siblings, not
 layers**, and that independence is the design rather than an accident (see
 [`../../.claude/architecture.md`](../../.claude/architecture.md)). Move code
 here only when it is *already* identical in both and clears every invariant

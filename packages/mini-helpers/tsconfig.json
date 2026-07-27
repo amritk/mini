@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // No DOM lib and no Node types, for the same reason `@amritk/mini-native`
+    // No DOM lib and no Node types, for the same reason `@amritk/mini-lynx`
     // omits them and then some: this package is consumed by BOTH a browser-only
     // package and a platform-free one, so the only ambient surface it may use
     // is the one every ECMAScript host provides. `decodeURIComponent` is a

@@ -10,4 +10,4 @@ Fix a control-flow branch being rebuilt — and its local state reset — by any
 
 The branch is now built through `runDetached`, exactly as `list` already builds a row, so only `select` decides when a branch is rebuilt. Detaching also moves the last branch's teardown off an alien-signals implementation detail, so `renderChild` registers it with `onCleanup` and unmounting the owning component still disposes it.
 
-`@amritk/mini-native`'s `renderChild` already built branches detached and was unaffected; it gains the matching regression test.
+`@amritk/mini-lynx`'s `renderChild` already built branches detached and was unaffected; it gains the matching regression test.

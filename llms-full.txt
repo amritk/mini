@@ -148,7 +148,7 @@ hotMount(document.body, App, import.meta.hot)
 
 ---
 
-# @amritk/mini-native — notes for AI coding agents
+# @amritk/mini-lynx — notes for AI coding agents
 
 A React-Native-shaped UI runtime on `@amritk/mini`'s model: real host nodes built
 once, mutated forever by signals, no virtual tree. This file is the fast path for
@@ -193,8 +193,8 @@ label-carrying components in `/ui` are the exception and they wrap it for you:
 ## Setup — a host must be installed first
 
 ```tsx
-import { mount, setHost, signal } from '@amritk/mini-native'
-import { createDomHost, domRoot } from '@amritk/mini-native/hosts/dom'
+import { mount, setHost, signal } from '@amritk/mini-lynx'
+import { createDomHost, domRoot } from '@amritk/mini-lynx/hosts/dom'
 
 setHost(createDomHost())            // once, before anything renders
 
@@ -216,7 +216,7 @@ mistake, not a recoverable condition. In tests, `clearHost()` between cases.
 JSX config in the consuming package (this is **not** the React runtime):
 
 ```jsonc
-{ "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "@amritk/mini-native" } }
+{ "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "@amritk/mini-lynx" } }
 ```
 
 ## Element props
@@ -244,7 +244,7 @@ structurally, use the control-flow components.
   getter, and `container` must be owned solely by the list. Move-minimal: a row
   is only touched when its position genuinely changes.
 - **`<Show>` / `<Switch>`+`<Match>` / `<Dynamic>` / `<For>` / `<Index>`** from
-  `@amritk/mini-native/flow` — each renders into a wrapper the host supplies, so
+  `@amritk/mini-lynx/flow` — each renders into a wrapper the host supplies, so
   it stays platform-neutral. Use `For` by default and `Index` when values can
   repeat; `Index` hands each row a *getter* for whatever occupies its slot.
 - **`batch` / `watch` / `untrack`** — group writes, react to changes only, and
@@ -258,23 +258,23 @@ structurally, use the control-flow components.
 
 | Import | Purpose |
 |---|---|
-| `@amritk/mini-native` | signals, `mount`, `list`, binds, `setHost`, JSX types |
-| `@amritk/mini-native/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `VirtualFor` / `defaultKey`. Reach for `VirtualFor` once a list is long enough that a node per row is wrong — it builds a screenful and recycles it, and needs a fixed `itemSize` |
-| `@amritk/mini-native/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags. Plus `ThemeContext` and `systemTheme()` for the scales they resolve against |
-| `@amritk/mini-native/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` / `reduceMotion` as signals. Prefer the environment to the OS name |
-| `@amritk/mini-native/animate` | `animate(element, keyframes, timing)` — the timeline goes to the engine in one call. It never leaves a style behind: write the settled value, then animate from where the element was. Skipped outright under reduced motion, which is safe precisely because of that |
-| `@amritk/mini-native/forms` | `createForm` / `Field` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
-| `@amritk/mini-native/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s, verbatim |
-| `@amritk/mini-native/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
-| `@amritk/mini-native/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |
-| `@amritk/mini-native/router` | `createRouter`, `createMemoryHistory`, `RouteView` (one slot), `RouteStack` (a navigation stack), `RouteLink`, `matchRoute` — platform-free |
-| `@amritk/mini-native/router/browser` | `createBrowserHistory` — the web's session history, on its own entry so `/router` stays platform-free |
-| `@amritk/mini-native/host` | the `Host` contract, for writing a renderer |
-| `@amritk/mini-native/hosts/dom` | `createDomHost`, `domRoot` — web preview |
-| `@amritk/mini-native/hosts/lynx` | `createLynxHost`, `lynxRoot` — Lynx Element PAPI |
-| `@amritk/mini-native/hosts/memory` | `createMemoryHost` — plain objects, for tests |
-| `@amritk/mini-native/hosts/memory/serialize` | `serializeMemoryTree` for assertions |
-| `@amritk/mini-native/hosts/memory/dispatch` | `dispatchMemoryEvent` to fire handlers |
+| `@amritk/mini-lynx` | signals, `mount`, `list`, binds, `setHost`, JSX types |
+| `@amritk/mini-lynx/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `VirtualFor` / `defaultKey`. Reach for `VirtualFor` once a list is long enough that a node per row is wrong — it builds a screenful and recycles it, and needs a fixed `itemSize` |
+| `@amritk/mini-lynx/ui` | `Text` / `Heading` / `Button` / `Link` / `Stack` / `Row` / `List` / `ListItem` / `Screen` — write screens in these, not in tags. Plus `ThemeContext` and `systemTheme()` for the scales they resolve against |
+| `@amritk/mini-lynx/platform` | `platform.os` / `platform.select`, and `colorScheme` / `dimensions` / `safeArea` / `reduceMotion` as signals. Prefer the environment to the OS name |
+| `@amritk/mini-lynx/animate` | `animate(element, keyframes, timing)` — the timeline goes to the engine in one call. It never leaves a style behind: write the settled value, then animate from where the element was. Skipped outright under reduced motion, which is safe precisely because of that |
+| `@amritk/mini-lynx/forms` | `createForm` / `Field` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
+| `@amritk/mini-lynx/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s, verbatim |
+| `@amritk/mini-lynx/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
+| `@amritk/mini-lynx/gestures` | `pan`, `swipe` — arithmetic over the host-normalised pointer stream |
+| `@amritk/mini-lynx/router` | `createRouter`, `createMemoryHistory`, `RouteView` (one slot), `RouteStack` (a navigation stack), `RouteLink`, `matchRoute` — platform-free |
+| `@amritk/mini-lynx/router/browser` | `createBrowserHistory` — the web's session history, on its own entry so `/router` stays platform-free |
+| `@amritk/mini-lynx/host` | the `Host` contract, for writing a renderer |
+| `@amritk/mini-lynx/hosts/dom` | `createDomHost`, `domRoot` — web preview |
+| `@amritk/mini-lynx/hosts/lynx` | `createLynxHost`, `lynxRoot` — Lynx Element PAPI |
+| `@amritk/mini-lynx/hosts/memory` | `createMemoryHost` — plain objects, for tests |
+| `@amritk/mini-lynx/hosts/memory/serialize` | `serializeMemoryTree` for assertions |
+| `@amritk/mini-lynx/hosts/memory/dispatch` | `dispatchMemoryEvent` to fire handlers |
 
 ## Porting to a new platform
 
@@ -287,7 +287,7 @@ that are easy to miss: a `setStyle` must not disturb the visibility `setVisible`
 set, and a bare number in a style bag means density-independent pixels, so the
 host adds the unit.
 
-Install: `bun add @amritk/mini-native` (or npm/pnpm/yarn).
+Install: `bun add @amritk/mini-lynx` (or npm/pnpm/yarn).
 
 ---
 
@@ -298,7 +298,7 @@ For an LLM consuming this package. Editing the repo instead? See
 
 ## Mental model
 
-Two published UI runtimes — `@amritk/mini` (DOM) and `@amritk/mini-native`
+Two published UI runtimes — `@amritk/mini` (DOM) and `@amritk/mini-lynx`
 (pluggable `Host`) — are the same design re-derived, and neither imports the
 other. This package is the small set of helpers that turned out to be
 **literally the same code** in both: pure functions over strings and plain
@@ -312,7 +312,7 @@ those — they are the documented surface, and they are what the examples use:
 ```ts
 import { matchRoute, parseQuery } from '@amritk/mini/router'
 import { schemaToValidator } from '@amritk/mini/forms'
-// …or the same two lines against '@amritk/mini-native/router' / '/forms'
+// …or the same two lines against '@amritk/mini-lynx/router' / '/forms'
 ```
 
 Import `@amritk/mini-helpers` directly only when you want the helpers **without**

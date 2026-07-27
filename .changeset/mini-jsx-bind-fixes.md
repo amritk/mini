@@ -2,7 +2,7 @@
 '@amritk/mini': minor
 ---
 
-Fix five defects in the JSX runtime and the bindings, all found by auditing the sibling package `@amritk/mini-native` and confirmed to exist here too.
+Fix five defects in the JSX runtime and the bindings, all found by auditing the sibling package `@amritk/mini-lynx` and confirmed to exist here too.
 
 - **A style write no longer un-hides what `show` hid.** `bindShow` writes inline `display` and applying a style bag replaces the inline style wholesale, so an element carrying both props showed itself again on the next style update — and which one won came down to the order the attributes happened to be typed in. The two intents are now remembered apart: hiding wins while it is in effect, and showing the element again restores exactly the `display` its own style asked for rather than a hardcoded default. Only elements something has hidden carry any bookkeeping, so a plain `style` prop pays one lookup miss.
 - **Bare numeric style values are no longer silently dropped.** `style={{ width: 100 }}` produced empty CSS, because `100` is not a valid length. A bare number now means pixels, as it does in React, Preact, and Solid — except for the properties CSS treats as unitless (`opacity`, `zIndex`, `flex`, `lineHeight`, and friends) and custom `--*` properties, which pass through untouched.

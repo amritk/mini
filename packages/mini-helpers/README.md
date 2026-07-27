@@ -1,6 +1,6 @@
 # @amritk/mini-helpers
 
-The helpers [`@amritk/mini`](../mini) and [`@amritk/mini-native`](../mini-native)
+The helpers [`@amritk/mini`](../mini) and [`@amritk/mini-lynx`](../mini-lynx)
 both need, factored out so they cannot drift apart.
 
 You do not normally install this yourself — both packages depend on it and
@@ -29,7 +29,7 @@ parseQuery('?tab=posts&page=2')              // { tab: 'posts', page: '2' }
 
 ## The bar for adding something
 
-`mini` and `mini-native` are **siblings, not layers** — neither imports the
+`mini` and `mini-lynx` are **siblings, not layers** — neither imports the
 other, and that independence is the design. It has one cost, and it has been
 paid twice: a defect found in one is usually latent in the other. This package
 pays that down for the narrow band of code where sharing costs nothing back, and

@@ -37,7 +37,7 @@ jobs:
         run: bun run build
 
       # Loads every compiled module under plain Node, drives the built
-      # mini-native runtime end-to-end through its fake Element PAPI, and
+      # mini-lynx runtime end-to-end through its fake Element PAPI, and
       # installs packed tarballs like an npm consumer — catches build-, pack-
       # and manifest-level corruption the src-aliased tests cannot see.
       - name: Smoke and e2e test built artifacts

@@ -35,11 +35,11 @@ const PEER_BACKED_SUBPATHS: Record<string, string> = {
   '@amritk/mini/query': '@tanstack/query-core',
   '@amritk/mini/vite': 'typescript',
   // The ports carry their siblings' peers across with them, which is the whole
-  // point of the ports being ports. `mini-native` has no third peer of its own:
+  // point of the ports being ports. `mini-lynx` has no third peer of its own:
   // there is no `/vite` here, because the called-signal check is `@amritk/mini`'s
   // and is deliberately not duplicated.
-  '@amritk/mini-native/forms': '@amritk/runtime-validators',
-  '@amritk/mini-native/query': '@tanstack/query-core',
+  '@amritk/mini-lynx/forms': '@amritk/runtime-validators',
+  '@amritk/mini-lynx/query': '@tanstack/query-core',
   // Both `/forms` entries above reach the validator THROUGH this one now: the
   // schema arm is the part of a form that never touches a control, so it is
   // shared rather than ported. `@amritk/mini-helpers`'s own `.` entry is
@@ -59,7 +59,7 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * both of the others depend on it at runtime, so a consumer install that did
  * not carry it would fail on the first `/router` or `/forms` import.
  */
-const PUBLISHED = ['@amritk/mini', '@amritk/mini-helpers', '@amritk/mini-native'] as const
+const PUBLISHED = ['@amritk/mini', '@amritk/mini-helpers', '@amritk/mini-lynx'] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 
@@ -184,11 +184,11 @@ describe('consumer-e2e', () => {
 
   it('resolves the catalog-pinned alien-signals to one installed copy', async () => {
     // Two copies of alien-signals means two signal graphs: an effect created
-    // through mini would never see a write made through mini-native.
+    // through mini would never see a write made through mini-lynx.
     const installed = await readManifest(join(bareDir, 'node_modules/alien-signals/package.json'))
     expect(installed.version).toBe(catalog['alien-signals'])
     expect(existsSync(join(bareDir, 'node_modules/@amritk/mini/node_modules/alien-signals'))).toBe(false)
-    expect(existsSync(join(bareDir, 'node_modules/@amritk/mini-native/node_modules/alien-signals'))).toBe(false)
+    expect(existsSync(join(bareDir, 'node_modules/@amritk/mini-lynx/node_modules/alien-signals'))).toBe(false)
   })
 
   it('ships src without a development condition that would resolve to it', async () => {
@@ -227,7 +227,7 @@ describe('consumer-e2e', () => {
       console.log(JSON.stringify(empty))
     `
     const empty = JSON.parse((await runProbe(fullDir, 'subpaths', source)).trim()) as string[]
-    // Every entry ships something at runtime now. `mini-native/host` used to be
+    // Every entry ships something at runtime now. `mini-lynx/host` used to be
     // the one exception — a renderer contract that was types only — and it went
     // with the `Host` abstraction: `/engine` replaced it and exports real
     // functions. An empty module here is a build that dropped its exports.
@@ -293,11 +293,11 @@ describe('consumer-e2e', () => {
     expect(await runProbe(bareDir, 'mini-dom', source)).toContain('ok')
   })
 
-  it('drives mini-native through its fake engine from the installed tarball', async () => {
+  it('drives mini-lynx through its fake engine from the installed tarball', async () => {
     const source = `
       const { bindText, createElement, createRawText, insert, mount, setEngine, signal } =
-        await import('@amritk/mini-native')
-      const { createFakeEngine, serializeTree } = await import('@amritk/mini-native/testing')
+        await import('@amritk/mini-lynx')
+      const { createFakeEngine, serializeTree } = await import('@amritk/mini-lynx/testing')
 
       const engine = createFakeEngine()
       setEngine(engine.api)

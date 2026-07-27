@@ -84,7 +84,7 @@ const displays = new WeakMap<HTMLElement | SVGElement, DisplayState>()
  *
  * The bookkeeping lives here rather than in the JSX runtime because `bindShow`
  * is public API that people call straight from a `ref` — the JSX path is only
- * one of its callers. `mini-native` solves the same collision inside its DOM
+ * one of its callers. `mini-lynx` solves the same collision inside its DOM
  * host; the two packages share no code by design.
  *
  * @param node The element whose `display` is being resolved.

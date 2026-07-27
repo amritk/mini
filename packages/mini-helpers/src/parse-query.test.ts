@@ -4,7 +4,7 @@ import { parseQuery } from './parse-query'
 
 /**
  * The union of both packages' cases. `@amritk/mini` used to reach for
- * `URLSearchParams` here and `@amritk/mini-native` could not, so the hand-rolled
+ * `URLSearchParams` here and `@amritk/mini-lynx` could not, so the hand-rolled
  * version is the one that survived — these assertions are what pin it to the
  * behaviour `URLSearchParams` gave the web side, plus the two cases only the
  * native suite covered (a bare key, a malformed escape).

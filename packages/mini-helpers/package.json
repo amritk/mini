@@ -1,7 +1,7 @@
 {
   "name": "@amritk/mini-helpers",
   "version": "0.0.0",
-  "description": "The pure helpers @amritk/mini and @amritk/mini-native both need: no reactivity, no platform, no dependencies.",
+  "description": "The pure helpers @amritk/mini and @amritk/mini-lynx both need: no reactivity, no platform, no dependencies.",
   "type": "module",
   "license": "MIT",
   "author": "amritk",

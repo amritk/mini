@@ -15,7 +15,7 @@ export type Repo = {
 const DATA: Readonly<Record<string, readonly Repo[]>> = {
   amritk: [
     { name: 'mini', stars: 412, language: 'TypeScript' },
-    { name: 'mini-native', stars: 188, language: 'TypeScript' },
+    { name: 'mini-lynx', stars: 188, language: 'TypeScript' },
     { name: 'mjst', stars: 96, language: 'TypeScript' },
   ],
   acme: [

@@ -11,7 +11,7 @@ it instead of Node.js **for repo tooling**.
 
 ## The published packages are not Bun code
 
-`packages/mini` and `packages/mini-native` ship to browsers and native hosts.
+`packages/mini` and `packages/mini-lynx` ship to browsers and native hosts.
 Their tsconfigs are deliberately browser-only (`lib` without Node, `types: []`),
 and they ship their `src/` to consumers — so **no Bun or Node API may appear in
 shipped package sources**, not even behind a guard. `Bun.file`, `node:fs`,
@@ -91,7 +91,7 @@ and are referenced as `"catalog:react18"`.
 - **Every runtime dependency shared by both packages goes through the
   catalog.** `alien-signals` is the reactive core of both; two manifests free to
   pin it separately is how a consumer ends up with two signal graphs, where an
-  effect created through `mini` never sees a write made through `mini-native`.
+  effect created through `mini` never sees a write made through `mini-lynx`.
   `scripts/workspace-protocol.test.ts` fails if a shared `dependencies` entry
   skips the catalog, and if a catalog entry no package references goes stale.
 - **Never hand-edit a `catalog:` specifier into a version.** Change the version

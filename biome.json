@@ -32,7 +32,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/mini-native/**", "apps/playground-mini-native/**"],
+      "includes": ["packages/mini-lynx/**", "apps/playground-mini-lynx/**"],
       "linter": {
         "rules": {
           "a11y": {

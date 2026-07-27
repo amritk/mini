@@ -19,5 +19,5 @@ We aim to acknowledge reports within 7 days and to publish a fix or mitigation a
 ## Notes on the attack surface
 
 - `@amritk/mini`'s `bindHtml` is the **only** `innerHTML` sink in either package, and its `sanitize` argument is required at every call site — there is deliberately no default. Every other binding writes through `textContent`, attributes, or `classList`.
-- `@amritk/mini-native` has no raw-markup sink at all, on any host.
+- `@amritk/mini-lynx` has no raw-markup sink at all, on any host.
 - Report anything that lets bound data reach a markup sink or an event handler it was not meant to, on any target.

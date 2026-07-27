@@ -1,5 +1,5 @@
 ---
-'@amritk/mini-native': minor
+'@amritk/mini-lynx': minor
 ---
 
 Extend the theme past text, and make dark mode portable.

@@ -20,7 +20,7 @@ You write TypeScript code that is clear, predictable, and easy to maintain. The 
 - Always use arrow functions when possible.
 - Import with relative specifiers inside a package (`./bind`, `../signals`).
   Neither package declares a package.json `imports` map, and neither may import
-  the other: `mini` and `mini-native` are siblings, not layers.
+  the other: `mini` and `mini-lynx` are siblings, not layers.
 - The only bare specifier allowed in shipped sources is `alien-signals`, plus
   the optional peers already confined to their subpaths (`/forms`, `/query`,
   `/vite`). `packages/mini/src/import-boundary.test.ts` enforces that for the

@@ -9,7 +9,7 @@ Developer guidelines live in the `.claude/` directory:
 - **architecture.md** — Repo structure and design
 
 Each package also carries its own `AGENTS.md` with the invariants it cannot
-break — read `packages/mini/AGENTS.md` or `packages/mini-native/AGENTS.md`
+break — read `packages/mini/AGENTS.md` or `packages/mini-lynx/AGENTS.md`
 before editing that package.
 
 ## Changesets

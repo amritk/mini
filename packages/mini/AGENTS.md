@@ -45,7 +45,7 @@ bun run --filter='@amritk/mini' types:check
   getter — reactivity is decided by value SHAPE at runtime, and a transform that
   silently changes shapes turns a one-sentence rule into something you need the
   compiler to predict. Sibling ceiling and the full reasoning:
-  [`docs/mini-native-cross-platform.md` §18](../../docs/mini-native-cross-platform.md).
+  [`docs/mini-lynx-cross-platform.md` §18](../../docs/mini-lynx-cross-platform.md).
 - **`value`, `checked` and `selected` are PROPERTIES, not attributes**, and they
   are applied after the props loop. The attribute only seeds a control's
   default: it stops reaching the field once the user has typed, and on a
@@ -53,7 +53,7 @@ bun run --filter='@amritk/mini' types:check
   property write only takes once the `<option>`s exist, and `children` is the
   last key the JSX transform emits. Anything else that grows an
   attribute/property split belongs next to them in `isProperty`, not inline.
-  `mini-native`'s DOM host routes the same names the same way.
+  `mini-lynx`'s DOM host routes the same names the same way.
 - **`show` and `style` share one inline `display` slot.** Applying a style bag
   replaces the inline style wholesale, so a style write would otherwise un-hide
   what `bindShow` hid — and which won came down to the order the attributes were

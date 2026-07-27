@@ -30,7 +30,7 @@ jobs:
       matrix:
         app:
           - playground-mini
-          - playground-mini-native
+          - playground-mini-lynx
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The apps resolve `@amritk/mini` and `@amritk/mini-native` through the
+      # The apps resolve `@amritk/mini` and `@amritk/mini-lynx` through the
       # `development` condition, so they build straight from `src` and need no
       # prior package build. Type-checking them is still worth the seconds: a
       # broken playground should fail here rather than deploy.

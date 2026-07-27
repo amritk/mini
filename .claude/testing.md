@@ -26,7 +26,7 @@ You write tests that are clear, maintainable, and thorough. You optimize for rea
 - **Everything runs from the repo root.** Each package's `test` script is
   `NODE_ENV=production vitest run --root ../.. packages/<name>/`, so every suite
   picks up the `src` aliases in `vitest.config.ts` — `@amritk/mini` and
-  `@amritk/mini-native` (and their `jsx-runtime` subpaths) resolve to source,
+  `@amritk/mini-lynx` (and their `jsx-runtime` subpaths) resolve to source,
   never to `dist`. Run a single package with
   `bun run --filter='@amritk/mini' test`.
 - **`@amritk/runtime-validators` is deliberately not aliased.** It is an
@@ -34,7 +34,7 @@ You write tests that are clear, maintainable, and thorough. You optimize for rea
   `node_modules` exactly as a consumer's would.
 - **DOM tests opt in per file** with a `// @vitest-environment happy-dom` pragma
   on line 1 — there is no global environment. `mini`'s suites use it freely
-  because it renders real DOM. `mini-native` is the opposite: it is supposed to
+  because it renders real DOM. `mini-lynx` is the opposite: it is supposed to
   be platform-free, so a suite that silently got a `document` would hide a real
   platform dependency. Test that package through the memory host
   (`createMemoryHost` + `serializeMemoryTree`); `create-dom-host.test.tsx` is
