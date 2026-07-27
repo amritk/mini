@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "playground-mini",
+  "compatibility_date": "2026-07-01",
+  // An assets-only Worker: there is no `main`, so Cloudflare serves `dist/`
+  // straight from its edge cache with no Worker invocation (and no request
+  // billing). `single-page-application` rewrites every unknown path to
+  // `index.html`, which is what lets the router run in `history` mode and
+  // makes `/forms` a real, shareable, reloadable URL.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

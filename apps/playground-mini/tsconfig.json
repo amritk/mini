@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // The playground is a browser app, so it gets the DOM libs and none of the
+    // Node ambient types the root config pulls in. `vite/client` is what types
+    // `import.meta.hot` and `import.meta.env`.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini",
+    // Resolve `@amritk/mini` and every subpath to the workspace's SOURCE rather
+    // than to `dist`, through the `development` condition the package already
+    // declares. The same condition is set in `vite.config.ts`, and it is what
+    // lets the playground run (and build) in a fresh clone with no prior
+    // `bun run build` — no `paths` table to keep in sync with the exports map.
+    "customConditions": ["development"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

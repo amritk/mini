@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // The app gets the DOM libs — unlike the package it consumes, which
+    // deliberately withholds them so a stray `document` in the runtime fails to
+    // compile. An APP is allowed to know it is on the web: it picks the host,
+    // and picking `createDomHost` is that decision made explicitly.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini-native",
+    // Resolve `@amritk/mini-native` and every subpath to the workspace's SOURCE
+    // through the `development` condition the package already declares. The
+    // same condition is set in `vite.config.ts`, so the playground runs and
+    // builds in a fresh clone with no prior `bun run build`.
+    "customConditions": ["development"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

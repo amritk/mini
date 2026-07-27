@@ -28,13 +28,17 @@ const collectTsxFiles = async (path: string): Promise<string[]> => {
 }
 
 /**
- * Scans the given files or directories (default: `packages`), prints a
- * `file:line:col` report for each finding, and exits non-zero when any are
+ * Scans the given files or directories (default: `packages` and `apps`), prints
+ * a `file:line:col` report for each finding, and exits non-zero when any are
  * found. Only `.tsx` files are scanned — mini's JSX transform is the only place
  * this footgun can appear.
+ *
+ * The playground apps are in the default set because they are the only code in
+ * the repo written the way a consumer writes it, which makes them the most
+ * likely place for the footgun to appear at all.
  */
 const main = async (paths: readonly string[]): Promise<number> => {
-  const roots = paths.length > 0 ? paths : ['packages']
+  const roots = paths.length > 0 ? paths : ['packages', 'apps']
   let total = 0
 
   for (const root of roots) {

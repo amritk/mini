@@ -98,6 +98,31 @@ describe('render-child', () => {
     expect(host.firstChild).toBe(node)
   })
 
+  it('does not subscribe the swap to signals the branch reads while building', () => {
+    // The branch is built detached, so a signal read SYNCHRONOUSLY in a component
+    // body — `createQuery` seeding its observer from an options getter is the
+    // real case — must not become a dependency of the swap. Attached, writing it
+    // would rebuild the branch and reset every signal the component owns, on a
+    // change that selected no new branch.
+    const selection = signal(true)
+    const readInBody = signal('a')
+    let builds = 0
+    const factory: ChildFactory = () => {
+      builds += 1
+      const seen = readInBody()
+      const node = document.createElement('span')
+      bindText(node, () => `${seen}/${readInBody()}`)
+      return node
+    }
+    const host = document.createElement('div')
+    renderChild(host, () => (selection() ? factory : null))
+    expect(builds).toBe(1)
+    readInBody('b')
+    expect(builds).toBe(1)
+    // The branch was kept, so its own binding is what reflects the new value.
+    expect(host.textContent).toBe('a/b')
+  })
+
   it('stops reacting and tears down the branch on dispose', () => {
     const tick = signal(0)
     let builds = 0

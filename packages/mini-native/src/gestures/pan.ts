@@ -34,6 +34,14 @@ export type PanHandlers = {
 }
 
 /**
+ * How long a movement's velocity stays a description of the gesture once the
+ * pointer stops. A lift within this many milliseconds of the last movement is
+ * part of that movement; a lift after it followed a pause, and the gesture had
+ * come to rest.
+ */
+const VELOCITY_WINDOW_MS = 80
+
+/**
  * Recognises a drag on an element.
  *
  * Pure arithmetic over the normalised pointer stream, which is what makes it
@@ -53,6 +61,17 @@ export type PanHandlers = {
  * ignored rather than fighting the first for control — two fingers are a
  * different gesture, and a pan that quietly became the average of two is worse
  * than one that stayed a pan.
+ *
+ * The velocity reported at `onEnd` is the velocity of the last MOVEMENT, not of
+ * the lift, and the difference is the whole reason {@link VELOCITY_WINDOW_MS}
+ * exists. A pointer almost always lifts exactly where it last moved — every
+ * browser fires `pointerup` at the final `pointermove`'s coordinates — so
+ * measuring the lift's own displacement reports zero for every real flick, and
+ * `swipe`, which gates on velocity, would never recognise one. The last
+ * movement's velocity is carried instead, and only while the lift follows it
+ * closely enough in time: a drag that crossed the screen and then came to rest
+ * before the finger left is a long pan rather than a flick, and it must still
+ * report zero.
  */
 export const pan = (element: HostElement, handlers: PanHandlers): Dispose => {
   const host = requireHost()
@@ -63,6 +82,10 @@ export const pan = (element: HostElement, handlers: PanHandlers): Dispose => {
   let lastX = 0
   let lastY = 0
   let lastAt = 0
+  // The last movement's velocity, carried to `onEnd` when the lift adds no
+  // displacement of its own. See the note above.
+  let lastVx = 0
+  let lastVy = 0
 
   const eventAt = (pointer: PointerEvent, at: number, cancelled: boolean): PanEvent => {
     // Guard the divide rather than the subtraction: two events in the same
@@ -100,16 +123,24 @@ export const pan = (element: HostElement, handlers: PanHandlers): Dispose => {
     if (pointer.id !== active) return
 
     if (pointer.phase === 'move') {
-      handlers.onMove?.(eventAt(pointer, at, false))
+      const moved = eventAt(pointer, at, false)
+      handlers.onMove?.(moved)
       lastX = pointer.x
       lastY = pointer.y
       lastAt = at
+      lastVx = moved.vx
+      lastVy = moved.vy
       return
     }
 
     // Up or cancel: report, then forget, so the next down starts cleanly even
     // if the handler threw.
-    const finished = eventAt(pointer, at, pointer.phase === 'cancel')
+    const settled = eventAt(pointer, at, pointer.phase === 'cancel')
+    // A lift that landed exactly where the pointer last moved carries no
+    // movement information of its own, so the last movement's velocity is what
+    // the gesture was actually doing — but only if the lift followed it closely.
+    const stationary = pointer.x === lastX && pointer.y === lastY
+    const finished = stationary && at - lastAt <= VELOCITY_WINDOW_MS ? { ...settled, vx: lastVx, vy: lastVy } : settled
     active = null
     handlers.onEnd?.(finished)
   })
