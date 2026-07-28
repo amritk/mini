@@ -20,7 +20,9 @@ The entry points:
 - **`/elements`** — `querySelector`, `querySelectorAll` and `invoke`, for the capabilities reached by calling a method on an element rather than by setting an attribute.
 - **`/gestures`** — `setGestureDetector`, for declaring one recogniser as related to another.
 - **`/recycle`** — `recycle`, which drives `<list>`'s cell recycler so a long collection realises a bounded number of elements.
-- **`/testing`** — `createFakeEngine` and `serializeTree`: a complete in-memory implementation of the PAPI, which is what the whole suite runs against.
+- **`/testing`** — `createFakeEngine` and `serializeTree`: a complete in-memory implementation of the PAPI, which is what the whole suite runs against. It drives a recycler through the same `enterListItemAtIndex` / `leaveListItem` pair Lynx's own testing-library exposes.
+
+`reducedMotion()` and `setReducedMotion()` are on the `.` entry. `RouteStack` consults the preference above the transition seam and skips the animation, so a transition never has to check and an app gets the behaviour by stating the preference once. The runtime cannot read the value itself — there is no reduced-motion field on `SystemInfo`, and Lynx has no media queries — so the host app passes it in the way it passes colour scheme.
 
 Two engine behaviours the runtime handles for you, both of which are silent when got wrong:
 
