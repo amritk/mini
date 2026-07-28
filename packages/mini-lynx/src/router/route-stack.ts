@@ -6,6 +6,7 @@ import { currentFrame, withFrame } from '../context-frame'
 import { scheduleFlush } from '../engine/current-engine'
 import type { LynxElement } from '../engine/element-api'
 import { onCleanup } from '../on-cleanup'
+import { reducedMotion } from '../reduced-motion'
 import { runDetached } from '../run-detached'
 import { type Signal, signal } from '../signals'
 import { applyStyle, applyVisible } from '../style/apply-style'
@@ -193,7 +194,13 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): LynxElem
   /** Hands the two cards to the transition, and settles when it says so. */
   const transition = (change: StackChange, entering: LynxElement | null, exiting: LynxElement | null): void => {
     const running = generation
-    const result = props.transition?.({ change, entering, exiting, style: styleCard })
+    // Reduced motion is honoured HERE rather than inside each transition, so it
+    // costs an app nothing and covers a transition this package never saw. It is
+    // read untracked on purpose: this runs during a navigation, and taking a
+    // dependency on the preference would tie the enclosing scope to a signal that
+    // has nothing to do with which screen is on top.
+    const skip = untrack(reducedMotion)
+    const result = skip ? undefined : props.transition?.({ change, entering, exiting, style: styleCard })
     if (result === undefined || result === null) {
       settle()
       return
