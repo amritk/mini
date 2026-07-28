@@ -12,4 +12,13 @@
  */
 
 export { clearEngine, globalEngine, requireEngine, scheduleFlush, setEngine } from './current-engine'
-export type { LynxElement, LynxElementApi } from './element-api'
+export type {
+  ComponentAtIndex,
+  EnqueueComponent,
+  EventListenerValue,
+  GestureDetectorConfig,
+  LynxElement,
+  LynxElementApi,
+  UIMethodResult,
+  WorkletHandle,
+} from './element-api'
