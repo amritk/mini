@@ -112,13 +112,19 @@ export const Chip = (props: ChipProps): LynxElement => {
 
 export type RowProps = {
   gap?: 'xs' | 'sm' | 'md'
+  /**
+   * Whether a run too wide for the screen continues on the next line. Defaults
+   * to `true`, because the alternative is not "a tidy single line" — it is a
+   * row clipped at the edge of a phone, with the buttons past the fold
+   * unreachable. Pass `false` for a run that genuinely is one line.
+   */
   wrap?: boolean
   children?: ContainerChildren
 }
 
 /** A horizontal run of children. Lynx lays out in a column by default. */
 export const Row = (props: RowProps): LynxElement => (
-  <view class={['row', `gap-${props.gap ?? 'sm'}`, props.wrap === true && 'wrap']}>{props.children}</view>
+  <view class={['row', `gap-${props.gap ?? 'sm'}`, props.wrap !== false && 'wrap']}>{props.children}</view>
 )
 
 export type StackProps = {

@@ -38,7 +38,7 @@ const ChannelsPanel = (): LynxElement => {
       title="two channels, two jobs"
       blurb="A class is resolved once by the engine; an inline declaration is written on every change. So classes carry what is static and style carries what is genuinely dynamic."
     >
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         <view class="card">
           <TextLine class="card-meta">class="card" — one __SetClasses call, ever</TextLine>
         </view>
@@ -77,7 +77,7 @@ const UnitsPanel = (): LynxElement => {
       title="there is no implicit unit"
       blurb="In Lynx's CSS a bare number is not a length. width: 100 is invalid and silently does nothing; 0 is the only number a length takes bare."
     >
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         {/*
          * Three spellings of one declaration set, side by side and identical on
          * screen. The bag is what an app writes; the getter is the same bag
@@ -90,7 +90,7 @@ const UnitsPanel = (): LynxElement => {
         <view style="width:72px;height:44px;border-radius:8px;background-color:#2f5bd7" />
       </Row>
 
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         <Action onTap={() => step(step() + 1)}>{() => `explain the ${form()}`}</Action>
         <Chip>{() => FORM_NOTES[form()]}</Chip>
       </Row>
@@ -195,7 +195,7 @@ const MotionPanel = (): LynxElement => {
       <Readout>{'@keyframes pulse { from { opacity: 0.4 } to { opacity: 1 } }'}</Readout>
       <Readout>{'.pulsing { animation: pulse 1.2s ease-in-out infinite alternate }'}</Readout>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">the transition is real in both targets</Chip>
         <Chip tone="bad">the keyframes above are text, not a running animation</Chip>
       </Row>
@@ -245,7 +245,7 @@ const LinearPanel = (): LynxElement => (
       <view style={{ flexGrow: 1, backgroundColor: '#dde2ee', borderRadius: 6 }} />
     </view>
 
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Chip tone="bad">the first row is approximated with flex here</Chip>
       <Chip tone="good">the second is the real thing</Chip>
     </Row>

@@ -192,6 +192,12 @@
 
 .action {
   align-self: flex-start;
+  /* The reset pins every element at `flex-shrink: 0`, which is right for a
+     linear child and wrong for a control in a row: a long label would push the
+     button past the edge of the screen, where Lynx clips it and the tap target
+     goes with it. Shrinking lets the label wrap instead. */
+  flex-shrink: 1;
+  max-width: 100%;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   border-width: 1px;
@@ -211,6 +217,10 @@
 
 .chip {
   align-self: flex-start;
+  /* Same as `.action`: a chip whose label is longer than the line wraps its
+     text rather than running off the side of the screen. */
+  flex-shrink: 1;
+  max-width: 100%;
   padding: 2px 8px;
   border-radius: 999px;
   border-width: 1px;
@@ -248,6 +258,8 @@
 }
 
 .card {
+  flex-shrink: 1;
+  max-width: 100%;
   padding: 10px;
   border-radius: var(--radius-sm);
   background-color: var(--surface-alt);

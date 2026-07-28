@@ -201,7 +201,7 @@ const SinglePanel = (): LynxElement => {
         )}
       </For>
 
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         <Action onTap={() => rows([...rows(), ...makeRows(rows().length, 50)])}>append 50</Action>
         <Action onTap={() => rows(INITIAL_ROWS)}>reset</Action>
         <Chip>{() => `${rows().length} rows`}</Chip>
@@ -261,7 +261,7 @@ const LayoutPanel = (): LynxElement => {
         )}
       </For>
 
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         <Action onTap={() => step(step() + 1)}>next layout</Action>
         <Chip>{() => `list-type="${layout()}" span-count={2}`}</Chip>
       </Row>
@@ -417,7 +417,7 @@ const RowGroupingPanel = (): LynxElement => {
         )}
       </list>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">the nesting the engine accepts</Chip>
         <Chip tone="bad">no grouping, no columns, no measurement</Chip>
       </Row>
@@ -462,7 +462,7 @@ const HonestyPanel = (): LynxElement => (
       estimate for.
     </Prose>
 
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Chip tone="good">the tree and the attribute names are real</Chip>
       <Chip tone="good">keyed reconciliation is real</Chip>
       <Chip tone="bad">every behaviour above is not</Chip>

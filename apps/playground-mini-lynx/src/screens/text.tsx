@@ -109,7 +109,7 @@ const MaxlinePanel = (): LynxElement => {
 
       <Readout>{layout}</Readout>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">the clamp is approximated</Chip>
         <Chip tone="bad">the layout event is device-only</Chip>
       </Row>
@@ -281,7 +281,7 @@ const MarkdownPanel = (): LynxElement => {
         binddrawEnd={() => parsed(`drew ${content().length} characters`)}
       />
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Action
           onTap={() => {
             step(step() >= PARTS.length ? 1 : step() + 1)
@@ -297,7 +297,7 @@ const MarkdownPanel = (): LynxElement => {
 
       <Readout>{parsed}</Readout>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">the attribute names and the reactive content</Chip>
         <Chip tone="bad">no parser here — the raw string is what you see</Chip>
       </Row>
@@ -342,7 +342,7 @@ const InheritancePanel = (): LynxElement => (
       </text>
     </text>
 
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Chip tone="good">the preview reproduces this one</Chip>
       <Chip>because the reset re-asserts font and colour on every element</Chip>
     </Row>

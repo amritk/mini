@@ -102,6 +102,23 @@ ${SCOPE} :where(*) {
   text-align: start;
 }
 
+/* On a device the page element IS the screen: it is sized by the viewport, and
+   a tree taller than it scrolls inside a scroll-view rather than making the
+   page itself grow. In a browser it is an ordinary element that sizes to its
+   content, so the height has to be handed back — without this the app runs
+   past the bottom of its host box, every scroll-view inside it is unbounded,
+   and nothing scrolls anywhere.
+
+   Both declarations are here on purpose, for the two shapes a host box takes:
+   \`height\` covers a block container with a definite height, and the flex
+   pair covers a flex container — which is what \`index.html\` uses, and where
+   the reset's own \`flex-shrink: 0\` would otherwise let the page overflow. */
+${SCOPE} {
+  height: 100%;
+  flex: 1 1 0%;
+  align-self: stretch;
+}
+
 /* Inside a <text>, Lynx does keep the cascade — an inline run and a nested
    <text> both take their colour and font from the text around them. Those
    three tags plus a nested <text> are the whole of it; every other element is

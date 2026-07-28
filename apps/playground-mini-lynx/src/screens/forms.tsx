@@ -147,7 +147,7 @@ const Gating = (): LynxElement => {
     >
       <Field form={form} name="email" label="Email" type="email" placeholder="you@example.com" {...FIELD_STYLING} />
 
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action onTap={() => field.setTouched()} disabled={field.touched}>
           mark it touched
         </Action>

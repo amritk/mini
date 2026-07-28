@@ -39,6 +39,20 @@ The app itself runs on `@amritk/mini/router` in `history` mode and mounts
 through `@amritk/mini/hot`, so `/router` is documentation and implementation at
 once.
 
+## The shell
+
+`src/styles.css` is written small-screen first, and the shell changes shape at
+one breakpoint (760px). Below it the nav is a drawer behind a top bar; at or
+above it the drawer's `<aside>` becomes the sticky sidebar. Nothing about the
+markup changes — the drawer is one signal driving one class on the shell, and
+the rest is CSS.
+
+Two behaviours come from `src/app.tsx` rather than from the stylesheet, because
+they cannot be expressed in one: changing section closes the drawer and returns
+to the top of the page, and Escape closes it from a keyboard. The section, not
+the path — `/router/:owner/:repo` navigates within its own page on purpose, and
+that must not scroll the demo out from under you.
+
 ## How it resolves the package
 
 `vite.config.ts` and `tsconfig.json` both pin the `development` condition, so

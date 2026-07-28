@@ -70,7 +70,7 @@ const LiveState = (): LynxElement => (
     title="route()"
     blurb="One signal carrying the path, the raw search string, the parsed query, the captured params, and the matched route definition — or null, which is your not-found screen. Read it inside a binding and everything downstream follows navigation."
   >
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Link to="/routing?tab=state&amp;page=2">?tab=state&amp;page=2</Link>
       <Link to="/routing/amritk">/routing/amritk</Link>
       <Link to="/routing">/routing</Link>
@@ -104,7 +104,7 @@ const Params = (props: RoutingScreenProps & { build: number }): LynxElement => {
       title="Params, and what survives"
       blurb="RouteView swaps on the matched ROUTE, not on every change to what it read. Move between the two owners below and the screen is kept while params() reports new values; go back to the bare /routing and the subtree is torn down, because that is a different route definition."
     >
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Link to="/routing/amritk">amritk</Link>
         <Link to="/routing/acme">acme</Link>
         <Link to="/routing/lynx">lynx</Link>
@@ -149,7 +149,7 @@ const Navigation = (): LynxElement => {
       title="navigate · replace · back · canGoBack"
       blurb="canGoBack is a signal, so a back control can be shown only where it would do something. It counts the entries THIS router pushed, which is the only question a back chevron actually asks."
     >
-      <Row gap="sm" wrap={true}>
+      <Row gap="sm">
         <Action onTap={() => router.navigate('/routing/amritk')}>navigate</Action>
         <Action onTap={() => router.navigate('/routing/acme', { replace: true })}>replace</Action>
         <Action onTap={() => router.back()} disabled={() => !router.canGoBack()}>
@@ -177,7 +177,7 @@ const Query = (): LynxElement => (
     title="parseQuery"
     blurb="The search string is parsed once per navigation and handed over as a flat record, so a screen reads route().query.page rather than doing its own string surgery."
   >
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Link to="/routing?page=2&amp;sort=downloads">page and sort</Link>
       <Link to="/routing?q=hello+world">a plus-encoded space</Link>
       <Link to="/routing?flag">a key with no value</Link>
@@ -216,7 +216,7 @@ const Matching = (): LynxElement => {
       title="matchRoute"
       blurb="String arithmetic with no platform in it. A colon captures one segment into params, a trailing star captures the rest into params.rest, and everything else must match literally. Leading and trailing slashes are normalised, and captured segments are decoded."
     >
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <For each={SAMPLES}>
           {(sample) => (
             <Action onTap={() => path(sample)} disabled={() => path() === sample}>
@@ -266,7 +266,7 @@ const SecondRouter = (): LynxElement => {
       title="createMemoryHistory"
       blurb="A second, completely independent router in the same app. The two cannot interfere with each other because the history is a parameter rather than an assumption — which is also what lets an app embedded in a native shell hand that shell's navigation in behind the same interface."
     >
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Action onTap={() => local.navigate('/')}>/</Action>
         <Action onTap={() => local.navigate('/settings')}>/settings</Action>
         <Action onTap={() => local.navigate('/users/42')}>/users/42</Action>
@@ -359,7 +359,7 @@ const Stack = (): LynxElement => {
       title="RouteStack"
       blurb="Push twice and go back: the screen underneath was never torn down, so it comes back with whatever state it had. A single-slot RouteView would have rebuilt it."
     >
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action onTap={() => stack.navigate('/one')}>push /one</Action>
         <Action onTap={() => stack.navigate('/two')}>push /two</Action>
         <Action onTap={() => stack.navigate('/two', { replace: true })}>replace /two</Action>

@@ -176,7 +176,7 @@ const ImagePanel = (): LynxElement => {
         </view>
       </Row>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">mode is real here</Chip>
         <Chip tone="bad">blur-radius is not</Chip>
         <Chip>auto-size is the browser's own intrinsic sizing, not the engine's</Chip>
@@ -235,7 +235,7 @@ const ScrollPanel = (): LynxElement => {
         ))}
       </scroll-view>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">scroll fires, with the engine's field names</Chip>
         <Chip tone="bad">scrolltoupper / scrolltolower are device-only</Chip>
       </Row>
@@ -327,7 +327,7 @@ const ScrollCoordinatorPanel = (): LynxElement => {
         <TextLine class="card-meta">the draggable slot variant</TextLine>
       </scroll-coordinator-slot-drag>
 
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <Chip tone="good">the tree, the nesting and the attribute names</Chip>
         <Chip tone="bad">no coordination — three stacked boxes here</Chip>
       </Row>
@@ -356,7 +356,7 @@ const FramePanel = (): LynxElement => (
       style={{ width: '100%', height: 96, borderRadius: 8, backgroundColor: '#eef1f8' }}
     />
 
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <Chip tone="bad">nothing renders here</Chip>
       <Chip>Android and iOS only, and there is no second bundle to load</Chip>
     </Row>
@@ -386,7 +386,7 @@ type GalleryItemProps = {
 
 const GalleryItem = (props: GalleryItemProps): LynxElement => (
   <view class="card">
-    <Row gap="xs" wrap={true}>
+    <Row gap="xs">
       <TextLine>{props.title}</TextLine>
       <Chip tone={props.tone}>{props.note}</Chip>
     </Row>
