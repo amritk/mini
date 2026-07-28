@@ -3,9 +3,10 @@
 This note records why `@amritk/mini-lynx` stopped being a multi-platform UI
 runtime with its own vocabulary and became a thin signals layer over Lynx, and
 what that cost and bought. It replaces the position taken in
-[`mini-lynx-cross-platform.md`](./mini-lynx-cross-platform.md), which is
-kept because the reasoning there is still correct — it was answering a different
-question.
+[`mini-lynx-cross-platform.md`](./mini-lynx-cross-platform.md) and in
+[`mini-lynx-style.md`](./mini-lynx-style.md), both of which are kept because the
+reasoning in them is still correct — they were answering a different question.
+Neither describes the shipped package, and both now say so at the top.
 
 ---
 
@@ -60,7 +61,7 @@ knew what a platform was and crossed over unchanged.
 | `/platform` — `colorScheme`, `dimensions`, `safeArea` | `SystemInfo` and `globalProps` |
 | `/gestures` — `pan`, `swipe` | the engine's gesture system |
 | `/animate` — timelines as inline transitions | CSS `@keyframes`, transitions, `element.animate()` |
-| `VirtualFor` — fixed-height windowing | `<list>`, with waterfall, sticky and snap (recycling still to wire) |
+| `VirtualFor` — fixed-height windowing | `<list>`, with waterfall, sticky and snap; recycling is now wired, in `/recycle` |
 | `router/browser` | there is no browser target to have a history for |
 
 The `/ui` row is the one worth dwelling on. That layer existed to keep a
@@ -183,27 +184,38 @@ Honesty about the trade:
   about anything element-creation-specific.
 - **`@amritk/mini` is unaffected.** It remains the DOM package, which is the
   other half of why this is the right trade: the web already had a renderer here.
-- **Reduced motion is a real regression, not an oversight.** `/animate` read
-  `host.environment.reduceMotion` and skipped a non-essential timeline on its
-  own, so honouring the preference cost an app nothing. Nothing in the runtime
-  can read it now: the preference lives on `SystemInfo` or arrives through
-  `globalProps`, both of which are the app's to consult. So it became the app's
-  call — pass no `transition` to a `RouteStack`, do not add the animation
-  class — and that is worse ergonomics for an accessibility feature, which is
-  exactly the kind of thing that quietly stops being done. If one accessor
-  earns its way back into this package, it is this one.
+- **Reduced motion was a real regression, and is the one thing that earned its
+  way back.** `/animate` read `host.environment.reduceMotion` and skipped a
+  non-essential timeline on its own, so honouring the preference cost an app
+  nothing. Deleting the host layer deleted the reading, and "pass no `transition`
+  to a `RouteStack`" is worse ergonomics for an accessibility feature — exactly
+  the kind of thing that quietly stops being done.
+
+  The fix is `reducedMotion()`, one signal on the `.` entry that `RouteStack`
+  consults above the transition seam, so a transition never checks and an app
+  gets the behaviour for free again. What could not come back is the *reading*:
+  there is no reduced-motion field on `SystemInfo` in `@lynx-js/types`, and Lynx
+  has no media queries, so no `prefers-reduced-motion` either. The preference
+  reaches the host app natively and is passed in with `setReducedMotion`. That
+  is one line at startup instead of a prop threaded through every animated
+  component, which was the whole of what was lost.
 
 ---
 
 ## 8. What is now possible that was not
 
-Everything the vocabulary could not name: `<list>` with waterfall, sticky
-headers and snap (recycling needs the engine's cell callbacks, which this
-runtime does not yet implement — see `CREATORS` in `tree.ts`); `<textarea>`, `<svg>`, `<refresh>`, `<viewpager>`,
-`<overlay>`, `<blur-view>`, `<webview>`; authored CSS with selectors, variables
-and `@keyframes`; grid and Lynx's `linear` and `relative` layout systems; event
-capture, bubbling and interception through `catch`; exposure events; the
-Performance API; the devtool understanding the tree.
+Everything the vocabulary could not name: `<list>` with waterfall, sticky headers
+and snap — and, through `/recycle`, with real cell recycling; `<textarea>`,
+`<svg>`, `<refresh>`, `<viewpager>`, `<overlay>`, `<blur-view>`, `<webview>`;
+authored CSS with selectors, variables and `@keyframes`; grid and Lynx's `linear`
+and `relative` layout systems; event capture, bubbling and interception through
+`catch`; exposure events; the Performance API; the devtool understanding the tree.
+
+The three that needed code here rather than just a tag are worth separating out,
+because they share a shape: `/recycle`, `/gestures` and `/elements` are the
+places where the engine calls the *framework*, or where a capability is an action
+rather than a piece of state, so there is no attribute for a signal to bind to.
+Everything else on that list arrived for free.
 
 None of it needed a release here. That is the actual test of whether this change
 was right: the ceiling moved from "what this package has named" to "what the

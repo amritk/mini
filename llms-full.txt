@@ -389,25 +389,32 @@ The ceiling is the engine's, so most capabilities are a matter of writing the
 tag. These are the exceptions, and they are the ones worth knowing before you
 plan an app around them.
 
-- **`<list>` does not recycle.** Every other list feature works — waterfall,
-  sticky, snap, `full-span`, the gap properties — because those belong to the
-  engine's layout pass. Virtualisation does not: the engine's `__CreateList`
-  takes recycling callbacks this runtime has not implemented, so rows are all
-  realised up front. Fine at a few hundred rows; not at ten thousand.
-- **No `SelectorQuery`, so no UI methods.** `scrollTo`, `setTextSelection`,
-  `getTextBoundingRect`, `setFoldExpanded` are invoked rather than set, and
-  nothing here wraps that. Reach for it yourself.
-- **No gesture composition.** `bindtap`, the touch stream, `catch` interception
-  and the exposure attributes all work. Declaring one recogniser as related to
-  another does not.
+- **A recycled cell pool is per-shape.** `recycle` (on `/recycle`) drives the
+  engine's cell callbacks, so ten thousand rows realise a handful of elements.
+  Cells pool by `reuseIdentifier`, and rows sharing one get handed each other's
+  elements — so if `cell` branches into structurally different trees, give each
+  branch its own identifier. `cell` receives **getters**, not values: a cell is
+  built once and re-pointed at row after row, and a closure over the row it
+  happened to be built with would show row 0 forever.
+- **A move inside a recycling list costs a remove plus an insert.** Correct, not
+  minimal. Unchanged rows are left alone.
 - **Nothing about the background thread.** `NativeModules`, `GlobalEventEmitter`
   events and the bridge are yours. This matters most for `/query`, which wants
   `fetch` and timers — whether those exist on the main thread is an
   engine-version question, so an app that cannot reach them should fetch on the
   background thread and push results in.
-- **Reduced motion is not read for you.** It lives on `SystemInfo` or arrives
-  through `globalProps`. If an app animates, it has to consult one of them and
-  skip the animation itself.
+- **Reduced motion needs one line from you.** `RouteStack` consults
+  `reducedMotion()` and skips the transition, and you can read it anywhere else.
+  But the runtime cannot obtain the value: there is no reduced-motion field on
+  `SystemInfo`, and Lynx has no media queries, so no `prefers-reduced-motion`.
+  Your host app reads it natively; call `setReducedMotion` once at startup.
+
+Three subpaths exist for the cases where there is no attribute to bind a signal
+to, because the engine calls *you* or because the capability is an action rather
+than state: `/recycle` (cell recycling), `/gestures` (`setGestureDetector`, and
+the `waitFor` / `simultaneous` / `continueWith` relations that ordinary events
+cannot express) and `/elements` (`querySelector`, `querySelectorAll`, `invoke`
+for `scrollTo`, `boundingClientRect`, `scrollIntoView` and the rest).
 
 Install: `bun add @amritk/mini-lynx` (or npm/pnpm/yarn). `@lynx-js/types` is
 an optional, types-only peer — install it to get the tag typings.

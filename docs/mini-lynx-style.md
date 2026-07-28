@@ -1,5 +1,20 @@
 # Style — the layout reset, tokens, and the type scale
 
+> **Superseded, and describing code that no longer exists.** Everything below —
+> the layout reset, the token layer, the theme signal, the type scale — was
+> deleted with the rest of the cross-platform design in
+> [`mini-lynx-runtime.md`](./mini-lynx-runtime.md), which is the note to read
+> instead. Lynx has real CSS: selectors, the cascade, custom properties and
+> `@keyframes`, so an app authors a stylesheet and the runtime owns no styling
+> vocabulary at all. `apps/playground-mini-lynx/src/styles.css` is what that
+> looks like in practice.
+>
+> It is kept for the same reason `mini-lynx-cross-platform.md` is: the reasoning
+> is still correct, it was just answering a question this package no longer asks.
+> §3.5 in particular — why the CSS system colours were a web-only trick — is a
+> conclusion worth not re-deriving. **Nothing here describes the shipped
+> package**, so read it as history rather than as documentation.
+
 The note [`mini-lynx-cross-platform.md`](./mini-lynx-cross-platform.md) put
 style deliberately out of scope and said, in §12, that this is the harder half
 rather than the easier one. This is that half.

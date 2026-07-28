@@ -48,9 +48,14 @@ spells them (`text-maxline`, `scroll-orientation`), the events are Lynx's own
 than this package's release schedule.
 
 The consequence worth stating plainly: the ceiling is what the engine can do
-rather than what this package has named. `<list>` recycling, waterfall, sticky
-headers, `@keyframes`, CSS selectors and variables, grid, event interception,
-the devtool understanding the tree — all of it works without a release here.
+rather than what this package has named. Waterfall and sticky headers,
+`@keyframes`, CSS selectors and variables, grid, event interception, the devtool
+understanding the tree — all of it works without a release here.
+
+The exceptions are the handful of places the engine calls the *framework* rather
+than the other way round, because there is no attribute to write: cell recycling
+(`/recycle`), gesture arbitration (`/gestures`) and UI methods (`/elements`).
+Those needed code here, and now have it.
 
 It is also not a component library, a design system, or a styling solution.
 Lynx has real CSS; use it.
@@ -138,6 +143,9 @@ Each is its own module graph, so importing one pulls in none of the others.
 | `/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` |
 | `/forms` | `createForm`, `Field`, `bindField`, `schemaToValidator` |
 | `/query` | `createQuery` over `@tanstack/query-core` |
+| `/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods |
+| `/gestures` | `setGestureDetector`, `GestureType` — recogniser composition |
+| `/recycle` | `recycle` — `<list>`'s cell recycler |
 | `/testing` | `createFakeEngine`, `serializeTree` |
 
 ## Known gaps
@@ -146,32 +154,21 @@ The ceiling is the engine's rather than this package's, so most of what an app
 might want is a matter of writing the tag. These are the places where that is
 not true — where the runtime itself is what is missing.
 
-**`<list>` does not recycle yet.** The engine's `__CreateList` does not take an
-id like the other creators; it takes the recycling callbacks
-(`componentAtIndex`, `enqueueComponent`) the framework is expected to implement,
-and the engine drives cell reuse by calling back into them. Until those exist a
-`<list>` is built through `__CreateElement`, which means every row is realised up
-front. Every other list feature — waterfall, sticky, snap, `full-span`, the gap
-properties — works today, because those belong to the engine's layout pass. Only
-virtualisation is missing, and for the collection sizes most screens have that is
-the same thing; for the ten thousand rows `<list>` exists for, it is not. This is
-the largest single piece of work outstanding, and a real one: a recycler's "the
-engine owns the cell, you fill it" is a different contract from the rest of this
-runtime.
+**A recycled cell pool is per-shape, not per-row.** `recycle` pools cells by
+`reuseIdentifier`, and rows sharing one must be structurally interchangeable
+because they will be handed each other's elements. That is the engine's model
+rather than a simplification here, but it is worth stating: a `cell` function
+that branches into genuinely different trees needs an identifier per branch, or
+the pool will hand a header the elements of a row. Give the two different
+identifiers and the problem is gone.
 
-**No `SelectorQuery`, and so no UI methods.** A handful of capabilities are
-reached by invoking a method on an element rather than by setting an attribute —
-`scrollTo` on a scroller, `setTextSelection` and `getTextBoundingRect` on text,
-`setFoldExpanded` on a `scroll-coordinator`. All of them go through
-`SelectorQuery`, which is not on the engine boundary. An app can reach for it
-itself; nothing here wraps it.
-
-**No gesture composition.** Lynx's composable recognisers — the thing ReactLynx
-surfaces as gesture detectors — are not exposed. Ordinary events cover most of
-it: `bindtap`, the touch stream, `catch` interception and the exposure
-attributes all work, and the touch stream is enough to recognise a gesture by
-hand. What is missing is declaring one recogniser as related to another, which
-is what the engine's system is actually for.
+**A move inside a recycling list is a remove plus an insert.** The
+`update-list-info` diff is keyed by `item-key`, so an unchanged row is left
+alone when its neighbours move; a row that genuinely moved is described as two
+edits rather than one. The engine re-queries either way and a cell is a pool
+entry rather than something with an identity to preserve, so this is correct —
+it is simply not minimal, and a list that reorders constantly does more work
+than it strictly must.
 
 **Nothing about the background thread.** This runtime is main-thread, so
 `NativeModules`, `GlobalEventEmitter` events (the real `exposure`/`disexposure`,
@@ -181,14 +178,12 @@ and whether those exist in the main-thread context is an engine-version question
 rather than a given. An app that cannot reach them should own its fetching on the
 background thread and push results in.
 
-**Reduced motion is a regression, and the one worth fixing.** The deleted
-`/animate` read the preference and skipped a non-essential timeline on its own,
-so honouring it cost an app nothing. Nothing in the runtime can read it now — it
-lives on `SystemInfo` or arrives through `globalProps`, both of which are the
-app's to consult — so it became the app's call to pass no `transition` to a
-`RouteStack` and to leave the animation class off. That is worse ergonomics for
-an accessibility feature, which is exactly the kind of thing that quietly stops
-being done. If one accessor earns its way back into this package, it is this one.
+**Reduced motion needs one line from the app.** `reducedMotion()` is consulted
+by `RouteStack` and is yours to consult anywhere else, but the runtime cannot
+read the preference: there is no reduced-motion field on `SystemInfo`, and Lynx
+has no media queries, so no `prefers-reduced-motion` either. It reaches your
+host app natively and you pass it in with `setReducedMotion`, the same way you
+pass colour scheme. Everything downstream of that is free.
 
 Deliberately absent, and not on this list: component lifecycle, datasets,
 template parts, stylesheet adoption and lazy-bundle queries. None has a caller
@@ -197,14 +192,32 @@ nothing.
 
 ## Before you ship
 
-Events are bound as **worklet handles**, because Lynx does not usefully accept a
-raw closure — it stores one and then never invokes it, silently, on a device
-only. This package hands the engine a token of its own making and installs the
-`runWorklet` global that resolves it, which is what keeps it compilerless. The
-engine-side mechanism is read from the engine's source, but a framework-defined
-token has not been round-tripped on a physical device by this package.
-**Prototype events on a device before committing to it.** The fallback, if a
-particular engine build disagrees, is contained and already understood.
+Three things in this package are written against contracts read from the engine's
+source and from ReactLynx — the de-facto specification, since nothing upstream is
+documented for custom frameworks — rather than verified on hardware. They are the
+places where the engine calls *you*, which is exactly where a mistake is silent:
+the tree renders, the tests pass, and the device does nothing.
+
+**Prototype all three on a device before committing to this package.**
+
+1. **Events are bound as worklet handles**, because Lynx does not usefully accept
+   a raw closure — it stores one and then never invokes it. This package hands
+   the engine a token of its own making and installs the `runWorklet` global that
+   resolves it, which is what keeps it compilerless. The engine never looks inside
+   the token, so a framework-defined one should round-trip; that has not been
+   confirmed on hardware. The fallback is contained and already understood:
+   register string handlers and own the receiving end by assigning
+   `lynxCoreInject.tt.publishEvent`, as ReactLynx does, at the cost of a thread hop.
+2. **`/gestures` callbacks go through the same mechanism**, so they carry the same
+   caveat and will be resolved by the same prototype. `has-react-gesture` is set
+   because the engine gates its arbiter on that attribute name.
+3. **`/recycle` implements `componentAtIndex` and `enqueueComponent`.** The
+   protocol — the `update-list-info` inventory, and committing each cell with
+   `{ triggerLayout, operationID, elementID, listID }` so the engine can correlate
+   its request — is mirrored from ReactLynx's implementation and driven in the
+   suite through the same `enterListItemAtIndex` / `leaveListItem` pair Lynx's own
+   testing-library exposes. What a fake cannot tell you is whether the engine
+   agrees about layout, which is the half that only a device can answer.
 
 Full reasoning for every decision above, including what the old cross-platform
 design cost and why it was dropped:

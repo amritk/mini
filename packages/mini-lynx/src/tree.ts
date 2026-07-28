@@ -49,18 +49,16 @@ export const createElement = (tag: string): LynxElement => {
  * **`list` is deliberately absent, and it is the one entry worth explaining.**
  * The engine has a `__CreateList`, but its signature is not
  * `(parentComponentUniqueId)` like the others — it takes the recycling
- * callbacks (`componentAtIndex`, `enqueueComponent`) that the framework is
- * expected to implement, and the engine drives cell reuse by calling back into
- * them. This runtime does not implement them, so calling it with an id alone
- * would hand the engine a list whose recycler has nothing to call.
+ * callbacks (`componentAtIndex`, `enqueueComponent`) the framework must
+ * implement, so there is nothing sensible to call it with from here, where all
+ * this function has is a tag.
  *
- * The consequence is stated rather than hidden: a `<list>` here is built
- * generically, so it scrolls and lays out but **does not recycle**. For the
- * collection sizes most screens have that is the same thing; for the ten
- * thousand rows `<list>` exists for, it is not. Wiring the callbacks is the
- * obvious next piece of work on this file, and it is a real piece of work
- * rather than a line — a recycler's "the engine owns the cell, you fill it" is
- * a different contract from the rest of this runtime.
+ * Those callbacks now exist, in `recycle/`, and that is where a recycling list
+ * is created: `recycle()` builds the element itself because it is the only
+ * caller with something to pass. A `<list>` written as an ordinary JSX tag
+ * still comes through here and is still built generically — it scrolls and lays
+ * out, and every row is realised up front. That is the right shape for a
+ * collection a screen can show; past that, reach for `@amritk/mini-lynx/recycle`.
  */
 const CREATORS: Readonly<
   Record<string, '__CreateView' | '__CreateText' | '__CreateImage' | '__CreateScrollView' | '__CreateFrame'>
