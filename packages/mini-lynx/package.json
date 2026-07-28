@@ -71,6 +71,24 @@
       "import": "./dist/engine/index.js",
       "default": "./dist/engine/index.js"
     },
+    "./elements": {
+      "development": "./src/elements/index.ts",
+      "types": "./dist/elements/index.d.ts",
+      "import": "./dist/elements/index.js",
+      "default": "./dist/elements/index.js"
+    },
+    "./gestures": {
+      "development": "./src/gestures/index.ts",
+      "types": "./dist/gestures/index.d.ts",
+      "import": "./dist/gestures/index.js",
+      "default": "./dist/gestures/index.js"
+    },
+    "./recycle": {
+      "development": "./src/recycle/index.ts",
+      "types": "./dist/recycle/index.d.ts",
+      "import": "./dist/recycle/index.js",
+      "default": "./dist/recycle/index.js"
+    },
     "./flow": {
       "development": "./src/flow/index.ts",
       "types": "./dist/flow/index.d.ts",

@@ -70,6 +70,7 @@ export { type RenderPageOptions, renderPage } from './entry'
 export { list } from './list'
 export { mount, pageElement } from './mount'
 export { onCleanup } from './on-cleanup'
+export { reducedMotion, setReducedMotion } from './reduced-motion'
 export { type ChildFactory, renderChild } from './render-child'
 export {
   batch,

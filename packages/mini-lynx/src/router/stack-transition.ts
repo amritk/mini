@@ -73,11 +73,17 @@ export type StackTransitionContext = {
  * {@link StackTransitionContext.style} has to end with a `style(card, null)`,
  * and it has to happen before the returned promise settles.
  *
- * Reduced motion is the app's call rather than this seam's. The runtime no
- * longer owns a platform layer to read the preference from — Lynx exposes it
- * through `SystemInfo` and `globalProps` — so an app that respects it passes no
- * `transition` while the preference is set, which is the same instant path a
- * stack with no transition at all already takes.
+ * **Reduced motion is handled for you, above this seam.** `RouteStack` consults
+ * `reducedMotion()` and skips the transition entirely when it is set, so a
+ * transition never has to check — including one this package never saw. The app's
+ * only job is to state the preference once with `setReducedMotion`, because the
+ * engine has no field to read it from: there is no reduced-motion entry on
+ * `SystemInfo` and Lynx has no media queries, so it reaches the app natively and
+ * is passed in the same way colour scheme is.
+ *
+ * A skipped transition takes the same instant path a stack with no transition at
+ * all takes, which is why "leave no style behind" matters — the settled tree has
+ * to be identical either way.
  */
 // biome-ignore lint/suspicious/noConfusingVoidType: `undefined` would reject the ordinary implementation — an arrow that animates and returns nothing infers `void`, which is not assignable to it.
 export type StackTransition = (context: StackTransitionContext) => void | Promise<unknown>

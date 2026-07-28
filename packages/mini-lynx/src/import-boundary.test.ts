@@ -29,7 +29,7 @@ import { describe, expect, it } from 'vitest'
 const SRC = fileURLToPath(new URL('.', import.meta.url))
 
 /** The subpath directories — none of these may be reachable from `.`. */
-const SUBPATH_DIRS = ['flow', 'composition', 'router', 'forms', 'query', 'testing']
+const SUBPATH_DIRS = ['flow', 'composition', 'router', 'forms', 'query', 'testing', 'elements', 'gestures', 'recycle']
 
 /**
  * Drops comments before the specifiers are read.

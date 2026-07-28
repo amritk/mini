@@ -71,11 +71,41 @@ export type LynxElementApi = {
   __CreateScrollView?: (parentComponentUniqueId: number) => LynxElement
   __CreateFrame?: (parentComponentUniqueId: number) => LynxElement
   /**
-   * Declared for completeness and **not currently called** — see the note on
-   * `CREATORS` in `tree.ts`. Unlike the others it takes the recycling callbacks
-   * the framework must implement, so it cannot be used until they exist.
+   * Creates a `list`, which unlike every other creator takes the recycling
+   * callbacks the framework is expected to implement.
+   *
+   * The engine owns the cell and calls back to have it filled: it asks for the
+   * element at a data index through `componentAtIndex`, and hands one back
+   * through `enqueueComponent` when it scrolls out of range. That is the
+   * inversion which makes a list bounded — a collection of ten thousand rows
+   * realises only the cells the viewport can show — and it is a different
+   * contract from the rest of this runtime, where the framework owns every
+   * element it creates. `recycle.ts` is the whole of this package's side of it.
+   *
+   * Optional because a partial engine may omit it; `createElement` falls back to
+   * `__CreateElement`, which yields a `list` that lays out and scrolls but
+   * realises every row up front.
    */
-  __CreateList?: (parentComponentUniqueId: number, ...callbacks: unknown[]) => LynxElement
+  __CreateList?: (
+    parentComponentUniqueId: number,
+    componentAtIndex: ComponentAtIndex,
+    enqueueComponent: EnqueueComponent,
+  ) => LynxElement
+
+  /**
+   * Replaces a list's recycling callbacks after creation.
+   *
+   * Needed because the element exists before the data source is attached to it —
+   * JSX builds the `<list>`, and a `ref` is what hands it to `recycle`. It is
+   * also how a list is torn down: ReactLynx installs an inert pair rather than
+   * clearing them, because the engine may still be mid-scroll, and this package
+   * does the same.
+   */
+  __UpdateListCallbacks?: (
+    list: LynxElement,
+    componentAtIndex: ComponentAtIndex,
+    enqueueComponent: EnqueueComponent,
+  ) => void
 
   /**
    * The element's engine-assigned id, and the value every creator wants as its
@@ -135,6 +165,15 @@ export type LynxElementApi = {
   /** Sets an attribute. `null` removes it. */
   __SetAttribute: (element: LynxElement, name: string, value: unknown) => void
   __GetAttributes: (element: LynxElement) => Record<string, unknown>
+  /**
+   * Reads one attribute back, without materialising the whole bag.
+   *
+   * Optional: it arrived in Lynx 2.14, and an engine older than that has
+   * `__GetAttributes` and nothing else.
+   */
+  __GetAttributeByName?: (element: LynxElement, name: string) => unknown
+  /** The element's tag, as the engine knows it. */
+  __GetTag?: (element: LynxElement) => string
   /** Sets the `id`, which is what an id selector and `SelectorQuery` match on. */
   __SetID: (element: LynxElement, id: string | null | undefined) => void
   /** Replaces the whole class list with a space-separated string. */
@@ -180,6 +219,64 @@ export type LynxElementApi = {
    */
   __AddEvent: (element: LynxElement, type: string, name: string, listener: EventListenerValue) => void
 
+  // ---------------------------------------------------------------- gestures
+
+  /**
+   * Installs a gesture recogniser on an element, and states how it relates to
+   * the recognisers already there.
+   *
+   * `relationMap` is the whole reason this exists rather than being another
+   * event: `waitFor` makes this recogniser defer to another until that one
+   * fails, `simultaneous` lets both win, and `continueWith` hands the stream on.
+   * Ordinary `bindtap`/touch listeners cover recognising a gesture; they cannot
+   * express one recogniser deferring to another, which is what an app needs the
+   * moment a tap lives inside a pan lives inside a scroller.
+   *
+   * `type` is the engine's recogniser enum and `config.callbacks` carries
+   * worklet handles, not closures — the same constraint as `__AddEvent`, for the
+   * same reason. See `gestures/`.
+   */
+  __SetGestureDetector?: (
+    element: LynxElement,
+    id: number,
+    type: number,
+    config: GestureDetectorConfig,
+    relationMap: Readonly<Record<string, readonly number[]>>,
+  ) => void
+
+  __RemoveGestureDetector?: (element: LynxElement, id: number) => void
+
+  // ---------------------------------------------------------------- querying
+
+  /**
+   * The first descendant matching a CSS selector, or `undefined`.
+   *
+   * This is the engine's own selector engine — the same one the stylesheet uses,
+   * which is why an element created with an out-of-range
+   * `parentComponentUniqueId` is invisible to it as well as to CSS.
+   */
+  __QuerySelector?: (element: LynxElement, selector: string, params?: object) => LynxElement | undefined
+  __QuerySelectorAll?: (element: LynxElement, selector: string, params?: object) => LynxElement[]
+
+  /**
+   * Calls a UI method on an element.
+   *
+   * A handful of the engine's capabilities are not attributes and cannot be:
+   * `scrollTo` on a scroller, `boundingClientRect` on anything, `setFocus`,
+   * `scrollIntoView`. They are imperative because they are *actions* rather than
+   * state, and this is how they are reached.
+   *
+   * The callback receives `{ code, data }`, where a zero `code` means success —
+   * an engine convention rather than a JavaScript one, so `/elements` turns it
+   * into a rejected promise rather than leaving it to every call site.
+   */
+  __InvokeUIMethod?: (
+    element: LynxElement,
+    method: string,
+    params: object,
+    callback: (result: UIMethodResult) => void,
+  ) => void
+
   // ------------------------------------------------------------------ commit
 
   /**
@@ -207,3 +304,46 @@ export type LynxElement = { readonly [lynxElementBrand]: true }
  * note on `__AddEvent`.
  */
 export type EventListenerValue = string | { readonly type: 'worklet'; readonly value: unknown } | null
+
+/**
+ * A worklet handle: the only callable thing the engine accepts, whether it is
+ * an event listener or a gesture callback.
+ *
+ * The engine never looks inside `value`. It fetches a global named `runWorklet`
+ * and calls `runWorklet(value, [event])` — and `runWorklet` is supplied by the
+ * FRAMEWORK, not by the engine, which is what lets this package hand out plain
+ * integers and stay compilerless. See `events/worklet-registry.ts`.
+ */
+export type WorkletHandle = { readonly type: 'worklet'; readonly value: unknown }
+
+/**
+ * What a gesture recogniser is configured with: its named callbacks, as worklet
+ * handles, plus whatever tuning the recogniser type itself takes (a minimum
+ * distance for a pan, a maximum duration for a tap).
+ */
+export type GestureDetectorConfig = {
+  readonly callbacks: readonly { readonly name: string; readonly callback: WorkletHandle }[]
+  readonly config?: Readonly<Record<string, unknown>>
+}
+
+/** What `__InvokeUIMethod` hands its callback. A zero `code` means success. */
+export type UIMethodResult = { readonly code: number; readonly data?: unknown }
+
+/**
+ * Asks for the element at a data index, returning its engine id.
+ *
+ * The engine calls this; the framework's job is to have an element ready and to
+ * commit it with `__FlushElementTree(root, { triggerLayout: true, operationID,
+ * elementID, listID })` before returning that id. `operationID` is the engine's
+ * correlation token for this request and must be handed back untouched.
+ */
+export type ComponentAtIndex = (
+  list: LynxElement,
+  listID: number,
+  cellIndex: number,
+  operationID: number,
+  enableReuseNotification?: boolean,
+) => number
+
+/** Hands a cell back when it scrolls out of range, by the id `componentAtIndex` returned. */
+export type EnqueueComponent = (list: LynxElement, listID: number, sign: number) => void

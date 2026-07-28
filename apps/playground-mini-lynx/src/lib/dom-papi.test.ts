@@ -256,3 +256,140 @@ describe('dom-papi', () => {
     expect(node(image).style.objectFit).toBe('cover')
   })
 })
+
+describe('__CreateList drives the recycler', () => {
+  /**
+   * A miniature of what `/recycle` does on the other side of these callbacks:
+   * hand back an element id for a row, and take one back when it leaves.
+   */
+  const recyclerSpy = () => {
+    const asked: number[] = []
+    const returned: number[] = []
+    const cells = new Map<number, LynxElement>()
+    const componentAtIndex = (list: LynxElement, _listID: number, index: number, _operationID: number): number => {
+      asked.push(index)
+      const cell = api.__CreateElement('list-item', owner, {})
+      api.__AppendElement(list, cell)
+      const sign = api.__GetElementUniqueID?.(cell) ?? -1
+      cells.set(sign, cell)
+      return sign
+    }
+    const enqueueComponent = (_list: LynxElement, _listID: number, sign: number): void => {
+      returned.push(sign)
+    }
+    return { asked, returned, cells, componentAtIndex, enqueueComponent }
+  }
+
+  /** Lets the shim's `requestAnimationFrame` sync run. */
+  const settle = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+
+  it('asks for rows only once an inventory has been published', async () => {
+    const spy = recyclerSpy()
+    const list = api.__CreateList?.(owner, spy.componentAtIndex, spy.enqueueComponent) as LynxElement
+    api.__AppendElement(page, list)
+
+    await settle()
+    // Nothing is realised until the framework says how many rows exist — the
+    // engine cannot ask for a row it has not been told about.
+    expect(spy.asked).toEqual([])
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: Array.from({ length: 500 }, (_, position) => ({ position })),
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+
+    expect(spy.asked.length).toBeGreaterThan(0)
+  })
+
+  it('realises a bounded window rather than the whole collection', async () => {
+    const spy = recyclerSpy()
+    const list = api.__CreateList?.(owner, spy.componentAtIndex, spy.enqueueComponent) as LynxElement
+    api.__AppendElement(page, list)
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: Array.from({ length: 10_000 }, (_, position) => ({ position })),
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+
+    // The whole point. happy-dom lays nothing out, so the window is the
+    // overscan alone — the number does not matter, the order of magnitude does.
+    expect(spy.asked.length).toBeLessThan(50)
+    expect(spy.asked).toContain(0)
+  })
+
+  it('reads the inventory as an object, not as the stringified attribute', async () => {
+    const spy = recyclerSpy()
+    const list = api.__CreateList?.(owner, spy.componentAtIndex, spy.enqueueComponent) as LynxElement
+    api.__AppendElement(page, list)
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: [{ position: 0 }, { position: 1 }],
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+
+    // `setAttribute` stringifies, and `String({})` is `[object Object]` — a
+    // shim that read the row count back off the element would find none and
+    // render an empty list, which looks exactly like a bug in the runtime.
+    expect(node(list).getAttribute('update-list-info')).toContain('insertAction')
+    expect(spy.asked).toEqual([0, 1])
+  })
+
+  it('hands cells back when the inventory changes under them', async () => {
+    const spy = recyclerSpy()
+    const list = api.__CreateList?.(owner, spy.componentAtIndex, spy.enqueueComponent) as LynxElement
+    api.__AppendElement(page, list)
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: [{ position: 0 }, { position: 1 }],
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+    const realised = spy.asked.length
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: [{ position: 2 }],
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+
+    // Every realised cell may now be showing the wrong row, so they go back to
+    // the pool and are re-requested rather than left in place.
+    expect(spy.returned).toHaveLength(realised)
+  })
+
+  it('applies each published inventory once, so the row count does not drift', async () => {
+    const spy = recyclerSpy()
+    const list = api.__CreateList?.(owner, spy.componentAtIndex, spy.enqueueComponent) as LynxElement
+    api.__AppendElement(page, list)
+
+    api.__SetAttribute(list, 'update-list-info', {
+      insertAction: [{ position: 0 }, { position: 1 }, { position: 2 }],
+      removeAction: [],
+      updateAction: [],
+    })
+    await settle()
+
+    // The inventory describes EDITS against the previous one, so three
+    // insertions then one removal is two rows — not two, then five.
+    spy.asked.length = 0
+    api.__SetAttribute(list, 'update-list-info', { insertAction: [], removeAction: [1], updateAction: [] })
+    await settle()
+
+    expect(spy.asked).toEqual([0, 1])
+
+    // And re-applying nothing on a plain scroll: the count is held, not re-read
+    // off the element, so scrolling cannot walk it away from the truth.
+    spy.asked.length = 0
+    node(list).dispatchEvent(new Event('scroll'))
+    await settle()
+    expect(spy.asked).toEqual([])
+  })
+})

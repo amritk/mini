@@ -74,6 +74,9 @@ src/
   router/                 A pluggable history, RouteView, RouteLink, RouteStack + its transitions
   forms/                  createForm, Field, bindField, schema validation
   query/                  createQuery over @tanstack/query-core
+  elements/               querySelector/querySelectorAll and invoke — the engine's UI methods
+  gestures/               setGestureDetector — recogniser composition, the part events cannot express
+  recycle/                recycle — <list>'s cell recycler, the one inverted-ownership path here
 examples/
   js-framework-benchmark/ The keyed benchmark; `bun run bench:reconciler` times it
 ```
@@ -159,6 +162,19 @@ either.
   `nextSibling` — and is keyed and move-minimal because every move is real work
   on the main thread. If a feature seems to need diffing, it belongs in a
   different framework, not here.
+  > `recycle/` is not a second reconciler and must not become one. It owns no
+  > order and compares no trees: the ENGINE decides which rows are on screen and
+  > asks for them, and filling a pooled cell is a signal write that the cell's
+  > existing bindings turn into exactly the attribute writes that changed. The
+  > moment something in there starts diffing element trees to reuse a cell, it
+  > has reimplemented hydration and the reason this package is small is gone.
+- **A recycling list is created by `recycle`, not by `createElement`.**
+  `__CreateList` takes the recycling callbacks rather than an id, so a `<list>`
+  written as a JSX tag cannot be one — `createElement` has only a tag to work
+  with. That is why `recycle()` builds the element itself and applies the rest of
+  the attributes through `applyProp`. A plain `<list>` is still built generically
+  and still realises every row up front, which is the right shape below a few
+  hundred rows.
 - **The fake engine is the reference implementation, and it must stay faithful.**
   `testing/create-fake-engine.ts` is what the whole suite runs against, which is
   a stronger position than a test double usually gets: the code under test is the

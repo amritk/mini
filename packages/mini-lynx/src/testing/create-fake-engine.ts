@@ -1,4 +1,10 @@
-import type { EventListenerValue, LynxElement, LynxElementApi } from '../engine/element-api'
+import type {
+  ComponentAtIndex,
+  EnqueueComponent,
+  EventListenerValue,
+  LynxElement,
+  LynxElementApi,
+} from '../engine/element-api'
 
 /**
  * A complete in-memory implementation of Lynx's Element PAPI.
@@ -37,6 +43,14 @@ export type FakeElement = {
    * would make the bug it exists to prevent untestable.
    */
   events: Map<string, EventListenerValue>
+  /**
+   * Installed gesture recognisers, by id.
+   *
+   * Many per element, unlike `events` — the engine's constraint there is one
+   * listener per `(type, name)`, and a gesture's whole purpose is that several
+   * coexist and arbitrate between themselves.
+   */
+  gestures: Map<number, { type: number; config: unknown; relationMap: Readonly<Record<string, readonly number[]>> }>
   children: FakeElement[]
   parent: FakeElement | null
 }
@@ -62,6 +76,31 @@ export type FakeEngine = {
    * asserts on `event.detail.x` is asserting on the real thing.
    */
   dispatch: (element: FakeElement, name: string, event?: unknown, type?: string) => void
+  /**
+   * Fires one of a gesture recogniser's callbacks, the way the engine would.
+   *
+   * Goes through the same `runWorklet` indirection `dispatch` uses, so the
+   * worklet registry stays on the tested path rather than beside it — a gesture
+   * callback is dispatched by exactly the mechanism an event listener is, and
+   * gets the same silent failure if it is ever handed a raw closure.
+   */
+  dispatchGesture: (element: FakeElement, id: number, callbackName: string, event?: unknown) => void
+  /**
+   * Scrolls a row of a recycling `<list>` into range, the way the engine would.
+   *
+   * The engine drives cell reuse by CALLING the framework, so a recycler cannot
+   * be tested by inspecting a tree — nothing happens until something asks. These
+   * two methods are that something, and they are deliberately the same pair
+   * Lynx's own `@lynx-js/react/testing-library` exposes (`enterListItemAtIndex`
+   * / `leaveListItem`), so a test here drives the recycler through the same
+   * sequence a device does.
+   *
+   * Returns the cell's engine id — what `componentAtIndex` answered — which is
+   * also the handle {@link FakeEngine.leaveListItem} takes.
+   */
+  enterListItemAtIndex: (list: FakeElement, index: number) => number
+  /** Scrolls a cell out of range, returning it to the framework's pool. */
+  leaveListItem: (list: FakeElement, sign: number) => void
   /** Finds the first element with this tag, depth-first. Convenience for tests. */
   find: (tag: string) => FakeElement | undefined
   /** Finds every element with this tag, depth-first. */
@@ -77,6 +116,23 @@ export type FakeEngine = {
    * silently dropping.
    */
   publishedEvents: () => readonly { handler: string; event: unknown }[]
+  /**
+   * Stubs a UI method, so `invoke(element, name)` resolves with something.
+   *
+   * This fake lays nothing out, so it cannot answer `boundingClientRect` or
+   * `getScrollInfo` on its own, and an un-stubbed method reports the engine's
+   * "not implemented" failure rather than a plausible zero. Registering a
+   * responder puts the expected value in the test that depends on it.
+   *
+   * @example
+   * ```ts
+   * engine.onInvoke('boundingClientRect', () => ({ code: 0, data: { width: 320, height: 48 } }))
+   * ```
+   */
+  onInvoke: (
+    method: string,
+    respond: (element: FakeElement, params: object) => { code: number; data?: unknown },
+  ) => void
 }
 
 /** Creates one fake engine. Each call is an independent tree with its own log. */
@@ -100,12 +156,22 @@ export const createFakeEngine = (): FakeEngine => {
     classes: '',
     elementId: null,
     events: new Map(),
+    gestures: new Map(),
     children: [],
     parent: null,
   })
 
   const page = element('page')
   const published: { handler: string; event: unknown }[] = []
+
+  /** Stubbed UI-method responders, by method name. See `onInvoke`. */
+  const uiMethods = new Map<string, (element: FakeElement, params: object) => { code: number; data?: unknown }>()
+
+  /** The recycling callbacks each `list` was created with. See `enterListItemAtIndex`. */
+  const recyclers = new Map<FakeElement, { componentAtIndex: ComponentAtIndex; enqueueComponent: EnqueueComponent }>()
+
+  /** Correlation tokens, the way the engine hands out a fresh one per request. */
+  let nextOperationId = 1
 
   const detach = (node: FakeElement): void => {
     const parent = node.parent
@@ -202,6 +268,10 @@ export const createFakeEngine = (): FakeEngine => {
 
     __GetAttributes: (el) => fromLynx(el).attrs,
 
+    __GetAttributeByName: (el, name) => fromLynx(el).attrs[name],
+
+    __GetTag: (el) => fromLynx(el).tag,
+
     __SetID: (el, id) => {
       const target = fromLynx(el)
       record(`__SetID(#${target.id}, ${format(id)})`)
@@ -245,9 +315,59 @@ export const createFakeEngine = (): FakeEngine => {
       else target.events.set(`${type}:${name}`, listener)
     },
 
-    __FlushElementTree: () => {
+    __CreateList: (parentComponentUniqueId, componentAtIndex, enqueueComponent) => {
+      const created = element('list')
+      record(`__CreateList(${parentComponentUniqueId}) → #${created.id}`)
+      recyclers.set(created, { componentAtIndex, enqueueComponent })
+      return toLynx(created)
+    },
+
+    __UpdateListCallbacks: (list, componentAtIndex, enqueueComponent) => {
+      const target = fromLynx(list)
+      record(`__UpdateListCallbacks(#${target.id})`)
+      recyclers.set(target, { componentAtIndex, enqueueComponent })
+    },
+
+    __SetGestureDetector: (el, id, type, config, relationMap) => {
+      const target = fromLynx(el)
+      record(`__SetGestureDetector(#${target.id}, ${id}, ${type})`)
+      target.gestures.set(id, { type, config, relationMap })
+    },
+
+    __RemoveGestureDetector: (el, id) => {
+      const target = fromLynx(el)
+      record(`__RemoveGestureDetector(#${target.id}, ${id})`)
+      target.gestures.delete(id)
+    },
+
+    __QuerySelector: (el, selector) => {
+      const found = matchAll(fromLynx(el), selector)[0]
+      return found === undefined ? undefined : toLynx(found)
+    },
+
+    __QuerySelectorAll: (el, selector) => matchAll(fromLynx(el), selector).map(toLynx),
+
+    __InvokeUIMethod: (el, method, params, callback) => {
+      const target = fromLynx(el)
+      record(`__InvokeUIMethod(#${target.id}, "${method}", ${format(params)})`)
+      const handler = uiMethods.get(method)
+      // No handler is a FAILURE rather than a silent success, because that is
+      // what an engine reports for a method the element does not implement —
+      // and because this fake lays nothing out, so it cannot honestly answer
+      // `boundingClientRect` on its own. A test that needs a result stubs one
+      // with `onInvoke`, which makes the expected value visible in the test
+      // rather than invented here.
+      callback(handler ? handler(target, params) : { code: -1, data: `no handler for "${method}"` })
+    },
+
+    __FlushElementTree: (el, options) => {
       flushes++
-      record('__FlushElementTree()')
+      // The arguments are logged, not just the call. A list cell is committed
+      // with `{ operationID, elementID, listID }` and the engine matches its
+      // request against them — a commit missing them lays the cell out at zero
+      // height on a device while looking perfectly correct in a tree assertion.
+      if (el === undefined && options === undefined) record('__FlushElementTree()')
+      else record(`__FlushElementTree(#${fromLynx(el as LynxElement).id}, ${format(options ?? null)})`)
     },
   }
 
@@ -287,10 +407,108 @@ export const createFakeEngine = (): FakeEngine => {
       const runWorklet = (globalThis as { runWorklet?: (value: unknown, args: unknown[]) => void }).runWorklet
       runWorklet?.(listener.value, [event])
     },
+    enterListItemAtIndex: (list, index) => {
+      const recycler = recyclers.get(list)
+      if (!recycler) throw new Error('That element was not created as a recycling list.')
+      return recycler.componentAtIndex(toLynx(list), list.id + FIRST_ELEMENT_ID, index, nextOperationId++, false)
+    },
+
+    leaveListItem: (list, sign) => {
+      const recycler = recyclers.get(list)
+      if (!recycler) throw new Error('That element was not created as a recycling list.')
+      recycler.enqueueComponent(toLynx(list), list.id + FIRST_ELEMENT_ID, sign)
+    },
+
+    dispatchGesture: (target, id, callbackName, event = {}) => {
+      const detector = target.gestures.get(id)
+      if (!detector) return
+      const config = detector.config as { callbacks?: { name: string; callback: { value: unknown } }[] }
+      const entry = config.callbacks?.find((candidate) => candidate.name === callbackName)
+      if (!entry) return
+      const runWorklet = (globalThis as { runWorklet?: (value: unknown, args: unknown[]) => void }).runWorklet
+      runWorklet?.(entry.callback.value, [event])
+    },
     find: (tag) => collect((node) => node.tag === tag)[0],
     findAll: (tag) => collect((node) => node.tag === tag),
     findByTestId: (testId) => collect((node) => node.attrs['data-testid'] === testId)[0],
     publishedEvents: () => published,
+    onInvoke: (method, respond) => {
+      uiMethods.set(method, respond)
+    },
+  }
+}
+
+/**
+ * Matches a CSS selector against a subtree, over the subset this fake claims.
+ *
+ * **Supported:** a tag (`view`), an id (`#feed`), a class (`.row`), any compound
+ * of those (`view.row.selected`), a comma-separated list, and the descendant
+ * combinator (`view .row`). That covers what selector-based code in an app
+ * actually reaches for.
+ *
+ * **Everything else throws**, and that is the design rather than a shortcut. The
+ * engine's selector support is wider than this, so the honest failure for a
+ * child combinator or an attribute selector is "this fake does not implement
+ * that" — said out loud. Returning an empty match instead would be
+ * indistinguishable from "nothing matched", which is exactly how a test comes to
+ * assert the opposite of what a device does.
+ */
+const matchAll = (root: FakeElement, selector: string): FakeElement[] => {
+  const groups = selector
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+  if (groups.length === 0) throw new SyntaxError(`Empty selector: ${format(selector)}`)
+
+  const found: FakeElement[] = []
+  for (const group of groups) {
+    // Every step but the last narrows the candidate set to descendants; the last
+    // one selects. `view .row` therefore means "a .row anywhere under a view".
+    let scopes = [root]
+    for (const step of group.split(/\s+/).map(compileCompound)) {
+      const matched: FakeElement[] = []
+      for (const scope of scopes) {
+        descendants(scope, (node) => {
+          if (step(node) && !matched.includes(node)) matched.push(node)
+        })
+      }
+      scopes = matched
+    }
+    for (const node of scopes) if (!found.includes(node)) found.push(node)
+  }
+  // Tree order, so the first result of a `querySelector` is the first in the
+  // document the way it is on the engine, not the first group's first match.
+  const order: FakeElement[] = []
+  descendants(root, (node) => {
+    if (found.includes(node)) order.push(node)
+    return false
+  })
+  return order
+}
+
+/** Compiles one compound selector (`view.row#a`) into a predicate. */
+const compileCompound = (compound: string): ((node: FakeElement) => boolean) => {
+  const tokens = compound.match(/^[a-zA-Z][\w-]*|[.#][\w-]+/g)
+  if (!tokens || tokens.join('') !== compound) {
+    throw new SyntaxError(
+      `createFakeEngine implements tag, #id, .class, compounds of those, and the descendant combinator — not ${format(compound)}.`,
+    )
+  }
+  return (node) =>
+    tokens.every((token) =>
+      token.startsWith('#')
+        ? node.elementId === token.slice(1)
+        : token.startsWith('.')
+          ? node.classes.split(/\s+/).includes(token.slice(1))
+          : node.tag === token,
+    )
+}
+
+/** Visits every descendant of `node`, excluding `node` itself. */
+const descendants = (node: FakeElement, visit: (node: FakeElement) => unknown): void => {
+  for (const child of node.children) {
+    visit(child)
+    descendants(child, visit)
   }
 }
 

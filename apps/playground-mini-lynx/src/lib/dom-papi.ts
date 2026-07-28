@@ -83,7 +83,41 @@ export const createDomPapi = ({
     __CreateImage: () => create('image'),
     __CreateScrollView: () => create('scroll-view'),
     __CreateFrame: () => create('frame'),
-    __CreateList: () => create('list'),
+
+    /**
+     * A `list`, wired to drive its recycler from the browser's own scrolling.
+     *
+     * This is the one creator that does more than name a tag, because a
+     * recycling list is the one place the engine calls the FRAMEWORK: nothing at
+     * all appears until something invokes `componentAtIndex`. A shim that
+     * ignored the callbacks would render an empty box and look like a bug in
+     * `/recycle` rather than a gap in the preview.
+     *
+     * So this drives the protocol — the same calls, in the same order, with the
+     * same `operationID` correlation a device uses — off a scroll listener and
+     * measured row offsets. What it is NOT is Lynx's virtualiser: the windowing
+     * maths here is this file's, it assumes a single column, and it measures
+     * rather than predicting. Trust it about the protocol and about which rows
+     * are realised; do not read anything into how it performs.
+     */
+    __CreateList: (_owner, componentAtIndex, enqueueComponent) => {
+      const element = fromLynx(create('list'))
+      installListRecycler(element, componentAtIndex, enqueueComponent)
+      return toLynx(element)
+    },
+
+    /**
+     * Swaps a list's callbacks, which is how a recycler is torn down.
+     *
+     * Implementing it is not optional for a preview: the framework installs an
+     * inert pair when its list goes away, and a shim that ignored them would go
+     * on calling the old closures from its next scroll frame — building cells
+     * against a pool that no longer exists, and against whatever engine happens
+     * to be installed by then.
+     */
+    __UpdateListCallbacks: (list, componentAtIndex, enqueueComponent) => {
+      updateListRecycler(fromLynx(list), componentAtIndex, enqueueComponent)
+    },
 
     __CreateRawText: (text) => {
       const element = ownerDocument.createElement('raw-text')
@@ -138,7 +172,13 @@ export const createDomPapi = ({
       // device would; the table afterwards is what makes a few of them do
       // something a browser can see.
       if (value === null || value === undefined) target.removeAttribute(name)
-      else target.setAttribute(name, String(value))
+      else target.setAttribute(name, typeof value === 'object' ? JSON.stringify(value) : String(value))
+      // A list's inventory is an object, and `String(value)` would flatten it to
+      // `[object Object]`. The engine receives the real thing, so the recycler
+      // is handed the real thing too — see `inventories`.
+      if (name === 'update-list-info' && value !== null && typeof value === 'object') {
+        inventories.get(target)?.(value as ListInventory)
+      }
       applyPreviewAttribute(target, name, value)
     },
 
@@ -321,3 +361,144 @@ const warned = new Set<string>()
  */
 const toLynx = (element: HTMLElement | Element): LynxElement => element as unknown as LynxElement
 const fromLynx = (element: LynxElement): HTMLElement => element as unknown as HTMLElement
+
+/**
+ * The inventory sink for each recycling list, so `__SetAttribute` can hand
+ * `update-list-info` to the recycler as the OBJECT the framework wrote.
+ *
+ * Routed rather than read back off the element because a DOM attribute is a
+ * string: `setAttribute(name, String(value))` turns the inventory into
+ * `[object Object]`, and a shim that then tried to parse it would find a list of
+ * zero rows and render nothing. On a device the engine receives the real object,
+ * so passing it through here keeps the preview on the same value the device sees
+ * — the attribute is still reflected for the inspector, it is simply not the
+ * channel.
+ */
+const inventories = new WeakMap<HTMLElement, (info: ListInventory) => void>()
+
+/** The live callbacks for each recycling list, so `__UpdateListCallbacks` can swap them. */
+const listCallbacks = new WeakMap<HTMLElement, ListCallbacks>()
+
+type ListCallbacks = {
+  componentAtIndex: (list: LynxElement, listID: number, index: number, operationID: number) => number
+  enqueueComponent: (list: LynxElement, listID: number, sign: number) => void
+}
+
+/** Swaps a list's callbacks in place, leaving its scroll wiring alone. */
+const updateListRecycler = (
+  list: HTMLElement,
+  componentAtIndex: ListCallbacks['componentAtIndex'],
+  enqueueComponent: ListCallbacks['enqueueComponent'],
+): void => {
+  const existing = listCallbacks.get(list)
+  if (!existing) return
+  existing.componentAtIndex = componentAtIndex
+  existing.enqueueComponent = enqueueComponent
+}
+
+/** The shape `/recycle` publishes: edits against the previous inventory. */
+type ListInventory = {
+  insertAction?: { position: number }[]
+  removeAction?: number[]
+  updateAction?: unknown[]
+}
+
+/**
+ * Drives a recycling `<list>`'s callbacks from the browser's scrolling.
+ *
+ * The protocol is the device's, and reproducing it exactly is the point:
+ *
+ * 1. The framework publishes its inventory, so this tracks how many cells exist.
+ * 2. For each row entering the window, `componentAtIndex(list, listID, index,
+ *    operationID)` is called and answers with the cell's engine id.
+ * 3. For each row leaving it, `enqueueComponent(list, listID, sign)` hands the
+ *    cell back.
+ *
+ * The windowing itself is this shim's invention. A real engine knows every row's
+ * height before it lays anything out; a browser knows only what it has already
+ * rendered, so this measures the cells it has and estimates the rest. That makes
+ * the window occasionally a row too generous, which changes nothing about what
+ * the runtime above is asked to do — the calls, their order and their
+ * correlation tokens are the device's.
+ */
+const installListRecycler = (
+  list: HTMLElement,
+  componentAtIndex: ListCallbacks['componentAtIndex'],
+  enqueueComponent: ListCallbacks['enqueueComponent'],
+): void => {
+  // Held in a mutable record rather than closed over, so `__UpdateListCallbacks`
+  // can replace them without re-wiring the scroll listener.
+  const callbacks: ListCallbacks = { componentAtIndex, enqueueComponent }
+  listCallbacks.set(list, callbacks)
+
+  /** Rows currently realised, by data index, holding the id the framework answered with. */
+  const realised = new Map<number, number>()
+  let total = 0
+  let operationId = 1
+  let scheduled = false
+
+  /** The average height of what has been rendered — the best estimate available here. */
+  const rowHeight = (): number => {
+    const cells = [...list.children] as HTMLElement[]
+    if (cells.length === 0) return ESTIMATED_ROW_HEIGHT
+    const sum = cells.reduce((run, cell) => run + cell.offsetHeight, 0)
+    return sum / cells.length || ESTIMATED_ROW_HEIGHT
+  }
+
+  const sync = (): void => {
+    scheduled = false
+    if (total === 0) {
+      for (const [index, sign] of realised) {
+        callbacks.enqueueComponent(toLynx(list), elementUniqueId(list), sign)
+        realised.delete(index)
+      }
+      return
+    }
+
+    const height = rowHeight()
+    const first = Math.max(0, Math.floor(list.scrollTop / height) - OVERSCAN)
+    const last = Math.min(total - 1, first + Math.ceil(list.clientHeight / height) + OVERSCAN * 2)
+
+    for (const [index, sign] of realised) {
+      if (index < first || index > last) {
+        callbacks.enqueueComponent(toLynx(list), elementUniqueId(list), sign)
+        realised.delete(index)
+      }
+    }
+    for (let index = first; index <= last; index++) {
+      if (realised.has(index)) continue
+      const sign = callbacks.componentAtIndex(toLynx(list), elementUniqueId(list), index, operationId++)
+      // -1 is the framework saying "no such row", which happens when an
+      // inventory and the data are a commit apart. The engine skips too.
+      if (sign !== -1) realised.set(index, sign)
+    }
+  }
+
+  const schedule = (): void => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(sync)
+  }
+
+  inventories.set(list, (info) => {
+    // Applied once per published inventory, because it describes EDITS. Reading
+    // it back off the element on every scroll would re-apply the same diff and
+    // walk the row count away from the truth.
+    total = Math.max(0, total + (info.insertAction?.length ?? 0) - (info.removeAction?.length ?? 0))
+    // Every realised cell may now be showing the wrong row, so they are handed
+    // back and re-requested rather than left in place.
+    for (const [index, sign] of realised) {
+      callbacks.enqueueComponent(toLynx(list), elementUniqueId(list), sign)
+      realised.delete(index)
+    }
+    schedule()
+  })
+
+  list.addEventListener('scroll', schedule, { passive: true })
+}
+
+/** What a row is assumed to be before anything has been measured. */
+const ESTIMATED_ROW_HEIGHT = 48
+
+/** Rows kept realised beyond each edge of the viewport, so a scroll has slack. */
+const OVERSCAN = 3
