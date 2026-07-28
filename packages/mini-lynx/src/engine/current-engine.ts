@@ -1,3 +1,4 @@
+import { guard } from '../report-error'
 import type { LynxElementApi } from './element-api'
 
 /**
@@ -95,13 +96,21 @@ export const clearEngine = (): void => {
  * engine would receive the commit while the incoming one — the only engine with
  * anything on screen — never got flushed. For the same reason `clearEngine`
  * leaves the queued flag alone: the pending microtask is what clears it.
+ *
+ * The commit is guarded because of where it runs. A throw here escapes into the
+ * promise job queue and becomes an unhandled rejection — and Lynx's main-thread
+ * context is exactly the sort of restricted environment where nothing is
+ * listening for one, so the commit that stopped happening would be the only
+ * symptom. Worse, the flag is cleared before the call rather than after, so a
+ * failed commit does not wedge the scheduler: the next mutation queues a fresh
+ * one and the screen can recover.
  */
 export const scheduleFlush = (): void => {
   if (flushQueued || !current) return
   flushQueued = true
   void Promise.resolve().then(() => {
     flushQueued = false
-    current?.__FlushElementTree()
+    guard('commit', () => current?.__FlushElementTree())
   })
 }
 

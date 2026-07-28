@@ -4,6 +4,7 @@ import { addEvent } from './add-event'
 import { clearEngine, setEngine } from './engine/current-engine'
 import type { LynxElement } from './engine/element-api'
 import { clearWorklets } from './events/worklet-registry'
+import { setErrorHandler } from './report-error'
 import { createFakeEngine, type FakeElement, type FakeEngine } from './testing/create-fake-engine'
 import { createElement } from './tree'
 
@@ -247,5 +248,42 @@ describe('add-event', () => {
     engine.dispatch(fake(other), 'tap')
 
     expect(fired).toEqual(['other'])
+  })
+
+  it('keeps one handler throwing from costing the others their event', () => {
+    const { engine, view } = setup()
+    const fired: string[] = []
+    const reported: string[] = []
+    setErrorHandler((_error, source) => reported.push(source))
+
+    addEvent(view, 'bindEvent', 'tap', () => {
+      throw new Error('boom')
+    })
+    addEvent(view, 'bindEvent', 'tap', () => fired.push('second'))
+
+    engine.dispatch(fake(view), 'tap')
+
+    // Handlers on one pair did not choose to share a dispatcher — a component
+    // bound one and a `ref` bound the other — so one of them failing must not
+    // silently unsubscribe the rest.
+    expect(fired).toEqual(['second'])
+    expect(reported).toEqual(['event'])
+    setErrorHandler(null)
+  })
+
+  it('does not let a handler throw into the engine dispatch', () => {
+    const { engine, view } = setup()
+    setErrorHandler(() => {})
+
+    addEvent(view, 'bindEvent', 'tap', () => {
+      throw new Error('boom')
+    })
+
+    // An exception unwinding into native event delivery is undefined behaviour
+    // that ranges from the rest of the frame being skipped to the app going
+    // down. `engine.dispatch` goes through the real `runWorklet` indirection,
+    // so this is the device's path rather than beside it.
+    expect(() => engine.dispatch(fake(view), 'tap')).not.toThrow()
+    setErrorHandler(null)
   })
 })

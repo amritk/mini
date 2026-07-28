@@ -122,9 +122,45 @@ Two things follow that an app has to know:
 > engine-side mechanism is read from the engine's source, but a
 > *framework-defined* token has not been round-tripped on a physical device by
 > this package. **Prototype events on a device before shipping anything that
-> depends on them.** If it fails the fallback is contained — string handlers
-> plus `lynxCoreInject.tt.publishEvent`, exactly as ReactLynx does, at the cost
-> of a thread hop.
+> depends on them.** If it fails, the recovery is a config line rather than a
+> fork: `setEventTransport(namedHandlerTransport)` from
+> `@amritk/mini-lynx/bridge` binds string handlers instead, with the app
+> forwarding them back through `dispatchNamedEvent` — exactly the
+> `lynxCoreInject.tt.publishEvent` arrangement ReactLynx uses, at the cost of a
+> thread hop.
+
+## Errors after the build go to `setErrorHandler`
+
+`ErrorBoundary` catches construction, which is all a component can throw
+during — it runs once. After that the runtime is the outermost JavaScript frame
+and native code is above it, so a throw in a handler or in the scheduled commit
+is caught, reported, and not propagated:
+
+```ts
+setErrorHandler((error, source) => report(error, source))
+// source: 'render' | 'event' | 'gesture' | 'commit' | 'lifecycle'
+```
+
+With no handler installed it warns. Do not wrap handler bodies in `try`/`catch`
+to keep the app alive — that is already the behaviour; wrap them only when the
+failure means something specific to that screen.
+
+## Platform values are `globalProps()`
+
+Colour scheme, locale, flags and the reduced-motion preference come from native,
+and `renderPage` claims the `updateGlobalProps` slot the engine pushes them
+through, so they are a signal:
+
+```tsx
+const Screen = () => <view class={() => `screen ${globalProps<{ theme: string }>().theme}`} />
+
+// Reduced motion is the one the runtime consults itself, via RouteStack:
+effect(() => setReducedMotion(globalProps<{ reduceMotion?: boolean }>().reduceMotion === true))
+```
+
+Do not define `updateGlobalProps` yourself — the engine calls exactly one
+function for it, and defining a second one silently wins or silently loses
+depending on load order.
 
 ## Element props
 
@@ -189,12 +225,17 @@ Mutations are committed once per tick: a hundred signal writes cost one
 | `@amritk/mini-lynx/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute`, `parseQuery`. Matching is pure arithmetic; history is a seam, and memory is the default because a stack of screens the app holds is genuinely what navigation is here |
 | `@amritk/mini-lynx/forms` | `createForm` / `Field` / `bindField` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
 | `@amritk/mini-lynx/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s. Mind the main-thread note above |
+| `@amritk/mini-lynx/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods, which are actions rather than attributes |
+| `@amritk/mini-lynx/gestures` | `setGestureDetector`, `GestureType` — recogniser *arbitration*, the part ordinary events cannot express |
+| `@amritk/mini-lynx/recycle` | `recycle` — `<list>`'s cell recycler. A cell receives **getters**, because it outlives the row it was built for |
+| `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport. Only if the worklet round trip fails on a device |
 | `@amritk/mini-lynx/testing` | `createFakeEngine`, `serializeTree` — a complete in-memory PAPI |
 
-There is no `/ui`, no `/platform`, no `/gestures`, no `/animate` and no host
-subpath. Components are Lynx elements and CSS; environment questions go to
-`SystemInfo` and `globalProps`; gestures and animation belong to the engine
-(`@keyframes`, transitions, `element.animate()`).
+There is no `/ui`, no `/platform`, no `/animate` and no host subpath. Components
+are Lynx elements and CSS; environment questions go to `SystemInfo` and
+`globalProps()`; animation belongs to the engine (`@keyframes`, transitions,
+`element.animate()`). `/gestures` is not a gesture *recogniser* library — the
+engine recognises, and that subpath only composes recognisers.
 
 ## Testing with `@amritk/mini-lynx/testing`
 

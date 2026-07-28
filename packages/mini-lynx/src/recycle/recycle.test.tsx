@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { clearEngine, setEngine } from '../engine/current-engine'
 import type { LynxElement } from '../engine/element-api'
 import { mount } from '../mount'
+import { setErrorHandler } from '../report-error'
 import { signal } from '../signals'
 import { createFakeEngine, type FakeElement, type FakeEngine } from '../testing/create-fake-engine'
 import { serializeTree } from '../testing/serialize-tree'
@@ -287,5 +288,73 @@ describe('recycle', () => {
     // The engine may be mid-scroll when a list is removed. Answering "nothing
     // here" is safe; reaching into a torn-down pool is not.
     expect(engine.enterListItemAtIndex(element, 0)).toBe(-1)
+  })
+
+  it('answers "nothing here" when building a cell throws, instead of unwinding into the engine', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    const reported: string[] = []
+    setErrorHandler((_error, source) => reported.push(source))
+    let list!: LynxElement
+    mount(engine.pageElement, () => {
+      list = recycle({
+        each: () => rowsOf(3),
+        itemKey: (row) => row.id,
+        cell: () => {
+          throw new Error('the cell threw')
+        },
+      })
+      return list
+    })
+    const element = engine.find('list') as FakeElement
+
+    // `componentAtIndex` is called BY the engine, mid-scroll. A throw leaving it
+    // unwinds into native list layout; -1 is a row that does not appear.
+    expect(engine.enterListItemAtIndex(element, 0)).toBe(-1)
+    expect(reported).toEqual(['render'])
+    setErrorHandler(null)
+  })
+
+  it('keeps a failing fill from draining the pool', () => {
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+    setErrorHandler(() => {})
+    let explode = false
+    let list!: LynxElement
+    mount(engine.pageElement, () => {
+      list = recycle({
+        each: () => rowsOf(3),
+        itemKey: (row) => row.id,
+        cell: (item) => (
+          <list-item item-key={item().id}>
+            <text>
+              <raw-text
+                text={() => {
+                  if (explode) throw new Error('a binding threw')
+                  return item().label
+                }}
+              />
+            </text>
+          </list-item>
+        ),
+      })
+      return list
+    })
+    const element = engine.find('list') as FakeElement
+
+    const sign = engine.enterListItemAtIndex(element, 0)
+    engine.leaveListItem(element, sign)
+    const before = engine.findAll('list-item').length
+
+    explode = true
+    expect(engine.enterListItemAtIndex(element, 1)).toBe(-1)
+    explode = false
+
+    // The failed fill had already taken the cell out of the pool, and the engine
+    // will never hand back a cell it was told does not exist — so without the
+    // re-park a failure repeating every frame allocates a fresh element per row.
+    expect(engine.enterListItemAtIndex(element, 1)).toBe(sign)
+    expect(engine.findAll('list-item')).toHaveLength(before)
+    setErrorHandler(null)
   })
 })

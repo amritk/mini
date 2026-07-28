@@ -1,6 +1,7 @@
 import { requireEngine } from './engine/current-engine'
 import type { LynxElement } from './engine/element-api'
-import { registerWorklet, releaseWorklet, type WorkletHandle } from './events/worklet-registry'
+import { type BoundListener, eventTransport } from './events/transport'
+import { guard } from './report-error'
 import type { Dispose } from './types'
 
 /**
@@ -22,10 +23,20 @@ import type { Dispose } from './types'
  * global `runWorklet` that this runtime supplies. A raw function is accepted at
  * bind time and then never invoked on the modern engine, which is the worst
  * possible failure mode and exactly the one this indirection avoids. See
- * `events/worklet-registry.ts`, which is where the interesting part lives.
+ * `events/worklet-registry.ts`, which is where the interesting part lives, and
+ * `events/transport.ts` for why the choice of listener form is installable
+ * rather than written into this file.
  *
  * The upshot for a caller is nothing at all: you pass a function, it runs, and
  * it runs on the main thread in the same frame as the gesture.
+ *
+ * ## Handlers are isolated from each other
+ *
+ * The fan-out is the reason. Several handlers on one pair is the normal case —
+ * a component binds `bindtap` and a `ref` binds another — and they did not
+ * choose to share a dispatcher, so one throwing must not cost the others their
+ * event. Each runs guarded, and a throw is reported rather than propagated;
+ * `setErrorHandler` is where those reports go.
  */
 export const addEvent = (
   element: LynxElement,
@@ -44,13 +55,13 @@ export const addEvent = (
     existing.handlers.add(handler)
   } else {
     const handlers = new Set([handler])
-    const worklet = registerWorklet((event) => {
+    const bound = eventTransport()((event) => {
       // Iterate a copy so a handler that detaches itself — or another — cannot
       // disturb the walk it is being called from.
-      for (const listener of [...handlers]) listener(event)
+      for (const listener of [...handlers]) guard('event', () => listener(event))
     })
-    byElement.set(key, { handlers, worklet })
-    engine.__AddEvent(element, type, name, worklet)
+    byElement.set(key, { handlers, bound })
+    engine.__AddEvent(element, type, name, bound.listener)
   }
 
   return () => {
@@ -59,7 +70,7 @@ export const addEvent = (
     registration.handlers.delete(handler)
     if (registration.handlers.size === 0) {
       byElement.delete(key)
-      releaseWorklet(registration.worklet)
+      registration.bound.release()
       engine.__AddEvent(element, type, name, null)
     }
   }
@@ -68,8 +79,8 @@ export const addEvent = (
 /** What this module holds per element and `(type, name)` pair. */
 type Registration = {
   readonly handlers: Set<(event: unknown) => void>
-  /** The token the engine is holding, so it can be released when the last handler goes. */
-  readonly worklet: WorkletHandle
+  /** What the engine is holding, so it can be released when the last handler goes. */
+  readonly bound: BoundListener
 }
 
 /**

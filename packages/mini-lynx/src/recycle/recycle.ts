@@ -5,6 +5,7 @@ import { currentFrame, withFrame } from '../context-frame'
 import { requireEngine, scheduleFlush } from '../engine/current-engine'
 import type { LynxElement } from '../engine/element-api'
 import { onCleanup } from '../on-cleanup'
+import { guard } from '../report-error'
 import { runDetached } from '../run-detached'
 import { type Signal, signal } from '../signals'
 import { createElement } from '../tree'
@@ -173,8 +174,23 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
    * id as the answer, and a cell whose data arrives a microtask later would be
    * committed showing the previous row's content. Signal writes propagate
    * synchronously, which is what makes filling a reused cell a single statement.
+   *
+   * It is also one of the two places in this package the ENGINE calls into, so
+   * a throw here — from `cell`, from `itemKey`, from anything the app wrote —
+   * would unwind into the engine's list layout, mid-scroll. It is reported
+   * instead, and the engine is told `-1`: its own "nothing here", which is a row
+   * that does not appear rather than a scroll that dies.
    */
   const componentAtIndex = (list: LynxElement, listID: number, cellIndex: number, operationID: number): number => {
+    let sign = -1
+    guard('render', () => {
+      sign = fillCellAtIndex(list, listID, cellIndex, operationID)
+    })
+    return sign
+  }
+
+  /** The actual answer, with `componentAtIndex` owning only what happens when it throws. */
+  const fillCellAtIndex = (list: LynxElement, listID: number, cellIndex: number, operationID: number): number => {
     // Guarded here as well as by the inert callbacks installed on teardown,
     // because the engine is not obliged to honour `__UpdateListCallbacks`
     // promptly — it may be mid-scroll, and a request that arrives afterwards
@@ -200,15 +216,25 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
     const recycled = parked?.pop()
 
     const cell = recycled ?? build(list, item as T, cellIndex, reuse)
-    // The whole of "filling" a recycled cell. The bindings this cell built when
-    // it was created are still attached to its elements, so writing these two
-    // mutates exactly the attributes that differ between the old row and the new
-    // one — no diff, no rebuild, no tree walk.
-    cell.item(item as T)
-    cell.index(cellIndex)
-    // Platform info is per-ROW, not per-cell, so it has to be re-asserted on a
-    // cell that has just been pointed at a different row.
-    applyPlatformInfo(cell.root, info)
+    try {
+      // The whole of "filling" a recycled cell. The bindings this cell built when
+      // it was created are still attached to its elements, so writing these two
+      // mutates exactly the attributes that differ between the old row and the new
+      // one — no diff, no rebuild, no tree walk.
+      cell.item(item as T)
+      cell.index(cellIndex)
+      // Platform info is per-ROW, not per-cell, so it has to be re-asserted on a
+      // cell that has just been pointed at a different row.
+      applyPlatformInfo(cell.root, info)
+    } catch (error) {
+      // Those writes run the cell's own bindings, which are the app's code. A
+      // throw here has already taken the cell out of the pool, and the engine
+      // will never enqueue it back because it is about to be told `-1` — so
+      // without this a failure that repeats every frame drains the pool and
+      // allocates a fresh element per row for as long as it lasts.
+      park(cell)
+      throw error
+    }
 
     cells.set(cell.sign, cell)
     // The engine correlates its request with this commit through `operationID`,
@@ -223,15 +249,22 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
     return cell.sign
   }
 
-  /** Takes a cell back when it scrolls out of range. */
-  const enqueueComponent = (_list: LynxElement, _listID: number, sign: number): void => {
-    if (torn) return
-    const cell = cells.get(sign)
-    if (!cell) return
-    cells.delete(sign)
+  /** Returns a cell to the pool it came from, which is the only place cells are stored idle. */
+  const park = (cell: Cell<T>): void => {
     const parked = pool.get(cell.reuse)
     if (parked) parked.push(cell)
     else pool.set(cell.reuse, [cell])
+  }
+
+  /** Takes a cell back when it scrolls out of range. The engine's other call in, so also guarded. */
+  const enqueueComponent = (_list: LynxElement, _listID: number, sign: number): void => {
+    guard('render', () => {
+      if (torn) return
+      const cell = cells.get(sign)
+      if (!cell) return
+      cells.delete(sign)
+      park(cell)
+    })
   }
 
   const list = engine.__CreateList
