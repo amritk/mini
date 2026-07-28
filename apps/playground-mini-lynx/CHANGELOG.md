@@ -1,5 +1,13 @@
 # @amritk/playground-mini-lynx
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [d165e3e]
+- Updated dependencies [9760bfd]
+  - @amritk/mini-lynx@0.2.0
+
 ## 0.0.1
 
 ### Patch Changes
