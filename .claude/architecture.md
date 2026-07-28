@@ -3,7 +3,7 @@
 ## Overview
 
 `mini` is a **Bun monorepo** holding a deliberately tiny signals UI runtime in
-two shapes: `@amritk/mini` renders to the DOM, `@amritk/mini-native` renders to
+two shapes: `@amritk/mini` renders to the DOM, `@amritk/mini-lynx` renders to
 Lynx, through its Element PAPI. Both are compilerless (no build-step transform beyond the
 standard `react-jsx` transform pointed at their own runtime) and both are built
 on `alien-signals`.
@@ -31,11 +31,11 @@ the reconciler, and there is none here to port.
 mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
-│   ├── mini-native/           # @amritk/mini-native — the same runtime on Lynx's Element PAPI
+│   ├── mini-lynx/           # @amritk/mini-lynx — the same runtime on Lynx's Element PAPI
 │   └── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
-│   └── playground-mini-native/# every @amritk/mini-native entry point, through a DOM Element PAPI
+│   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
 ├── .claude/                   # Developer guidelines
 ├── .changeset/                # Changesets config (release automation)
 ├── .github/                   # CI, release, bench, issue & PR templates
@@ -89,7 +89,7 @@ reactivity is decided by value shape.
   `tsgo -p tsconfig.build.json && tsc-alias && strip-comments`. Tests use Vitest
   + happy-dom.
 
-### `@amritk/mini-native` (`packages/mini-native`)
+### `@amritk/mini-lynx` (`packages/mini-lynx`)
 
 The same idea — real nodes created once, mutated forever by signals, no virtual
 tree — pointed at **Lynx**, and at nothing else. It drives Lynx's Element PAPI
@@ -99,7 +99,7 @@ the way the engine spells them, and events are `bindtap`/`catchtap`/
 `capture-bindtap`. **There is no translation table anywhere in the package.**
 
 That is a reversal of what this package used to be, and the reasoning is in
-[`docs/mini-native-lynx-runtime.md`](../docs/mini-native-lynx-runtime.md). In
+[`docs/mini-lynx-runtime.md`](../docs/mini-lynx-runtime.md). In
 short: it used to own a five-tag platform-neutral vocabulary, a `Host` contract
 and three implementations of it, so a component could run on a device and in a
 browser. Lynx already solves that one layer down, so the abstraction was paying
@@ -109,7 +109,7 @@ vocabulary had named.
 - **The platform boundary is the engine's API, not one we invented.**
   `LynxElementApi` is injectable for the same reason `Host` was — so the runtime
   can be driven off-device — but it is the *real* target's API, so a test
-  against the fake is a test against what ships. `@amritk/mini-native/testing`
+  against the fake is a test against what ships. `@amritk/mini-lynx/testing`
   is that fake: a complete in-memory Element PAPI, and what the whole suite runs
   against.
 - **The runtime is main-thread, because the PAPI is.** Not a choice; it falls
@@ -163,7 +163,7 @@ reactivity, no platform.**
 - **Neither published package's surface changed.** Both re-export everything
   from the subpath it already lived on, so `matchRoute` still comes from
   `@amritk/mini/router` and `schemaToValidator` still comes from
-  `@amritk/mini-native/forms`. The sharing is an implementation detail a
+  `@amritk/mini-lynx/forms`. The sharing is an implementation detail a
   consumer never has to know about.
 - **`src/purity.test.ts` is the charter, enforced.** It walks the graph from
   both entries and asserts `.` has no externals at all, `/schema` has only its
@@ -186,7 +186,7 @@ reactivity, no platform.**
 ## The playgrounds (`apps/`)
 
 Two private, unpublished apps — `@amritk/playground-mini` and
-`@amritk/playground-mini-native` — that exercise every public entry point of
+`@amritk/playground-mini-lynx` — that exercise every public entry point of
 their package and deploy to Cloudflare Workers as static SPAs (assets-only
 Workers with `not_found_handling: "single-page-application"`, so a client router
 in `history` mode survives a hard reload).
@@ -224,7 +224,7 @@ Two conventions keep them honest, and both are worth preserving:
   not their job — `scripts/consumer-e2e.test.ts` packs and installs real
   tarballs for that.
 - **The root `build`, `types:check` and `test` include them**, so a breaking
-  change to a package fails CI in the playground too. `playground-mini-native`
+  change to a package fails CI in the playground too. `playground-mini-lynx`
   now carries tests of its own — its DOM Element PAPI has a suite, and
   `src/screens.test.ts` mounts every screen and checks it builds and disposes
   without throwing, which is the cheapest guard against a screen that only fails
@@ -236,19 +236,19 @@ consumer-shaped code is where it is most likely to appear.
 
 ## How the two relate
 
-They are siblings, not layers: `mini-native` does **not** import `mini`. The
+They are siblings, not layers: `mini-lynx` does **not** import `mini`. The
 division is now the plainest it has ever been — **`mini` renders to the DOM,
-`mini-native` renders to Lynx**, and neither wraps the other. It used to be
-muddier, because `mini-native` also had a DOM host and so overlapped with its
+`mini-lynx` renders to Lynx**, and neither wraps the other. It used to be
+muddier, because `mini-lynx` also had a DOM host and so overlapped with its
 sibling on the one target `mini` exists for; that overlap is gone.
 
 Each is allowed the fast paths its target offers and the other cannot copy:
-`mini` writes `textContent` directly and clones a static template; `mini-native`
+`mini` writes `textContent` directly and clones a static template; `mini-lynx`
 uses the engine's per-tag creators and its layout-transparent `wrapper`.
 
 That independence is deliberate and it has a cost: a defect found in one is
 usually latent in the other. Both the scope-ownership bug (`run-detached.ts`)
-and the reserved-`key` hole were found in `mini-native` and then fixed in `mini`
+and the reserved-`key` hole were found in `mini-lynx` and then fixed in `mini`
 too. **When you fix a bug in one package, check the other for the same shape**
 — the per-package `AGENTS.md` files cross-reference each other for exactly this
 reason.
@@ -271,7 +271,7 @@ reason.
   `*.test.tsx`.
 - **Environment:** node by default. `@amritk/mini`'s DOM suites opt into
   happy-dom with a `// @vitest-environment happy-dom` pragma;
-  `@amritk/mini-native` runs everything except `create-dom-host.test.tsx`
+  `@amritk/mini-lynx` runs everything except `create-dom-host.test.tsx`
   against `createMemoryHost` in plain node, where `document` genuinely does not
   exist — so a stray platform dependency cannot pass unnoticed.
 - **Aliases:** `vitest.config.ts` aliases both package names (and their
@@ -283,7 +283,7 @@ reason.
   time.
 - **`bun run test:dist`** is the other half, and it needs a prior
   `bun run build`. It loads every compiled module under plain Node, drives the
-  built `mini-native` runtime through its memory host, and — in
+  built `mini-lynx` runtime through its memory host, and — in
   `consumer-e2e.test.ts` — packs both packages the way `release:publish` does
   (`catalog:`/`workspace:` resolved, the `development` condition stripped),
   installs the tarballs into scratch projects, and imports every declared
@@ -315,19 +315,19 @@ bun run --filter='@amritk/mini' test
   package.** Both sit at the standard JSX transform for semantics and an
   optional plugin for diagnostics. `mini` stops there: its consumer bundles into
   somebody else's page against a byte budget, so a required build step is
-  friction on the whole point of the package. `mini-native` may go one level
+  friction on the whole point of the package. `mini-lynx` may go one level
   further — an optional *optimising* plugin — because its consumer owns an app
   toolchain, subject to one invariant: **an app that skips the plugin still
   renders correctly**, just slower and larger. Neither may require a transform
   to be correct. The reasoning, including why a cross-platform compiler costs one
   plugin per target toolchain rather than one in total, is in
-  [`docs/mini-native-cross-platform.md`](../docs/mini-native-cross-platform.md) §18.
+  [`docs/mini-lynx-cross-platform.md`](../docs/mini-lynx-cross-platform.md) §18.
 - **Functional programming:** one exported thing per file, no classes.
 - **Type safety:** strict TypeScript throughout (`exactOptionalPropertyTypes`,
   `noUncheckedIndexedAccess`, …), with the platform boundary itself expressed as
   a compiler constraint rather than a convention.
 - **No raw-markup sink without an explicit escape.** `mini`'s `bindHtml` is the
   single sanctioned `innerHTML` path and its `sanitize` argument is required at
-  every call site; `mini-native` has no equivalent at all.
+  every call site; `mini-lynx` has no equivalent at all.
 - **Sources ship.** Both packages publish `src/` alongside `dist/`, so comments
   are part of the product.

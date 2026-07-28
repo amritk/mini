@@ -32,13 +32,14 @@
   },
   "overrides": [
     {
-      "includes": ["packages/mini-native/**", "apps/playground-mini-native/**"],
+      "includes": ["packages/mini-lynx/**", "apps/playground-mini-lynx/**"],
       "linter": {
         "rules": {
           "a11y": {
             "useSemanticElements": "off",
             "noInteractiveElementToNoninteractiveRole": "off",
-            "useAriaPropsForRole": "off"
+            "useAriaPropsForRole": "off",
+            "useMediaCaption": "off"
           }
         }
       }

@@ -11,7 +11,7 @@
 
 // Re-exported rather than owned: pattern matching is pure string arithmetic
 // with no platform in it, so it lives in `@amritk/mini-helpers` where
-// `@amritk/mini-native`'s router reads the same copy and the two cannot drift
+// `@amritk/mini-lynx`'s router reads the same copy and the two cannot drift
 // about what a route pattern means.
 export type { RouteParams } from '@amritk/mini-helpers'
 export { matchRoute } from '@amritk/mini-helpers'

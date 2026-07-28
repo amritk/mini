@@ -72,18 +72,18 @@ describe('workspace-protocol', () => {
     const pkg: PackageJson = {
       name: '@amritk/mini',
       dependencies: { 'alien-signals': 'catalog:' },
-      devDependencies: { '@amritk/mini-native': 'workspace:*' },
-      peerDependencies: { '@amritk/mini-native': 'workspace:^' },
+      devDependencies: { '@amritk/mini-lynx': 'workspace:*' },
+      peerDependencies: { '@amritk/mini-lynx': 'workspace:^' },
       optionalDependencies: { 'alien-signals': 'catalog:' },
     }
-    const changed = resolveProtocols(pkg, new Map([['@amritk/mini-native', '0.4.0']]), {
+    const changed = resolveProtocols(pkg, new Map([['@amritk/mini-lynx', '0.4.0']]), {
       catalog: { 'alien-signals': '3.2.1' },
     })
 
     expect(changed).toBe(true)
     expect(pkg.dependencies).toEqual({ 'alien-signals': '3.2.1' })
-    expect(pkg.devDependencies).toEqual({ '@amritk/mini-native': '0.4.0' })
-    expect(pkg.peerDependencies).toEqual({ '@amritk/mini-native': '^0.4.0' })
+    expect(pkg.devDependencies).toEqual({ '@amritk/mini-lynx': '0.4.0' })
+    expect(pkg.peerDependencies).toEqual({ '@amritk/mini-lynx': '^0.4.0' })
     expect(pkg.optionalDependencies).toEqual({ 'alien-signals': '3.2.1' })
   })
 

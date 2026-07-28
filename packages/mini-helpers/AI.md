@@ -5,7 +5,7 @@ For an LLM consuming this package. Editing the repo instead? See
 
 ## Mental model
 
-Two published UI runtimes — `@amritk/mini` (DOM) and `@amritk/mini-native`
+Two published UI runtimes — `@amritk/mini` (DOM) and `@amritk/mini-lynx`
 (pluggable `Host`) — are the same design re-derived, and neither imports the
 other. This package is the small set of helpers that turned out to be
 **literally the same code** in both: pure functions over strings and plain
@@ -19,7 +19,7 @@ those — they are the documented surface, and they are what the examples use:
 ```ts
 import { matchRoute, parseQuery } from '@amritk/mini/router'
 import { schemaToValidator } from '@amritk/mini/forms'
-// …or the same two lines against '@amritk/mini-native/router' / '/forms'
+// …or the same two lines against '@amritk/mini-lynx/router' / '/forms'
 ```
 
 Import `@amritk/mini-helpers` directly only when you want the helpers **without**

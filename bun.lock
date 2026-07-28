@@ -30,11 +30,11 @@
         "wrangler": "^4",
       },
     },
-    "apps/playground-mini-native": {
-      "name": "@amritk/playground-mini-native",
+    "apps/playground-mini-lynx": {
+      "name": "@amritk/playground-mini-lynx",
       "version": "0.0.0",
       "dependencies": {
-        "@amritk/mini-native": "workspace:*",
+        "@amritk/mini-lynx": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
         "@tanstack/query-core": "^5.101.2",
       },
@@ -88,8 +88,8 @@
         "typescript",
       ],
     },
-    "packages/mini-native": {
-      "name": "@amritk/mini-native",
+    "packages/mini-lynx": {
+      "name": "@amritk/mini-lynx",
       "version": "0.0.0",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
@@ -123,11 +123,11 @@
 
     "@amritk/mini-helpers": ["@amritk/mini-helpers@workspace:packages/mini-helpers"],
 
-    "@amritk/mini-native": ["@amritk/mini-native@workspace:packages/mini-native"],
+    "@amritk/mini-lynx": ["@amritk/mini-lynx@workspace:packages/mini-lynx"],
 
     "@amritk/playground-mini": ["@amritk/playground-mini@workspace:apps/playground-mini"],
 
-    "@amritk/playground-mini-native": ["@amritk/playground-mini-native@workspace:apps/playground-mini-native"],
+    "@amritk/playground-mini-lynx": ["@amritk/playground-mini-lynx@workspace:apps/playground-mini-lynx"],
 
     "@amritk/runtime-validators": ["@amritk/runtime-validators@0.9.0", "", { "dependencies": { "json-schema-typed": "^8.0.1" } }, "sha512-BNL/WefH+ZOc10EoqagiB40/FrhuvR4GdOBv9MlEo69t8BXJI7H4+MbHnJQcOJ+Vh2q+j+rF5jO/SunbDNfSBw=="],
 

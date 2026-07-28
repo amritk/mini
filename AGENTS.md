@@ -22,7 +22,7 @@ two shapes:
 
 - [`packages/mini`](./packages/mini) — `@amritk/mini`, reactive DOM bindings
   plus a compilerless JSX runtime.
-- [`packages/mini-native`](./packages/mini-native) — `@amritk/mini-native`, the
+- [`packages/mini-lynx`](./packages/mini-lynx) — `@amritk/mini-lynx`, the
   same model rendered through a pluggable `Host`, so it targets a native view
   tree, the DOM, or plain objects.
 
@@ -37,7 +37,7 @@ Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 
 Alongside them sit two private kitchen-sink playgrounds — `apps/playground-mini`
-and `apps/playground-mini-native` — that exercise every public entry point and
+and `apps/playground-mini-lynx` — that exercise every public entry point and
 deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
@@ -82,7 +82,7 @@ diagnostics (`@amritk/mini/vite`). Above that they diverge deliberately:
 - **`mini` stops at diagnostics.** Its consumer bundles into somebody else's
   page against a byte budget a test enforces, so a required build step is
   friction on the one thing the package is for.
-- **`mini-native` may add optional *optimisation*,** because its consumer owns a
+- **`mini-lynx` may add optional *optimisation*,** because its consumer owns a
   whole app toolchain — under the invariant that **an app skipping the plugin
   still renders correctly**, only slower and larger.
 
@@ -90,7 +90,7 @@ Note what this protects that is easy to miss: the two packages are the same
 design re-derived, which is why a defect found in one is worth hunting in the
 other. A transform that changes semantics on one side ends that, and the
 cross-check is how both shipped gotchas above were found.
-[`docs/mini-native-cross-platform.md`](./docs/mini-native-cross-platform.md) §18
+[`docs/mini-lynx-cross-platform.md`](./docs/mini-lynx-cross-platform.md) §18
 has the full accounting.
 
 ## House rules

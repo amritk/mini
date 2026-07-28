@@ -20,7 +20,7 @@ const REPO = 'https://github.com/amritk/mini'
 const BRANCH = 'main'
 
 /** Curated ordering: the web runtime first, then the native one. Others append alphabetically. */
-const ORDER = ['mini', 'mini-native']
+const ORDER = ['mini', 'mini-lynx']
 
 type Pkg = { dir: string; name: string; description: string; aiDoc: string | null }
 
@@ -57,7 +57,7 @@ const buildIndex = (packages: Pkg[]): string => {
   lines.push('# mini')
   lines.push('')
   lines.push(
-    '> A deliberately tiny signals UI runtime: reactive bindings and a compilerless JSX runtime, for the DOM (`@amritk/mini`) and for native view trees through a pluggable host (`@amritk/mini-native`). No virtual DOM, no diffing, no re-render.',
+    '> A deliberately tiny signals UI runtime: reactive bindings and a compilerless JSX runtime, for the DOM (`@amritk/mini`) and for native view trees through a pluggable host (`@amritk/mini-lynx`). No virtual DOM, no diffing, no re-render.',
   )
   lines.push('')
   lines.push(

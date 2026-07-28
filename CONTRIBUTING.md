@@ -31,7 +31,7 @@ Per package: `bun run --filter='@amritk/mini' test` (and `build`, `types:check`)
 are what keep them honest. Run one with
 `bun run --filter='@amritk/playground-mini' dev`, and see
 [`apps/playground-mini`](./apps/playground-mini/README.md) and
-[`apps/playground-mini-native`](./apps/playground-mini-native/README.md) for what
+[`apps/playground-mini-lynx`](./apps/playground-mini-lynx/README.md) for what
 each demonstrates.
 
 ## Workflow
@@ -50,9 +50,9 @@ each demonstrates.
 
 **The cap is the design.** No virtual DOM, no diffing, no re-render, and the `.` entry of each package is byte-budgeted — `src/core-size-budget.test.ts` and `src/import-boundary.test.ts` will fail a PR that grows it. A feature only some apps need belongs on a subpath with its own module graph; a feature that needs diffing belongs in a different framework.
 
-Read the package's `AGENTS.md` ([mini](./packages/mini/AGENTS.md), [mini-native](./packages/mini-native/AGENTS.md)) before editing it. Both document invariants — the alien-signals scope-ownership gotcha and the reserved-`key` gotcha in particular — that have regression tests you should not "fix".
+Read the package's `AGENTS.md` ([mini](./packages/mini/AGENTS.md), [mini-lynx](./packages/mini-lynx/AGENTS.md)) before editing it. Both document invariants — the alien-signals scope-ownership gotcha and the reserved-`key` gotcha in particular — that have regression tests you should not "fix".
 
-The two packages are siblings, not layers: `mini-native` does not import `mini`. A defect found in one is usually latent in the other, so **when you fix a bug in one, check the other for the same shape**.
+The two packages are siblings, not layers: `mini-lynx` does not import `mini`. A defect found in one is usually latent in the other, so **when you fix a bug in one, check the other for the same shape**.
 
 ## Code style
 

@@ -27,6 +27,16 @@ jobs:
       - name: Check mini reactivity footgun
         run: bun run check:reactivity
 
+      # `llms.txt` and `llms-full.txt` are generated from the packages' `AI.md`
+      # files and committed, so they go stale in exactly the way a committed
+      # build artifact always does: silently, and only for the audience that
+      # cannot complain. They had drifted far enough to describe a design that
+      # no longer existed. Regenerating and diffing is the whole guard.
+      - name: Check generated LLM docs are current
+        run: |
+          bun run generate-llms
+          git diff --exit-code llms.txt llms-full.txt
+
       - name: Type check
         run: bun run types:check
 
@@ -37,7 +47,7 @@ jobs:
         run: bun run build
 
       # Loads every compiled module under plain Node, drives the built
-      # mini-native runtime end-to-end through its fake Element PAPI, and
+      # mini-lynx runtime end-to-end through its fake Element PAPI, and
       # installs packed tarballs like an npm consumer — catches build-, pack-
       # and manifest-level corruption the src-aliased tests cannot see.
       - name: Smoke and e2e test built artifacts

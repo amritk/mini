@@ -1,14 +1,14 @@
 # mini
 
-> A deliberately tiny signals UI runtime: reactive bindings and a compilerless JSX runtime, for the DOM (`@amritk/mini`) and for native view trees through a pluggable host (`@amritk/mini-native`). No virtual DOM, no diffing, no re-render.
+> A deliberately tiny signals UI runtime: reactive bindings and a compilerless JSX runtime, for the DOM (`@amritk/mini`) and for native view trees through a pluggable host (`@amritk/mini-lynx`). No virtual DOM, no diffing, no re-render.
 
 mini is a pre-alpha monorepo of independently published `@amritk/*` packages. Each package ships an `AI.md` — a mental model, a minimal runnable example, and the gotchas most likely to trip up an LLM. `llms-full.txt` inlines all of them into one file.
 
 ## Packages
 
 - [@amritk/mini](https://github.com/amritk/mini/blob/main/packages/mini/README.md): A deliberately tiny signals-based UI layer: reactive DOM bindings plus a compilerless JSX runtime — [AI.md](https://github.com/amritk/mini/blob/main/packages/mini/AI.md)
-- [@amritk/mini-native](https://github.com/amritk/mini/blob/main/packages/mini-native/README.md): A React-Native-shaped signals UI runtime on mini's model: real host nodes created once, mutated forever by signals, rendered through a pluggable host — [AI.md](https://github.com/amritk/mini/blob/main/packages/mini-native/AI.md)
-- [@amritk/mini-helpers](https://github.com/amritk/mini/blob/main/packages/mini-helpers/README.md): The pure helpers @amritk/mini and @amritk/mini-native both need: no reactivity, no platform, no dependencies — [AI.md](https://github.com/amritk/mini/blob/main/packages/mini-helpers/AI.md)
+- [@amritk/mini-lynx](https://github.com/amritk/mini/blob/main/packages/mini-lynx/README.md): A signals runtime for Lynx: real elements created once and mutated forever, driving Lynx's Element PAPI directly, with no virtual tree — [AI.md](https://github.com/amritk/mini/blob/main/packages/mini-lynx/AI.md)
+- [@amritk/mini-helpers](https://github.com/amritk/mini/blob/main/packages/mini-helpers/README.md): The pure helpers @amritk/mini and @amritk/mini-lynx both need: no reactivity, no platform, no dependencies — [AI.md](https://github.com/amritk/mini/blob/main/packages/mini-helpers/AI.md)
 
 ## Optional
 

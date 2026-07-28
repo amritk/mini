@@ -59,12 +59,12 @@ describe('strip-development-exports', () => {
         '.': { development: './src/index.ts', types: './dist/index.d.ts', import: './dist/index.js' },
       },
     })
-    const nativePath = await writePackage('mini-native', {
-      name: '@amritk/mini-native',
+    const nativePath = await writePackage('mini-lynx', {
+      name: '@amritk/mini-lynx',
       exports: { '.': { development: './src/index.ts', import: './dist/index.js' } },
     })
 
-    expect((await stripDevelopmentExports(root)).sort()).toEqual(['@amritk/mini', '@amritk/mini-native'])
+    expect((await stripDevelopmentExports(root)).sort()).toEqual(['@amritk/mini', '@amritk/mini-lynx'])
 
     const mini = await readPackage(miniPath)
     expect(mini.exports).toEqual({

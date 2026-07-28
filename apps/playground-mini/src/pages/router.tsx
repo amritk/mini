@@ -80,8 +80,8 @@ const Params = (props: RouterPageProps): HTMLElement => {
           <Link to="/router/amritk/mini" navigate={router.navigate} class="pill">
             amritk/mini
           </Link>
-          <Link to="/router/amritk/mini-native" navigate={router.navigate} class="pill">
-            amritk/mini-native
+          <Link to="/router/amritk/mini-lynx" navigate={router.navigate} class="pill">
+            amritk/mini-lynx
           </Link>
           <Link to="/router" navigate={router.navigate} class="pill">
             clear
@@ -152,7 +152,7 @@ const Matching = (): HTMLElement => {
   return (
     <Section
       title="matchRoute"
-      blurb="Pattern matching is string arithmetic with no platform in it — the same function backs mini-native's router, where there is no address bar to read. Type a path and watch which patterns claim it."
+      blurb="Pattern matching is string arithmetic with no platform in it — the same function backs mini-lynx's router, where there is no address bar to read. Type a path and watch which patterns claim it."
     >
       <div class="stack">
         <input ref={(element) => bindValue(element, path)} />

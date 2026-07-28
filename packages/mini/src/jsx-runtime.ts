@@ -375,7 +375,7 @@ const setAttribute = (element: Element, name: string, value: unknown): void => {
  * the first keystroke and then silently freeze, and `<select value={picked} />`
  * never selects anything at all, because a `value` attribute means nothing on a
  * `<select>`. These three go through the property instead. The DOM host in
- * `mini-native` routes the same names the same way, for the same reason.
+ * `mini-lynx` routes the same names the same way, for the same reason.
  */
 const isProperty = (name: string): boolean => name === 'value' || name === 'checked' || name === 'selected'
 
@@ -441,7 +441,7 @@ const cssName = (key: string): string =>
  *
  * Kept short on purpose: this covers what a layout actually reaches for, and an
  * unlisted property that turns out to need it is a one-line addition. The same
- * list lives in `mini-native`'s `to-style-text`, copied rather than shared —
+ * list lives in `mini-lynx`'s `to-style-text`, copied rather than shared —
  * mini's core graph is asserted to hold nothing but its own sources and
  * alien-signals.
  */

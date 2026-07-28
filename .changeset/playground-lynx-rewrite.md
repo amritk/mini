@@ -1,7 +1,7 @@
 ---
 ---
 
-Rewrite `@amritk/playground-mini-native` on Lynx's own vocabulary, and preview it through a DOM implementation of the Element PAPI.
+Rewrite `@amritk/playground-mini-lynx` on Lynx's own vocabulary, and preview it through a DOM implementation of the Element PAPI.
 
 The app previously ran through a DOM *host* — a framework abstraction the package owned. That is gone with the rest of the `Host` layer, so the preview drops one level: `src/lib/dom-papi.ts` implements the Element PAPI itself, which is exactly what Lynx's own web target does in `@lynx-js/web-platform`. The browser is now explicitly emulating Lynx rather than being a peer target, which is the more honest arrangement — and it means the preview, not the device, is the thing that can be wrong.
 

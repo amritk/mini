@@ -2,7 +2,7 @@
 '@amritk/mini': minor
 ---
 
-Fix the form-control props in the JSX runtime and close a gap in the size safety net. Found by auditing `packages/mini` against its own charter and against the sibling package `@amritk/mini-native`, whose DOM host already routed these names correctly.
+Fix the form-control props in the JSX runtime and close a gap in the size safety net. Found by auditing `packages/mini` against its own charter and against the sibling package `@amritk/mini-lynx`, whose DOM host already routed these names correctly.
 
 - **`value`, `checked` and `selected` now write the DOM property, not the attribute.** An attribute only seeds a control's *default*, so `<input value={draft} />` updated the field until the user's first keystroke and then silently froze, `<input type="checkbox" checked={on} />` did the same after the first click, and `<select value={picked}>` never selected anything at all — a `value` attribute means nothing on a `<select>`. The three are also applied after the props loop, because the `<select>` property write only takes once its `<option>`s exist and `children` is the last key the JSX transform emits. An element with no such property (`<div value>`) still gets the attribute.
 - **A `class` that resolves to nothing removes the attribute** instead of leaving a bare `class=""` behind, which is what `class={busy() && 'spinning'}` produced on the falsy side.

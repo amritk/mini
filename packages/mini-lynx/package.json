@@ -1,0 +1,137 @@
+{
+  "name": "@amritk/mini-lynx",
+  "version": "0.0.0",
+  "description": "A signals runtime for Lynx: real elements created once and mutated forever, driving Lynx's Element PAPI directly, with no virtual tree.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
+  "keywords": [
+    "lynx",
+    "signals",
+    "reactive",
+    "jsx",
+    "native",
+    "ui",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/mini-lynx"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/mini-lynx#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx/"
+  },
+  "dependencies": {
+    "@amritk/mini-helpers": "workspace:*",
+    "alien-signals": "catalog:"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "development": "./src/jsx-runtime.ts",
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "development": "./src/jsx-dev-runtime.ts",
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "import": "./dist/jsx-dev-runtime.js",
+      "default": "./dist/jsx-dev-runtime.js"
+    },
+    "./engine": {
+      "development": "./src/engine/index.ts",
+      "types": "./dist/engine/index.d.ts",
+      "import": "./dist/engine/index.js",
+      "default": "./dist/engine/index.js"
+    },
+    "./flow": {
+      "development": "./src/flow/index.ts",
+      "types": "./dist/flow/index.d.ts",
+      "import": "./dist/flow/index.js",
+      "default": "./dist/flow/index.js"
+    },
+    "./composition": {
+      "development": "./src/composition/index.ts",
+      "types": "./dist/composition/index.d.ts",
+      "import": "./dist/composition/index.js",
+      "default": "./dist/composition/index.js"
+    },
+    "./router": {
+      "development": "./src/router/index.ts",
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js",
+      "default": "./dist/router/index.js"
+    },
+    "./forms": {
+      "development": "./src/forms/index.ts",
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
+    },
+    "./query": {
+      "development": "./src/query/index.ts",
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js",
+      "default": "./dist/query/index.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@amritk/runtime-validators": ">=0.8.0",
+    "@lynx-js/types": ">=4.0.0",
+    "@tanstack/query-core": "^5",
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "@amritk/runtime-validators": {
+      "optional": true
+    },
+    "@lynx-js/types": {
+      "optional": true
+    },
+    "@tanstack/query-core": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@amritk/runtime-validators": "^0.9.0",
+    "@lynx-js/types": "^4.0.0",
+    "@tanstack/query-core": "^5.101.2",
+    "typescript": "^5"
+  }
+}

@@ -22,7 +22,7 @@ shapes:
 | Package | What it renders to |
 |---|---|
 | **[`@amritk/mini`](./packages/mini)** | The DOM. Reactive bindings, keyed lists, static-template cloning, and a compilerless JSX runtime. |
-| **[`@amritk/mini-native`](./packages/mini-native)** | **Lynx**, through its Element PAPI. The engine's own elements, attributes and events — no vocabulary in between. |
+| **[`@amritk/mini-lynx`](./packages/mini-lynx)** | **Lynx**, through its Element PAPI. The engine's own elements, attributes and events — no vocabulary in between. |
 
 A third package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
 handful of helpers that turned out identical in both — route matching, query
@@ -80,12 +80,12 @@ commitment, not a roadmap item. It buys two things:
   on its own subpath with its own module graph, so importing `/router` pulls in
   none of `/forms`. A size-budget test and an import-boundary test hold that
   line in CI, per package.
-- **Do not rebuild what the target already does.** `@amritk/mini-native` used to
+- **Do not rebuild what the target already does.** `@amritk/mini-lynx` used to
   own a platform-neutral vocabulary and a pluggable host so a component could run
   anywhere. Lynx already solves that one layer down, so the package dropped the
   abstraction and became a thin layer over the engine — about 5,000 lines lighter,
   and with the ceiling moved from "what this package has named" to "what the
-  engine can do". See [`docs/mini-native-lynx-runtime.md`](./docs/mini-native-lynx-runtime.md).
+  engine can do". See [`docs/mini-lynx-runtime.md`](./docs/mini-lynx-runtime.md).
 
 If a feature seems to be missing, the correct next step is usually a bigger
 framework (Preact, Solid), not a new helper here.
@@ -113,13 +113,13 @@ import { mount, signal } from '@amritk/mini'
 mount(document.body, Counter)
 ```
 
-Full API, subpath modules, and the native runtime's host contract are in the
+Full API, subpath modules, and the Lynx runtime's engine boundary are in the
 package READMEs:
 
 - [`@amritk/mini`](./packages/mini/README.md) — DOM bindings, `list`,
   `template`, and the `/router` `/flow` `/forms` `/query` `/hot` `/vite`
   subpaths.
-- [`@amritk/mini-native`](./packages/mini-native/README.md) — the Lynx element
+- [`@amritk/mini-lynx`](./packages/mini-lynx/README.md) — the Lynx element
   vocabulary, `renderPage`, the in-memory Element PAPI for tests, and the
   `/flow` `/composition` `/router` `/forms` `/query` `/engine` `/testing`
   subpaths.
@@ -134,7 +134,7 @@ entry point of its package and deployed to Cloudflare Workers as a static SPA:
 - [`playground-mini`](./apps/playground-mini/README.md) — signals, the JSX
   runtime, every binding, `/flow`, `/forms`, `/query`, and `/router` (which the
   app itself runs on).
-- [`playground-mini-native`](./apps/playground-mini-native/README.md) — Lynx
+- [`playground-mini-lynx`](./apps/playground-mini-lynx/README.md) — Lynx
   elements, CSS, `<list>`, event propagation, `/flow`, `/composition`, `/forms`,
   `/query` and `/router`, previewed through a **DOM implementation of Lynx's
   Element PAPI**. Its `/engine` screen renders a second tree through the
@@ -142,7 +142,7 @@ entry point of its package and deployed to Cloudflare Workers as a static SPA:
 
 ```sh
 bun run --filter '@amritk/playground-mini' dev
-bun run --filter '@amritk/playground-mini-native' dev
+bun run --filter '@amritk/playground-mini-lynx' dev
 ```
 
 ## For AI agents & LLMs
@@ -159,7 +159,7 @@ then the per-package `AGENTS.md` for the invariants that package cannot break.
 ## Requirements
 
 - **Consumers:** any ES2022 runtime. `@amritk/mini` needs a DOM;
-  `@amritk/mini-native` needs only a host.
+  `@amritk/mini-lynx` needs only a host.
 - **Development:** [Bun](https://bun.sh) ≥ 1.1.
 
 ## Development
@@ -169,7 +169,7 @@ bun install
 bun run test                # every package's tests
 bun run check               # biome lint + format
 bun run check:reactivity    # the called-signal footgun guard
-bun run types:check         # both packages, both of mini-native's passes
+bun run types:check         # both packages, both of mini-lynx's passes
 bun run build               # build both packages
 bun run test:dist           # load and drive the built artifacts (needs a build)
 ```

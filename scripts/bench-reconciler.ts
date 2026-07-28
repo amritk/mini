@@ -1,12 +1,12 @@
-import { createBenchmarkApp } from '../packages/mini-native/examples/js-framework-benchmark/main'
-import { clearEngine, setEngine } from '../packages/mini-native/src/engine/current-engine'
-import type { LynxElementApi } from '../packages/mini-native/src/engine/element-api'
-import { mount } from '../packages/mini-native/src/mount'
-import { createFakeEngine } from '../packages/mini-native/src/testing/create-fake-engine'
+import { createBenchmarkApp } from '../packages/mini-lynx/examples/js-framework-benchmark/main'
+import { clearEngine, setEngine } from '../packages/mini-lynx/src/engine/current-engine'
+import type { LynxElementApi } from '../packages/mini-lynx/src/engine/element-api'
+import { mount } from '../packages/mini-lynx/src/mount'
+import { createFakeEngine } from '../packages/mini-lynx/src/testing/create-fake-engine'
 
 /**
  * bench-reconciler — a wall-clock number for the operations
- * `@amritk/mini-native`'s keyed list actually performs.
+ * `@amritk/mini-lynx`'s keyed list actually performs.
  *
  * The reconciler already carries a move-minimal guarantee, and that guarantee is
  * asserted in HOST CALLS: swapping two rows costs two inserts, removing from the
@@ -212,7 +212,7 @@ if (asJson) {
   const line = (cells: readonly string[]): string =>
     `| ${cells.map((cell, index) => cell.padEnd(width(columns[index] as string))).join(' | ')} |`
 
-  console.log(`mini-native reconciler, fake Lynx engine, median of ${REPEATS}\n`)
+  console.log(`mini-lynx reconciler, fake Lynx engine, median of ${REPEATS}\n`)
   console.log(line(columns))
   console.log(`|${columns.map((column) => '-'.repeat(width(column) + 2)).join('|')}|`)
   for (const row of rows) console.log(line(columns.map((column) => (row as never)[column])))
