@@ -1,5 +1,6 @@
-import { type LynxElement, signal } from '@amritk/mini-lynx'
+import { firstChild, type LynxElement, nextSibling, signal } from '@amritk/mini-lynx'
 import { For } from '@amritk/mini-lynx/flow'
+import { recycle } from '@amritk/mini-lynx/recycle'
 
 import { Action, Chip, Panel, Prose, Readout, Row, TextLine } from '../components'
 
@@ -15,9 +16,14 @@ import { Action, Chip, Panel, Prose, Readout, Row, TextLine } from '../component
  *
  * Be warned about the preview before reading anything into it. A `<list>` here
  * is an unknown element with Lynx's `overflow: hidden` default and no engine
- * behind it, so it CLIPS rather than scrolls and nothing is ever recycled. What
- * the preview does prove is that the tree, the attribute names and the keyed
- * reconciliation are right; everything about behaviour belongs to a device.
+ * behind it, so it CLIPS rather than scrolls. What the preview does prove is
+ * that the tree, the attribute names and the keyed reconciliation are right;
+ * everything about layout belongs to a device.
+ *
+ * The exception is the last panel. `recycle` is driven by callbacks rather than
+ * by layout, so the shim in `dom-papi.ts` can invoke the real protocol and the
+ * element count it produces is a real answer — ten thousand rows, a dozen
+ * elements. Every other panel here builds every row it has.
  */
 export const ListScreen = (): LynxElement => (
   <view>
@@ -26,9 +32,90 @@ export const ListScreen = (): LynxElement => (
     <StickyPanel />
     <SnapPanel />
     <RowGroupingPanel />
+    <RecyclePanel />
     <HonestyPanel />
   </view>
 )
+
+/**
+ * The one panel on this screen that is not built with `For`.
+ *
+ * Everything above realises every row: `For` owns the collection, so a hundred
+ * rows are a hundred elements whether or not anyone can see them. `recycle`
+ * inverts that — the ENGINE decides which rows are on screen and asks for them
+ * one at a time, and the framework answers from a pool of the dozen or so cells
+ * the viewport needs.
+ *
+ * Ten thousand rows, and the readout counts the elements that actually exist.
+ * That number is the whole feature.
+ */
+const RecyclePanel = (): LynxElement => {
+  const rows = signal(makeRows(0, 10_000))
+  const realised = signal('tap “count elements” once the list has laid out')
+
+  const feed = recycle(
+    {
+      each: rows,
+      itemKey: (row) => row.id,
+      // `item` is a GETTER, and that is the contract that makes recycling work:
+      // this cell is built once and then re-pointed at row after row, so a
+      // closure over the row it was built with would show `Row 0` forever.
+      cell: (item) => (
+        <list-item item-key={item().id} estimated-main-axis-size-px={ROW_HEIGHT}>
+          <view class="card" style={{ height: ROW_HEIGHT, marginBottom: 6, justifyContent: 'center' }}>
+            <TextLine>{() => item().label}</TextLine>
+          </view>
+        </list-item>
+      ),
+    },
+    { 'list-type': 'single', 'span-count': 1, style: { height: 240 } },
+  )
+
+  return (
+    <Panel
+      title="recycle — the engine owns the cell"
+      blurb="Ten thousand rows. Count the elements: the pool is the only thing that exists."
+    >
+      {feed}
+
+      <Row gap="sm" wrap={true}>
+        <Chip>{() => `${rows().length} rows`}</Chip>
+        <Action onTap={() => realised(`${countCells(feed)} elements realised`)}>count elements</Action>
+        <Action onTap={() => rows(makeRows(0, 10_000))}>rebuild</Action>
+      </Row>
+
+      <Readout>{realised}</Readout>
+
+      <Prose>
+        Filling a recycled cell is one signal write. The bindings this cell built when it was created are still attached
+        to its elements, so re-pointing it at row 5,000 mutates exactly the text that changed — there is no diff and no
+        rebuild, which is what every other framework has to do here.
+      </Prose>
+
+      <Prose>
+        The preview drives the real protocol — `componentAtIndex`, `enqueueComponent`, and the `operationID` the engine
+        correlates on — from a scroll listener in `dom-papi.ts`. The windowing maths is the shim's, not Lynx's. Trust
+        the element count; do not read anything into the scrolling.
+      </Prose>
+    </Panel>
+  )
+}
+
+/**
+ * How many cells the recycler currently has realised.
+ *
+ * Walked with `firstChild`/`nextSibling` rather than read off a length, because
+ * those are what the runtime exposes — the tree belongs to the engine here, and
+ * an app only ever sees it through the two accessors it hands out.
+ */
+const countCells = (list: LynxElement): number => {
+  let count = 0
+  for (let node = firstChild(list); node !== null; node = nextSibling(node)) count++
+  return count
+}
+
+/** A fixed row height, so the preview's estimate and the cell agree. */
+const ROW_HEIGHT = 44
 
 /** One generated row. `id` is the identity both `For` and the engine key on. */
 type ListRow = {
@@ -351,9 +438,10 @@ const HonestyPanel = (): LynxElement => (
     blurb="Four things, all of which look fine here and are decided on a device."
   >
     <Prose>
-      Recycling is absent. Three hundred list-item elements exist in the tree above. On a device the engine keeps a
-      screenful plus `preload-buffer-count`, reuses their views as they leave, and `reuse-identifier` decides which pool
-      a row comes from. Nothing here recycles anything.
+      Every panel but the last builds every row. Three hundred list-item elements exist in the trees above, because
+      `For` owns the collection and realises all of it. That is the right shape at this size and the wrong one at ten
+      thousand, which is what the recycle panel is for — there the engine asks for rows one at a time and the framework
+      answers from a pool.
     </Prose>
 
     <Prose>

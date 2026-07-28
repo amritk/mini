@@ -155,6 +155,8 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
 
   /** The rows as of the last published inventory, so a change can be described as edits. */
   let published: PlatformInfo[] = []
+  /** Set by `dispose`, so a late callback answers "nothing here" instead of building. */
+  let torn = false
 
   const infoAt = (item: T, index: number): PlatformInfo => ({
     'item-key': props.itemKey(item, index),
@@ -173,6 +175,12 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
    * synchronously, which is what makes filling a reused cell a single statement.
    */
   const componentAtIndex = (list: LynxElement, listID: number, cellIndex: number, operationID: number): number => {
+    // Guarded here as well as by the inert callbacks installed on teardown,
+    // because the engine is not obliged to honour `__UpdateListCallbacks`
+    // promptly — it may be mid-scroll, and a request that arrives afterwards
+    // would otherwise build a cell against a torn-down pool, or against whatever
+    // engine happens to be installed by then.
+    if (torn) return -1
     const rows = props.each()
     const item = rows[cellIndex]
     if (item === undefined && cellIndex >= rows.length) {
@@ -217,6 +225,7 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
 
   /** Takes a cell back when it scrolls out of range. */
   const enqueueComponent = (_list: LynxElement, _listID: number, sign: number): void => {
+    if (torn) return
     const cell = cells.get(sign)
     if (!cell) return
     cells.delete(sign)
@@ -284,6 +293,8 @@ export const recycle = <T>(props: RecycleProps<T>, attributes: Readonly<Record<s
   publish(props.each().map((item, index) => infoAt(item, index)))
 
   const dispose = (): void => {
+    if (torn) return
+    torn = true
     stop()
     // Inert callbacks rather than none: the engine may be mid-scroll, and a
     // removed list that is still asked for a cell should answer "nothing here"
