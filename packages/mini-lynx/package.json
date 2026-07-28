@@ -1,6 +1,6 @@
 {
   "name": "@amritk/mini-lynx",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A signals runtime for Lynx: real elements created once and mutated forever, driving Lynx's Element PAPI directly, with no virtual tree.",
   "type": "module",
   "license": "MIT",
