@@ -1,4 +1,10 @@
-import type { EventListenerValue, LynxElement, LynxElementApi } from '../engine/element-api'
+import type {
+  ComponentAtIndex,
+  EnqueueComponent,
+  EventListenerValue,
+  LynxElement,
+  LynxElementApi,
+} from '../engine/element-api'
 
 /**
  * A complete in-memory implementation of Lynx's Element PAPI.
@@ -79,6 +85,22 @@ export type FakeEngine = {
    * gets the same silent failure if it is ever handed a raw closure.
    */
   dispatchGesture: (element: FakeElement, id: number, callbackName: string, event?: unknown) => void
+  /**
+   * Scrolls a row of a recycling `<list>` into range, the way the engine would.
+   *
+   * The engine drives cell reuse by CALLING the framework, so a recycler cannot
+   * be tested by inspecting a tree — nothing happens until something asks. These
+   * two methods are that something, and they are deliberately the same pair
+   * Lynx's own `@lynx-js/react/testing-library` exposes (`enterListItemAtIndex`
+   * / `leaveListItem`), so a test here drives the recycler through the same
+   * sequence a device does.
+   *
+   * Returns the cell's engine id — what `componentAtIndex` answered — which is
+   * also the handle {@link FakeEngine.leaveListItem} takes.
+   */
+  enterListItemAtIndex: (list: FakeElement, index: number) => number
+  /** Scrolls a cell out of range, returning it to the framework's pool. */
+  leaveListItem: (list: FakeElement, sign: number) => void
   /** Finds the first element with this tag, depth-first. Convenience for tests. */
   find: (tag: string) => FakeElement | undefined
   /** Finds every element with this tag, depth-first. */
@@ -144,6 +166,12 @@ export const createFakeEngine = (): FakeEngine => {
 
   /** Stubbed UI-method responders, by method name. See `onInvoke`. */
   const uiMethods = new Map<string, (element: FakeElement, params: object) => { code: number; data?: unknown }>()
+
+  /** The recycling callbacks each `list` was created with. See `enterListItemAtIndex`. */
+  const recyclers = new Map<FakeElement, { componentAtIndex: ComponentAtIndex; enqueueComponent: EnqueueComponent }>()
+
+  /** Correlation tokens, the way the engine hands out a fresh one per request. */
+  let nextOperationId = 1
 
   const detach = (node: FakeElement): void => {
     const parent = node.parent
@@ -287,6 +315,19 @@ export const createFakeEngine = (): FakeEngine => {
       else target.events.set(`${type}:${name}`, listener)
     },
 
+    __CreateList: (parentComponentUniqueId, componentAtIndex, enqueueComponent) => {
+      const created = element('list')
+      record(`__CreateList(${parentComponentUniqueId}) → #${created.id}`)
+      recyclers.set(created, { componentAtIndex, enqueueComponent })
+      return toLynx(created)
+    },
+
+    __UpdateListCallbacks: (list, componentAtIndex, enqueueComponent) => {
+      const target = fromLynx(list)
+      record(`__UpdateListCallbacks(#${target.id})`)
+      recyclers.set(target, { componentAtIndex, enqueueComponent })
+    },
+
     __SetGestureDetector: (el, id, type, config, relationMap) => {
       const target = fromLynx(el)
       record(`__SetGestureDetector(#${target.id}, ${id}, ${type})`)
@@ -319,9 +360,14 @@ export const createFakeEngine = (): FakeEngine => {
       callback(handler ? handler(target, params) : { code: -1, data: `no handler for "${method}"` })
     },
 
-    __FlushElementTree: () => {
+    __FlushElementTree: (el, options) => {
       flushes++
-      record('__FlushElementTree()')
+      // The arguments are logged, not just the call. A list cell is committed
+      // with `{ operationID, elementID, listID }` and the engine matches its
+      // request against them — a commit missing them lays the cell out at zero
+      // height on a device while looking perfectly correct in a tree assertion.
+      if (el === undefined && options === undefined) record('__FlushElementTree()')
+      else record(`__FlushElementTree(#${fromLynx(el as LynxElement).id}, ${format(options ?? null)})`)
     },
   }
 
@@ -361,6 +407,18 @@ export const createFakeEngine = (): FakeEngine => {
       const runWorklet = (globalThis as { runWorklet?: (value: unknown, args: unknown[]) => void }).runWorklet
       runWorklet?.(listener.value, [event])
     },
+    enterListItemAtIndex: (list, index) => {
+      const recycler = recyclers.get(list)
+      if (!recycler) throw new Error('That element was not created as a recycling list.')
+      return recycler.componentAtIndex(toLynx(list), list.id + FIRST_ELEMENT_ID, index, nextOperationId++, false)
+    },
+
+    leaveListItem: (list, sign) => {
+      const recycler = recyclers.get(list)
+      if (!recycler) throw new Error('That element was not created as a recycling list.')
+      recycler.enqueueComponent(toLynx(list), list.id + FIRST_ELEMENT_ID, sign)
+    },
+
     dispatchGesture: (target, id, callbackName, event = {}) => {
       const detector = target.gestures.get(id)
       if (!detector) return
