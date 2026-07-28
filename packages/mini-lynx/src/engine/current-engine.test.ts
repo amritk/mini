@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { setErrorHandler } from '../report-error'
 import { createFakeEngine } from '../testing/create-fake-engine'
 import { createElement, setText } from '../tree'
 import { clearEngine, globalEngine, requireEngine, scheduleFlush, setEngine } from './current-engine'
@@ -135,5 +136,53 @@ describe('current-engine', () => {
     // How an app gets the real engine: Lynx injects the functions as bare
     // globals, so there is nothing to import.
     expect(globalEngine()).toBe(globalThis)
+  })
+
+  it('reports a commit that throws instead of losing it to the job queue', async () => {
+    const engine = createFakeEngine()
+    const failing = {
+      ...engine.api,
+      __FlushElementTree: () => {
+        throw new Error('the engine refused the commit')
+      },
+    }
+    const reported: string[] = []
+    setErrorHandler((_error, source) => reported.push(source))
+    setEngine(failing)
+
+    scheduleFlush()
+    await tick()
+
+    // Unguarded this is an unhandled rejection, and Lynx's main-thread context
+    // is exactly where nothing is listening for one — the missing commit would
+    // be the only symptom.
+    expect(reported).toEqual(['commit'])
+    setErrorHandler(null)
+  })
+
+  it('recovers on the next mutation after a commit failed', async () => {
+    const engine = createFakeEngine()
+    let fail = true
+    const flaky = {
+      ...engine.api,
+      __FlushElementTree: (...args: Parameters<typeof engine.api.__FlushElementTree>) => {
+        if (fail) throw new Error('not this time')
+        engine.api.__FlushElementTree(...args)
+      },
+    }
+    setErrorHandler(() => {})
+    setEngine(flaky)
+
+    scheduleFlush()
+    await tick()
+
+    // The flag is cleared before the call rather than after, so one failure
+    // does not wedge the scheduler and leave the screen frozen for good.
+    fail = false
+    scheduleFlush()
+    await tick()
+
+    expect(engine.flushes()).toBe(1)
+    setErrorHandler(null)
   })
 })

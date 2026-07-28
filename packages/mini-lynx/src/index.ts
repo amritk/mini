@@ -67,11 +67,19 @@ export { bindValue } from './bind/bind-value'
 export { clearEngine, globalEngine, requireEngine, setEngine } from './engine/current-engine'
 export type { LynxElement, LynxElementApi } from './engine/element-api'
 export { type RenderPageOptions, renderPage } from './entry'
+export {
+  type BoundListener,
+  type EventTransport,
+  setEventTransport,
+  workletTransport,
+} from './events/transport'
+export { globalProps, setGlobalProps } from './global-props'
 export { list } from './list'
 export { mount, pageElement } from './mount'
 export { onCleanup } from './on-cleanup'
 export { reducedMotion, setReducedMotion } from './reduced-motion'
 export { type ChildFactory, renderChild } from './render-child'
+export { type ErrorHandler, type ErrorSource, reportError, setErrorHandler } from './report-error'
 export {
   batch,
   computed,

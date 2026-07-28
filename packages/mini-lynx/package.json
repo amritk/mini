@@ -65,6 +65,12 @@
       "import": "./dist/jsx-dev-runtime.js",
       "default": "./dist/jsx-dev-runtime.js"
     },
+    "./bridge": {
+      "development": "./src/bridge/index.ts",
+      "types": "./dist/bridge/index.d.ts",
+      "import": "./dist/bridge/index.js",
+      "default": "./dist/bridge/index.js"
+    },
     "./engine": {
       "development": "./src/engine/index.ts",
       "types": "./dist/engine/index.d.ts",

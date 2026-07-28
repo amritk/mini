@@ -52,12 +52,15 @@ src/
   resolve-class.ts        A ClassValue → the single space-joined string __SetClasses wants
   on-cleanup.ts           Teardown registered against the enclosing scope
   warn.ts                 Recoverable-mistake reporting, without assuming a console
+  report-error.ts         setErrorHandler + guard — what the engine-facing boundaries catch into
+  global-props.ts         The platform's pushed values, as one signal
   engine/
     element-api.ts        LynxElementApi — the whole platform boundary, as a type
     current-engine.ts     setEngine / requireEngine / scheduleFlush / globalEngine
     index.ts              The `/engine` subpath: the boundary on its own
   events/
     worklet-registry.ts   Handle→closure table + the `runWorklet` global the engine calls
+    transport.ts          Which listener form `__AddEvent` is given — the one replaceable engine bet
   style/
     apply-style.ts        The style channel, and the visibility that shares it
     to-css-name.ts        A style key → its CSS spelling
@@ -77,6 +80,7 @@ src/
   elements/               querySelector/querySelectorAll and invoke — the engine's UI methods
   gestures/               setGestureDetector — recogniser composition, the part events cannot express
   recycle/                recycle — <list>'s cell recycler, the one inverted-ownership path here
+  bridge/                 The fallback event transport: string handlers, with the app owning the wire
 examples/
   js-framework-benchmark/ The keyed benchmark; `bun run bench:reconciler` times it
 ```
@@ -222,6 +226,38 @@ either.
   for you.
 - **No raw-markup sink, ever.** There is no `innerHTML` equivalent anywhere on
   this boundary, so bound data cannot inject elements.
+- **Nothing the engine calls may throw back into it.** Four places in this
+  package are entered from native or from the job queue rather than from an app's
+  own call stack: the `runWorklet` dispatch behind every event and gesture,
+  `/recycle`'s `componentAtIndex` and `enqueueComponent`, the scheduled commit,
+  and the lifecycle slots in `entry.ts`. An exception leaving any of them unwinds
+  somewhere with no defined behaviour — on a device that ranges from the rest of
+  a frame's listeners being skipped to the app going down, and on the job queue
+  it is an unhandled rejection nothing is listening for. Each one wraps its body
+  in `guard(...)` from `report-error.ts`, which reports and carries on;
+  `componentAtIndex` additionally answers `-1`, the engine's own "nothing here".
+  **Any new engine-called callback owes the same wrapper.** Reporting rather than
+  rethrowing is the deliberate part: there is nowhere useful to throw *to*, and
+  a swallow would be the silent failure this package works hardest to avoid.
+  `ErrorBoundary` is unaffected — it still owns construction, which is the only
+  thing that has a build to unwind.
+- **The listener form is a seam, not a constant.** `add-event.ts` asks
+  `events/transport.ts` what to hand `__AddEvent` rather than deciding.
+  That exists because the worklet round-trip is the one engine assumption here
+  that hardware could still disprove, and the failure is total and silent — so
+  the recovery has to be a startup line rather than a fork. Do not inline the
+  worklet handle back into `add-event.ts`, and do not add a second call site for
+  `registerWorklet` outside the default transport and `/gestures` (whose
+  callbacks the engine will only take as worklets, so they have no fallback).
+- **A global the engine calls by name has exactly one owner.** `runWorklet`,
+  `renderPage`, `removeComponents` and `updateGlobalProps` are all "the engine
+  calls this function", so whoever assigns last wins and everyone else is
+  silently gone. This package claims them in one place each — the registry for
+  the first, `entry.ts` for the rest — and `updateGlobalProps` is why
+  `global-props.ts` exists at all: an app cannot own that slot AND let a
+  component react to a change. `runWorklet` is the one that chains to whatever
+  was there before, because a page mid-migration may legitimately run two
+  frameworks.
 - **Anything that builds a subtree LATER must restore the context frame.**
   `renderChild`, `list` and `ErrorBoundary`'s retry capture `currentFrame()` when
   they are called — during the component body, inside whatever provider wraps it
@@ -310,6 +346,13 @@ cloning a static template) have no equivalent here.
 That independence has a cost: **a defect found in one is usually latent in the
 other.** Both gotchas above were found here and then fixed there. When you fix a
 bug in this package, go read `../mini/AGENTS.md` and look for the same shape.
+
+The error-reporting seam is the one place that shape does NOT apply, and it is
+worth knowing why before porting it across: on the web a throw in a handler
+reaches `window.onerror` and a rejected commit reaches `unhandledrejection`, both
+of which are defined behaviour with somewhere to report to. Here the frame above
+is native and there is no such contract, which is why the guards exist in this
+package and not in `mini`.
 
 One thing is deliberately borrowed rather than duplicated: the called-signal
 scanner. `@amritk/mini`'s is purely syntactic and does not know which runtime

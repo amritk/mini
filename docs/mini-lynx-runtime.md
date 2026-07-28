@@ -131,10 +131,25 @@ the main thread. That is the single most load-bearing inference in this change,
 and it is worth flagging its status: the engine-side mechanism is read from the
 engine's source, but a framework-defined token has not been round-tripped on a
 physical device by this package. **Prototype it on a device before shipping
-anything that depends on it.** If it fails, the fallback is contained and
-already understood — register string handlers and own the receiving end by
-assigning `lynxCoreInject.tt.publishEvent`, exactly as ReactLynx does, at the
-cost of a thread hop.
+anything that depends on it.**
+
+The fallback is no longer only understood — it is shipped. `events/transport.ts`
+makes the listener form a seam, `/bridge` implements the string-handler
+alternative, and the two together turn "this package is wrong about the engine"
+from a fork into a startup line:
+
+```ts
+setEventTransport(namedHandlerTransport)
+```
+
+What the runtime cannot supply is the wire back. A string handler is routed to
+the **background** thread, and this runtime is on the main one, so the event
+arrives in the other context and the app forwards it — through
+`lynxCoreInject.tt.publishEvent` and a context message, exactly as ReactLynx
+does, at the cost of a thread hop. That half depends on the engine version and
+on how a bundle is split, which is precisely why it is the app's and not a guess
+made here. The property lost with it is the one §4 calls the gift: a handler no
+longer runs in the same frame as the gesture.
 
 The fake engine **throws** on a function listener rather than accepting one,
 mirroring `@lynx-js/testing-environment`. A test should fail where a device

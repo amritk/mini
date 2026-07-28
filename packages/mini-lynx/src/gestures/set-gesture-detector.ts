@@ -126,7 +126,10 @@ export const setGestureDetector = (element: LynxElement, detector: GestureDetect
   const handles: WorkletHandle[] = []
   const callbacks: { name: string; callback: WorkletHandle }[] = []
   for (const [name, callback] of Object.entries(detector.callbacks ?? {})) {
-    const handle = registerWorklet((event) => callback(event))
+    // Reported as a gesture rather than as an event, because that is what the
+    // author will be looking for: the two arrive through the same dispatch and
+    // are otherwise indistinguishable in a crash report.
+    const handle = registerWorklet((event) => callback(event), 'gesture')
     handles.push(handle)
     callbacks.push({ name, callback: handle })
   }

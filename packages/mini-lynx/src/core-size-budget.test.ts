@@ -32,6 +32,15 @@ import { describe, expect, it } from 'vitest'
  * the per-element style bookkeeping that keeps `show` alive across a style
  * write, and the per-tag creator table.
  *
+ * It moved a second time, by 350 bytes (5064 → 5414 measured), for the three
+ * things an app cannot add from outside and should not have to:
+ * `report-error.ts` and the guards at the boundaries the engine calls in on,
+ * the event-transport seam that makes the one unverified engine assumption
+ * replaceable rather than a fork, and `global-props.ts`, which claims a
+ * lifecycle slot only one thing in the process may claim. Each pays for itself
+ * on the day something goes wrong on a device, which is the only day any of
+ * them runs.
+ *
  * It stays snug against the measured size on purpose. `/flow` is several times
  * the headroom and `/testing` is a complete Element PAPI, so a real leak cannot
  * hide in it. Raise it only for a deliberate, reviewed change to the core.
@@ -40,10 +49,10 @@ import { describe, expect, it } from 'vitest'
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** Gzipped-byte ceiling for the bundled `.` entry. */
-const GZIP_BUDGET = 5200
+const GZIP_BUDGET = 5450
 
 /** Subpath directories whose sources must never enter the core graph. */
-const SUBPATH_DIRS = ['flow/', 'composition/', 'router/', 'testing/', 'forms/', 'query/']
+const SUBPATH_DIRS = ['flow/', 'composition/', 'router/', 'testing/', 'forms/', 'query/', 'bridge/']
 
 const built = await build({
   entryPoints: ['src/index.ts'],

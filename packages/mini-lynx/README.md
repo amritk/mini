@@ -130,6 +130,47 @@ expect(serializeTree(engine.page)).toMatchInlineSnapshot()
 It records what it was asked to do; it does not lay anything out. Layout belongs
 to the engine.
 
+## Wiring it up for production
+
+Four lines, and each one covers something an app cannot add from outside.
+
+```ts
+import { effect, globalProps, renderPage, setErrorHandler, setReducedMotion } from '@amritk/mini-lynx'
+
+// 1. Where errors go. Install it FIRST, so a failed first build is reported too.
+setErrorHandler((error, source) => Sentry.captureException(error, { tags: { source } }))
+
+// 2. Platform values follow the signal, so this is the only place that reads them.
+effect(() => setReducedMotion(globalProps<{ reduceMotion?: boolean }>().reduceMotion === true))
+
+// 3. The entry. It claims `updateGlobalProps` and `removeComponents` on the way past.
+renderPage(App)
+```
+
+**Errors after construction reach `setErrorHandler`, not the platform.**
+`ErrorBoundary` covers the build, which is all a component can throw during —
+it runs once and is done. Everything after that runs with this runtime as the
+outermost JavaScript frame and native code above it: a handler throws inside the
+engine's own dispatch, and the scheduled commit throws on the promise job queue
+where nothing is listening. Both are contained and reported instead, so one
+misbehaving handler costs its own event rather than the frame, and a failed
+commit does not wedge the scheduler — the next mutation queues a fresh one.
+With no handler installed the report goes to `console.warn`, so a mistake is
+visible in development with no setup at all.
+
+**A failed first build still hands over to the platform.** `firstScreen` is the
+cue to stop waiting, not a report of success, so `renderPage` emits it even when
+the root component threw. A blank screen with a crash report beats a splash
+screen that never dismisses and says nothing.
+
+**`globalProps()` is a signal.** Colour scheme, locale, flags and the
+reduced-motion preference arrive from native twice — once as `lynx.__globalProps`
+at startup and thereafter through the engine calling a global
+`updateGlobalProps`. The engine calls exactly one function for the second, so
+exactly one thing in the process may own it; `renderPage` claims it and turns it
+into a signal a binding can read. That is what makes the reduced-motion line
+above a one-off rather than a subscription the app has to maintain.
+
 ## Subpaths
 
 Each is its own module graph, so importing one pulls in none of the others.
@@ -138,6 +179,7 @@ Each is its own module graph, so importing one pulls in none of the others.
 |---|---|
 | `@amritk/mini-lynx` | `renderPage`, signals, `mount`, `list`, the tree ops, the binds, JSX types |
 | `/engine` | `LynxElementApi`, `LynxElement`, `setEngine` — the platform boundary on its own |
+| `/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport |
 | `/flow` | `Show`, `Switch`/`Match`, `Dynamic`, `For`, `Index` |
 | `/composition` | `createContext`, `Portal`, `ErrorBoundary` |
 | `/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` |
@@ -182,8 +224,18 @@ background thread and push results in.
 by `RouteStack` and is yours to consult anywhere else, but the runtime cannot
 read the preference: there is no reduced-motion field on `SystemInfo`, and Lynx
 has no media queries, so no `prefers-reduced-motion` either. It reaches your
-host app natively and you pass it in with `setReducedMotion`, the same way you
-pass colour scheme. Everything downstream of that is free.
+host app natively and you pass it in with `setReducedMotion` — usually from
+`globalProps()`, which is where the platform's other pushed values already live.
+Everything downstream of that is free.
+
+**A worklet-transport failure is recoverable, not fatal.** Event delivery rests
+on one inference read from the engine's source rather than confirmed on
+hardware, and the symptom if it is wrong is total: the tree renders and nothing
+responds to touch. That is why `setEventTransport` exists and why `/bridge`
+ships the fallback the design note has always named — but the fallback is a
+thread hop, so a handler stops running in the gesture's own frame, and it needs
+the app to carry events back from the background context. It is a working
+recovery path, not a second first-class transport. See *Before you ship*.
 
 Deliberately absent, and not on this list: component lifecycle, datasets,
 template parts, stylesheet adoption and lazy-bundle queries. None has a caller
@@ -205,12 +257,27 @@ the tree renders, the tests pass, and the device does nothing.
    the engine a token of its own making and installs the `runWorklet` global that
    resolves it, which is what keeps it compilerless. The engine never looks inside
    the token, so a framework-defined one should round-trip; that has not been
-   confirmed on hardware. The fallback is contained and already understood:
-   register string handlers and own the receiving end by assigning
-   `lynxCoreInject.tt.publishEvent`, as ReactLynx does, at the cost of a thread hop.
+   confirmed on hardware. **If it does not, you do not have to fork the package.**
+   The listener form is a seam:
+
+   ```ts
+   import { setEventTransport } from '@amritk/mini-lynx'
+   import { dispatchNamedEvent, namedHandlerTransport } from '@amritk/mini-lynx/bridge'
+
+   setEventTransport(namedHandlerTransport) // before rendering
+   ```
+
+   That binds string handler names instead, which the engine routes to the
+   background thread — so the app owns the wire that carries the event back to
+   `dispatchNamedEvent`, because how that wire is spelled depends on your Lynx
+   version and on how your bundle is split. `/bridge` documents the usual
+   `lynxCoreInject.tt.publishEvent` wiring. The cost is the thread hop, and with
+   it the main-thread gift: a handler no longer runs in the gesture's own frame.
 2. **`/gestures` callbacks go through the same mechanism**, so they carry the same
-   caveat and will be resolved by the same prototype. `has-react-gesture` is set
-   because the engine gates its arbiter on that attribute name.
+   caveat and will be resolved by the same prototype — though not by the same
+   fallback: `__SetGestureDetector` takes worklet callbacks and nothing else, so
+   there is no string form to swap to. `has-react-gesture` is set because the
+   engine gates its arbiter on that attribute name.
 3. **`/recycle` implements `componentAtIndex` and `enqueueComponent`.** The
    protocol — the `update-list-info` inventory, and committing each cell with
    `{ triggerLayout, operationID, elementID, listID }` so the engine can correlate

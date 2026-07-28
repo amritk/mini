@@ -1,3 +1,5 @@
+import { type ErrorSource, guard } from '../report-error'
+
 /**
  * The handle→closure table behind every event listener, and the global the
  * engine calls to reach it.
@@ -43,8 +45,10 @@
  * array, and an options object. That a FRAMEWORK-DEFINED token round-trips
  * through it unmodified follows from the engine never looking inside `value` —
  * but it has not been verified end-to-end on a device by this package. If a
- * particular engine build turns out to disagree, the fix is contained: swap the
- * listener form in `add-event.ts`, keep everything else.
+ * particular engine build turns out to disagree, nothing here has to change:
+ * this module is one implementation of `events/transport.ts`, and installing a
+ * different transport is what an app does instead. `/bridge` ships the one the
+ * design note has always named.
  */
 
 /** A token the engine stores and hands back. Opaque to the engine, an index to us. */
@@ -53,8 +57,14 @@ export type WorkletHandle = {
   readonly value: { readonly id: number }
 }
 
+/** A dispatcher and the boundary name a throw out of it should be reported under. */
+type Entry = {
+  readonly dispatch: (event: unknown) => void
+  readonly source: ErrorSource
+}
+
 /** The dispatchers, keyed by the token id the engine holds. */
-const dispatchers = new Map<number, (event: unknown) => void>()
+const dispatchers = new Map<number, Entry>()
 
 let nextId = 1
 let installed = false
@@ -67,10 +77,10 @@ let installed = false
  * bundle's main-thread chunk is evaluated in a context this package does not
  * control and should not be writing to before it is asked to.
  */
-export const registerWorklet = (dispatch: (event: unknown) => void): WorkletHandle => {
+export const registerWorklet = (dispatch: (event: unknown) => void, source: ErrorSource = 'event'): WorkletHandle => {
   install()
   const id = nextId++
-  dispatchers.set(id, dispatch)
+  dispatchers.set(id, { dispatch, source })
   return { type: 'worklet', value: { id } }
 }
 
@@ -88,6 +98,13 @@ export const releaseWorklet = (handle: WorkletHandle): void => {
  * element that was removed in the same tick as the gesture that hit it, and
  * throwing out of a native dispatch is a worse outcome than dropping an event
  * for a node that no longer exists.
+ *
+ * A throw from the dispatcher is contained for the same reason, one step
+ * further out: this function is called BY the engine, so an exception leaving it
+ * unwinds into native event delivery, where the outcome is undefined and ranges
+ * from the frame's remaining listeners being skipped to the app going down. It
+ * is reported instead — see `report-error.ts` for why that is the honest trade
+ * rather than a swallow.
  */
 const install = (): void => {
   if (installed) return
@@ -98,15 +115,20 @@ const install = (): void => {
 
   target.runWorklet = (value: unknown, args?: unknown[]): unknown => {
     const id = (value as { id?: number } | null)?.id
-    const dispatch = typeof id === 'number' ? dispatchers.get(id) : undefined
-    if (dispatch) {
-      dispatch(args?.[0])
+    const entry = typeof id === 'number' ? dispatchers.get(id) : undefined
+    if (entry) {
+      guard(entry.source, () => entry.dispatch(args?.[0]))
       return undefined
     }
     // Anything this table does not own is passed on, so a page that also runs
     // another framework — a migration, an embedded card — keeps working. Ours
-    // is not the only runtime that may want this global.
-    return previous?.(value, args)
+    // is not the only runtime that may want this global. It is guarded too: the
+    // other framework's throw would unwind through the same native frame.
+    let result: unknown
+    guard('event', () => {
+      result = previous?.(value, args)
+    })
+    return result
   }
 }
 
