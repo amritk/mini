@@ -118,7 +118,7 @@ const SwitchDemo = (): LynxElement => {
       title="Switch and Match"
       blurb="Branches are tested in source order and only the winner is ever built, so the three you are not showing create no elements and no bindings at all. On a device that is three view trees not crossing into the platform."
     >
-      <Row gap="xs" wrap={true}>
+      <Row gap="xs">
         <For each={STATES}>
           {(name) => (
             <Action onTap={() => state(name)} disabled={() => state() === name}>

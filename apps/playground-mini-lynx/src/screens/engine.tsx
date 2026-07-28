@@ -138,7 +138,7 @@ const TheTree = (): LynxElement => {
     >
       <Readout>{tree}</Readout>
 
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action onTap={() => act(() => name(name() === 'Ada Lovelace' ? 'Grace Hopper' : 'Ada Lovelace'))}>
           rename
         </Action>
@@ -209,7 +209,7 @@ const CallLog = (): LynxElement => {
       title="Every call the runtime makes"
       blurb="`list` is the only reconciler in the package, it is keyed, and it is move-minimal. Moving the last row to the front is the interesting button: a moved row costs one __RemoveElement and one __InsertElementBefore, because an insert detaches first and therefore doubles as a move, and nothing is rebuilt."
     >
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action
           onTap={() =>
             act(() => {
@@ -413,7 +413,7 @@ const Flushing = (): LynxElement => {
       title="A tick costs exactly one commit"
       blurb="Nothing appears on a Lynx screen until __FlushElementTree runs, and flushing is not free — so however many attributes a tick wrote, the runtime asks the engine to commit once. Mutate twenty-five times and watch the flush count stay where it is."
     >
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action onTap={() => mutate(1)}>mutate ×1</Action>
         <Action onTap={() => mutate(25)}>mutate ×25</Action>
         <Action onTap={commit} disabled={() => writes() === 0}>
@@ -500,7 +500,7 @@ const Events = (): LynxElement => {
       title="Events, end to end"
       blurb="Press a button and the engine dispatches at its own element, exactly as a device would — through the global runWorklet rather than by reaching for the closure. The payload is the engine's shape, so a handler reading event.detail.x is reading the real thing."
     >
-      <Row gap="sm" wrap>
+      <Row gap="sm">
         <Action onTap={() => fire('tap', { detail: { x: 24, y: 91 } })}>engine: tap</Action>
         <Action onTap={() => fire('tap', { detail: { x: 180, y: 12 } })}>engine: tap elsewhere</Action>
         <Action onTap={() => fire('longpress', { detail: { x: 24, y: 91 } })}>engine: longpress</Action>

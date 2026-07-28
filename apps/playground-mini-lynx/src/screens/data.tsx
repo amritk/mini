@@ -57,7 +57,7 @@ const Basics = (): LynxElement => {
       title="createQuery"
       blurb="`nobody` always fails and retries once, `empty` resolves to zero rows, and the other two stay cached for five seconds — switch back and forth to watch a warm key render with no spinner at all."
     >
-      <Row gap="xs" wrap>
+      <Row gap="xs">
         <For each={SCOPES}>
           {(name) => (
             <Action onTap={() => scope(name)} disabled={() => scope() === name}>
@@ -179,7 +179,7 @@ const Invalidation = (): LynxElement => (
     title="Invalidation"
     blurb="createQuery returns signals and nothing else. The QueryClient stays yours, so invalidating, prefetching and writing optimistically are plain query-core calls rather than a second API this package would have to keep in step with it."
   >
-    <Row gap="sm" wrap>
+    <Row gap="sm">
       <Action onTap={() => void client.invalidateQueries({ queryKey: ['packages'] })}>invalidate every scope</Action>
       <Action onTap={() => client.clear()}>clear the cache</Action>
     </Row>

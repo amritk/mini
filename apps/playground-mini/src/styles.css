@@ -2,6 +2,13 @@
  * One stylesheet for the whole playground. It is plain CSS on purpose: mini
  * ships no styling opinion at all, and a demo that reached for a CSS framework
  * would be demonstrating the framework instead of the runtime.
+ *
+ * It is written small-screen first. The base rules are the phone layout — a top
+ * bar over a single column, with the nav as a drawer — and the sidebar shell
+ * arrives in one `min-width` block near the bottom. That order is not a style
+ * preference: the narrow layout is the one with the constraints, and writing it
+ * as a list of things to undo further down is how a playground ends up looking
+ * like a desktop page that has been squeezed.
  */
 
 :root {
@@ -17,6 +24,13 @@
   --ok: #6ee7a8;
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* The top bar's height, which the drawer and the scrim both start below. */
+  --topbar: 54px;
+  /* Gutters that clear a notch or a rounded corner in landscape. `env()` is 0
+     on everything else, so `max()` is just the plain gutter there. */
+  --gutter-left: max(16px, env(safe-area-inset-left));
+  --gutter-right: max(16px, env(safe-area-inset-right));
 
   color-scheme: dark;
 }
@@ -53,29 +67,178 @@ body {
     Roboto,
     sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* iOS enlarges text in a rotated page unless it is told not to. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Set while the drawer is open. Without it a phone scrolls the page behind the
+   overlay and you come back to somewhere you never navigated to. */
+body.nav-open {
+  overflow: hidden;
 }
 
 a {
   color: var(--accent);
 }
 
+/** Present for a screen reader, absent on screen — the drawer toggle's label. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------- shell -- */
 
 .shell {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  /* Above the drawer, so the toggle stays reachable — and visibly an X —
+     while the drawer it opened is covering everything else. */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--topbar);
+  padding-right: var(--gutter-right);
+  padding-left: max(6px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topbar-title {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* The section you are on, so the bar answers "where am I" without the drawer
+   having to be opened to find out. */
+.topbar-section::before {
+  content: "/";
+  margin: 0 6px;
+  color: var(--border);
+}
+
+.topbar-section {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+}
+
+/* Three bars that fold into an X, drawn rather than fetched — an icon set is a
+   dependency, and this is one element and two pseudo-elements. */
+.menu-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.menu-icon::before,
+.menu-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform 0.22s ease;
+}
+
+.menu-icon::before {
+  top: -6px;
+}
+
+.menu-icon::after {
+  top: 6px;
+}
+
+.shell-menu-open .menu-icon {
+  background: transparent;
+}
+
+.shell-menu-open .menu-icon::before {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.shell-menu-open .menu-icon::after {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.scrim {
+  position: fixed;
+  inset: var(--topbar) 0 0;
+  z-index: 30;
+  background: rgb(0 0 0 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.shell-menu-open .scrim {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar {
-  position: sticky;
-  top: 0;
-  align-self: start;
-  height: 100vh;
+  position: fixed;
+  top: var(--topbar);
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  width: min(80vw, 288px);
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  padding-left: var(--gutter-left);
   overflow-y: auto;
-  padding: 24px 16px;
+  /* Scrolling the drawer to its end must not start scrolling the page under it. */
+  overscroll-behavior: contain;
   border-right: 1px solid var(--border);
   background: var(--panel);
+  transform: translateX(-100%);
+  /* Animated alongside the transform so the links leave the tab order while the
+     drawer is shut — a hidden nav that can still be tabbed into is worse than
+     no drawer at all. */
+  visibility: hidden;
+  transition:
+    transform 0.24s ease,
+    visibility 0.24s;
+}
+
+.shell-menu-open .sidebar {
+  transform: none;
+  visibility: visible;
+}
+
+/* The brand belongs to the drawer on a phone — the top bar already says `mini`,
+   and repeating it inside the panel that covers it reads as a mistake. */
+.sidebar .brand,
+.sidebar .brand-sub {
+  display: none;
 }
 
 .brand {
@@ -99,16 +262,14 @@ a {
 }
 
 .nav a {
-  display: block;
-  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 7px 12px;
   border-radius: 8px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   text-decoration: none;
-}
-
-.nav a:hover {
-  background: var(--panel-2);
 }
 
 .nav a.active {
@@ -119,7 +280,7 @@ a {
 
 .main {
   min-width: 0;
-  padding: 32px 32px 96px;
+  padding: 20px var(--gutter-right) calc(64px + env(safe-area-inset-bottom)) var(--gutter-left);
 }
 
 .page {
@@ -128,12 +289,14 @@ a {
 
 .page > h1 {
   margin: 0 0 6px;
-  font-size: 26px;
+  /* Fluid rather than stepped: the title is the one thing on the page big
+     enough for a breakpoint to be visible as a jump. */
+  font-size: clamp(23px, 6vw, 26px);
   letter-spacing: -0.02em;
 }
 
 .page > .lede {
-  margin: 0 0 28px;
+  margin: 0 0 22px;
   max-width: 65ch;
   color: var(--muted);
 }
@@ -141,7 +304,7 @@ a {
 /* -------------------------------------------------------------- section -- */
 
 .section {
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -149,7 +312,7 @@ a {
 }
 
 .section-head {
-  padding: 14px 18px;
+  padding: 13px 15px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -167,13 +330,20 @@ a {
 }
 
 .section-body {
-  padding: 18px;
+  padding: 15px;
 }
 
 .stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* A stack stretches its children, and a lone button in one is a control that
+   spans the whole card for no reason — wide enough on a desktop to read as a
+   banner rather than as a button. */
+.stack > button {
+  align-self: flex-start;
 }
 
 .row {
@@ -190,24 +360,30 @@ a {
 .grid-2 {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 /* -------------------------------------------------------------- controls -- */
 
 button {
-  padding: 7px 13px;
+  padding: 9px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
   font-size: 14px;
+  /* A tap target this size is the floor on a touch screen, and it costs a
+     mouse nothing. */
+  min-height: 40px;
   cursor: pointer;
+  /* The grey flash a phone paints over a tapped control ignores the border
+     radius; `:active` below is the replacement, and it does not. */
+  -webkit-tap-highlight-color: transparent;
 }
 
-button:hover:not(:disabled) {
-  border-color: var(--accent);
+button:active:not(:disabled) {
+  background: var(--accent-soft);
 }
 
 button:disabled {
@@ -222,22 +398,57 @@ button.primary {
   font-weight: 600;
 }
 
+/* Hover belongs to devices that have one. On a touch screen these stick after
+   a tap and leave a control looking focused that is not. */
+@media (hover: hover) {
+  button:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+
+  .nav a:hover {
+    background: var(--panel-2);
+  }
+
+  .menu-button:hover {
+    background: var(--panel-2);
+  }
+}
+
 input,
 textarea,
 select {
-  padding: 7px 10px;
+  padding: 9px 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
   font: inherit;
-  font-size: 14px;
+  /* 16px, and not for looks: a smaller font in a focused field is what makes
+     iOS Safari zoom the page in and leave it there. */
+  font-size: 16px;
+  min-height: 40px;
+  /* Fields default to an intrinsic width that overflows a narrow column. */
+  max-width: 100%;
 }
 
 input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
   accent-color: var(--accent);
+}
+
+input[type="range"] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent);
+  /* Takes the rest of its row, which is also what keeps a label-slider pair
+     together when the row wraps: the slider fills the line, so the next label
+     starts a new one instead of trailing the previous slider. */
+  flex: 1 1 160px;
+  min-width: 140px;
 }
 
 input:focus-visible,
@@ -263,8 +474,13 @@ label {
   background: var(--bg);
   font-family: var(--mono);
   font-size: 13px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  /* Readouts are column-aligned — arrows lined up under arrows — so they scroll
+     rather than wrap. Wrapping keeps every character on screen and destroys the
+     one thing the alignment was there to show. */
+  white-space: pre;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 code {
@@ -273,6 +489,9 @@ code {
   background: var(--panel-2);
   font-family: var(--mono);
   font-size: 0.9em;
+  /* Subpath names and long identifiers are single unbreakable words and will
+     otherwise push a narrow column sideways. */
+  overflow-wrap: anywhere;
 }
 
 .muted {
@@ -309,9 +528,10 @@ code {
 
 .list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px 10px;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -342,24 +562,82 @@ code {
   border-radius: 6px;
 }
 
-@media (max-width: 720px) {
+/* --------------------------------------------------------------- wide -- */
+
+/*
+ * One breakpoint, and it is where a 240px sidebar stops costing the content
+ * anything: a tablet in portrait has the room for both, a phone in landscape
+ * does not.
+ */
+@media (min-width: 760px) {
   .shell {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    /* The sidebar is one viewport tall and sticky, so on a long page its panel
+       would otherwise stop at the fold and leave the column half-painted. The
+       stripe paints the whole column — including the divider — and the sidebar
+       sits on top of it exactly. */
+    background: linear-gradient(to right, var(--panel) 0 239px, var(--border) 239px 240px, transparent 240px);
+  }
+
+  .topbar,
+  .scrim {
+    display: none;
   }
 
   .sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    align-self: start;
+    width: auto;
+    height: 100dvh;
+    padding: 24px 16px;
+    transform: none;
+    visibility: visible;
+    transition: none;
   }
 
-  .nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+  .sidebar .brand,
+  .sidebar .brand-sub {
+    display: block;
+  }
+
+  .nav a {
+    min-height: 0;
+    padding: 7px 10px;
+    font-size: 14px;
   }
 
   .main {
-    padding: 20px 16px 64px;
+    padding: 32px 32px 96px;
+  }
+
+  .page > .lede {
+    margin-bottom: 28px;
+  }
+
+  .section {
+    margin-bottom: 22px;
+  }
+
+  .section-head {
+    padding: 14px 18px;
+  }
+
+  .section-body {
+    padding: 18px;
+  }
+}
+
+/* An overlay that slides in is a hint about where it came from; an overlay that
+   slides in for somebody who asked the OS to stop moving things is motion
+   sickness. The drawer still opens and closes — it just does it at once. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .scrim,
+  .menu-icon::before,
+  .menu-icon::after {
+    transition: none;
   }
 }

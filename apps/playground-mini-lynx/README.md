@@ -99,6 +99,13 @@ ship to a device.
 `prefers-color-scheme`. The platform's colour scheme arrives as data and the app
 decides what to do with it, which is what the header switch stands in for.
 
+**Layouts fit rather than respond.** The corollary of no `@media` is that there
+is no breakpoint to fall back on: a screen either works at whatever width the
+device hands it or it does not. So `<Row>` wraps by default and the controls in
+one may shrink — a run that does not fit continues on the next line instead of
+being clipped at the edge, which is what Lynx does to it otherwise, taking the
+tap targets with it.
+
 ## Deploying
 
 An assets-only Worker: no `main`, so Cloudflare serves `dist/` from its edge
