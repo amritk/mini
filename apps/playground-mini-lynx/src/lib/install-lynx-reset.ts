@@ -135,7 +135,13 @@ ${SCOPE} :where(text) {
   display: block;
 }
 
-${SCOPE} :where(raw-text, inline-text) {
+/* The runs inside it flow inline — and a <text> nested in a <text> is a run,
+   because the engine compiles it to inline-text. Both selectors match a nested
+   <text> at zero specificity, so this rule must sit AFTER the block rule above
+   for document order to decide in its favour; without it every nested run
+   breaks onto its own line here while a device keeps it in the line box. */
+${SCOPE} :where(raw-text, inline-text),
+${SCOPE} :where(text) :where(text) {
   display: inline;
 }
 

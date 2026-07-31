@@ -58,6 +58,22 @@ describe('apply-prop', () => {
     expect(engine.calls()).toContain(`__SetAttribute(#${fake(view).id}, "text-maxline", "2")`)
   })
 
+  it('stringifies a numeric text-maxline before the engine sees it', () => {
+    // The vocabulary accepts the docs' number as well as the types' string —
+    // the adjudicated conflict in `vocabulary/intrinsic.ts` — so the boundary
+    // has to erase the widening: the engine receives the string its own types
+    // declare, whichever form the author wrote or a getter returned.
+    const { engine, view } = setup()
+    const maxline = signal(2)
+
+    applyProp(view, 'text-maxline', maxline)
+    expect(fake(view).attrs['text-maxline']).toBe('2')
+
+    maxline(3)
+    expect(fake(view).attrs['text-maxline']).toBe('3')
+    expect(engine.calls()).toContain(`__SetAttribute(#${fake(view).id}, "text-maxline", "3")`)
+  })
+
   it('applies a static attribute once and never again', () => {
     // Calling the signal reads it once, which is the compilerless footgun. The
     // attribute must freeze at whatever that read produced.

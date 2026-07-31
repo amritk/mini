@@ -55,7 +55,10 @@ import type { MiniProps } from './mini-props'
  *   says the singular; the code block directly beneath it and the types both
  *   say the plural. The types also enumerate fifteen values where the docs list
  *   four.
- * - `text-maxline` is a `string`. The docs' code block declares `number`.
+ * - `text-maxline` is a `string`; the docs' code block declares `number`. This
+ *   is the one conflict softened at the authoring surface: both are accepted
+ *   (see {@link WidenCounts}), and `to-attribute-value.ts` stringifies a number
+ *   before the boundary, so the engine still receives the types' string.
  * - `pan-intercept-direction` is `0 | 1` and `pan-intercept-scope` is `0`–`5`.
  *   The docs add a "none" value to each (`2` and `6`); the types do not have it.
  * - `bindclick` is documented on `view` and does not exist in the types, so it
@@ -119,8 +122,10 @@ export type IntrinsicElements = {
    * legal: a run of text is a `raw-text` ELEMENT in Lynx and it may only live
    * inside a `<text>`.
    *
-   * CONFLICT: `text-maxline` is typed `string` here because the shipped types
-   * say so, though the docs' code block says `number`. Pass `'2'`, not `2`.
+   * CONFLICT, softened: the shipped types declare `text-maxline` a `string`
+   * and the docs' code block a `number`. Both are accepted — a number is
+   * stringified before it reaches the engine, so `text-maxline={2}` and
+   * `text-maxline="2"` are the same write.
    */
   text: Inline<'text'>
 
@@ -416,8 +421,28 @@ type LynxProps<Tag extends string> = Tag extends keyof LynxIntrinsicElements
  */
 type OverriddenProp = 'style' | 'class' | 'className'
 
+/**
+ * The one place this vocabulary is deliberately WIDER than the shipped types.
+ *
+ * `text-maxline` is a count. The docs write it as a number and the shipped
+ * types declare a `string` — the conflict adjudicated at the top of this file —
+ * so following the types verbatim made `text-maxline={2}` a compile error on
+ * about the first real screen anyone writes, with `'2'` as the workaround.
+ * Accepting both removes the papercut without waiting on upstream, and
+ * `to-attribute-value.ts` stringifies the number before the engine boundary,
+ * so what actually crosses it is still exactly the string the types promise.
+ *
+ * Homomorphic like {@link Reactive}, so optionality and the upstream JSDoc
+ * survive. On a prop already typed `number` (`markdown`'s `text-maxline`) the
+ * union collapses and nothing changes here. This type must not accumulate
+ * general coercions — it exists for adjudicated conflicts only.
+ */
+type WidenCounts<Props> = {
+  [Key in keyof Props]: Key extends 'text-maxline' ? Props[Key] | number : Props[Key]
+}
+
 /** One tag's full prop surface: Lynx's own, made reactive, plus what this runtime adds. */
-type ElementProps<Tag extends string> = Reactive<Omit<LynxProps<Tag>, OverriddenProp>> & MiniProps
+type ElementProps<Tag extends string> = Reactive<WidenCounts<Omit<LynxProps<Tag>, OverriddenProp>>> & MiniProps
 
 /**
  * A tag that holds elements.
