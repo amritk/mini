@@ -85,6 +85,10 @@ describe('dom-papi', () => {
     const text = child('text')
     const run = api.__CreateRawText('hello')
     api.__AppendElement(text, run)
+    // A styled run: the engine compiles a <text> nested in a <text> to
+    // inline-text, so the preview must keep it in the line box too — the
+    // block default would break every #hashtag onto its own line.
+    const nested = child('text', text)
 
     const style = getComputedStyle(node(view))
     // Linear, approximated: a container stacks its children down the page.
@@ -100,6 +104,7 @@ describe('dom-papi', () => {
     // Text flows as text rather than as a linear container.
     expect(getComputedStyle(node(text)).display).toBe('block')
     expect(getComputedStyle(node(run)).display).toBe('inline')
+    expect(getComputedStyle(node(nested)).display).toBe('inline')
   })
 
   it('installs the reset once per document', () => {

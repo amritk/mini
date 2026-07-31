@@ -70,12 +70,12 @@ const RawTextPanel = (): LynxElement => {
 }
 
 /** The three values the line limit demo cycles through. */
-const MAXLINES = ['1', '2', '-1'] as const
+const MAXLINES = [1, 2, -1] as const
 
 /** `text-maxline`, and the docs-versus-types conflict it carries. */
 const MaxlinePanel = (): LynxElement => {
   const step = signal(1)
-  const maxline = (): string => MAXLINES[step() % MAXLINES.length] ?? '-1'
+  const maxline = (): number => MAXLINES[step() % MAXLINES.length] ?? -1
   const layout = signal('no layout event yet')
 
   return (
@@ -84,10 +84,11 @@ const MaxlinePanel = (): LynxElement => {
       blurb="Truncation is a layout property here, so it needs overflow: hidden with it. -1 means no limit."
     >
       {/*
-       * CONFLICT: the docs' code block types this `number`, the shipped types
-       * type it `string`, and the vocabulary follows the types. So it is `'2'`
-       * and never `2` — see the adjudicated list at the top of
-       * `vocabulary/intrinsic.ts`.
+       * CONFLICT, softened: the docs' code block types this `number`, the
+       * shipped types type it `string`, and the vocabulary accepts BOTH — a
+       * number is stringified before it reaches the engine, which is why this
+       * getter can return the docs' number. See the adjudicated list at the
+       * top of `vocabulary/intrinsic.ts`.
        */}
       <text
         class="card-title"
@@ -104,7 +105,7 @@ const MaxlinePanel = (): LynxElement => {
 
       <Row gap="sm">
         <Action onTap={() => step(step() + 1)}>next limit</Action>
-        <Chip>{() => `text-maxline="${maxline()}"`}</Chip>
+        <Chip>{() => `text-maxline={${maxline()}}`}</Chip>
       </Row>
 
       <Readout>{layout}</Readout>

@@ -5,6 +5,7 @@ import { onCleanup } from './on-cleanup'
 import { resolveClass } from './resolve-class'
 import { effect } from './signals'
 import { applyStyle, applyVisible } from './style/apply-style'
+import { toAttributeValue } from './to-attribute-value'
 import type { StyleValue } from './types'
 
 /**
@@ -83,7 +84,7 @@ export const applyProp = (element: LynxElement, name: string, value: unknown): v
     // the source says. There is no way to write it back afterwards either,
     // which is what makes this the runtime's decision rather than an app's.
     const absent = current === null || current === undefined
-    requireEngine().__SetAttribute(element, name, absent ? null : current)
+    requireEngine().__SetAttribute(element, name, absent ? null : toAttributeValue(name, current))
     scheduleFlush()
   })
 }

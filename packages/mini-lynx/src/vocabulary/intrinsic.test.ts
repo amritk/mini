@@ -203,6 +203,22 @@ describe('intrinsic', () => {
     expect([...(built?.events.keys() ?? [])]).toEqual(['bindEvent:tap'])
   })
 
+  it('accepts the docs number for text-maxline and lands the types string', () => {
+    // The one adjudicated conflict softened at the authoring surface: the
+    // shipped types say `string`, the docs say `number`, and the vocabulary
+    // takes both. The `satisfies` is the type-level half of the claim; the
+    // attribute assertion is the runtime half, that the number was stringified
+    // before the boundary.
+    const engine = createFakeEngine()
+    setEngine(engine.api)
+
+    const element = createElement('text')
+    insert(engine.pageElement, element, null)
+    applyProp(element, 'text-maxline', 2 satisfies NonNullable<IntrinsicElements['text']['text-maxline']>)
+
+    expect(engine.find('text')?.attrs['text-maxline']).toBe('2')
+  })
+
   it('binds a getter-valued attribute reactively and a static one once', () => {
     const engine = createFakeEngine()
     setEngine(engine.api)

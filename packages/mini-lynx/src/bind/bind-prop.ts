@@ -1,6 +1,7 @@
 import { requireEngine, scheduleFlush } from '../engine/current-engine'
 import type { LynxElement } from '../engine/element-api'
 import { effect } from '../signals'
+import { toAttributeValue } from '../to-attribute-value'
 import type { Dispose } from '../types'
 
 /**
@@ -18,6 +19,6 @@ export const bindProp = (element: LynxElement, name: string, get: () => unknown)
   effect(() => {
     const value = get()
     const absent = value === null || value === undefined || value === false
-    requireEngine().__SetAttribute(element, name, absent ? null : value)
+    requireEngine().__SetAttribute(element, name, absent ? null : toAttributeValue(name, value))
     scheduleFlush()
   })
