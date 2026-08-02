@@ -4,8 +4,14 @@ node_modules
 # output
 out
 dist
+build
 *.tgz
 tmp
+
+# Gradle and the Kotlin compiler (the Android compile check)
+.gradle
+.kotlin
+local.properties
 
 # code coverage
 coverage

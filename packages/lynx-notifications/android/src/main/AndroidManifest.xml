@@ -1,0 +1,62 @@
+<!--
+  No `package` attribute: Android Gradle Plugin 8 removed it outright and fails
+  the build if it is present. The package comes from `namespace` in
+  build.gradle.kts instead.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    Android 13+ runtime permission. Declared here so an app that installs this
+    library inherits it through manifest merging rather than having to remember;
+    below 33 the platform ignores it and notifications are granted at install.
+  -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <!-- Needed to restore scheduled notifications after a device restart. -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <application>
+    <!--
+      The prompt host. Transparent, no title, and excluded from recents: it
+      exists only because a runtime permission request needs an Activity to
+      deliver its result to, and the user should never see it as a screen.
+    -->
+    <activity
+      android:name=".NotificationPermissionActivity"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar"
+      android:excludeFromRecents="true"
+      android:exported="false" />
+
+    <!-- Fires a scheduled notification when its alarm elapses. -->
+    <receiver
+      android:name=".NotificationPublisher"
+      android:exported="false" />
+
+    <!-- Captures a notification tap and brings the host app forward. -->
+    <receiver
+      android:name=".NotificationTapReceiver"
+      android:exported="false" />
+
+    <!-- Re-arms scheduled notifications after a restart, which clears all alarms. -->
+    <receiver
+      android:name=".NotificationBootReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+      </intent-filter>
+    </receiver>
+
+    <!--
+      Remote push. Reachable only through Firebase's own dispatch, so with no
+      Firebase on the classpath this is never instantiated — which is what makes
+      the `compileOnly` dependency in build.gradle.kts safe.
+    -->
+    <service
+      android:name=".MiniLynxFirebaseMessagingService"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

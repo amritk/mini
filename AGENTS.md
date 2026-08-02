@@ -26,6 +26,19 @@ two shapes:
   same model rendered through a pluggable `Host`, so it targets a native view
   tree, the DOM, or plain objects.
 
+Two more sit alongside them, for the part of a Lynx app that is not rendering:
+[`packages/mini-lynx-native`](./packages/mini-lynx-native) —
+`@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
+contexts, because `NativeModules` lives only in the latter and the runtime lives
+only in the former — and
+[`packages/lynx-notifications`](./packages/lynx-notifications) —
+`@amritk/lynx-notifications`, the first native module built on it, with
+Android and iOS sources of its own. Those compile in CI — `bun run check:android`
+for the Kotlin, `pod lib lint` on a macOS runner for the Objective-C — and a
+parity suite pins their method surfaces against the TypeScript. **None of it has
+run on a device.** See that package's `AGENTS.md` for what that does and does not
+cover.
+
 Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
 `@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*
 in both (route matching, query parsing, JSON Schema compilation). It is a leaf:
@@ -49,6 +62,7 @@ bun install                 # install workspace deps
 bun run test                # run every package's tests (packages/* only)
 bun run check               # biome lint + format check
 bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
+bun run check:android       # compile the notifications Kotlin (needs ANDROID_HOME; skips without)
 bun run types:check         # type-check both packages and both playgrounds
 bun run build               # build both packages and both playgrounds
 bun run test:dist           # load and drive the built dist/ artifacts (needs a prior build)

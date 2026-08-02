@@ -18,7 +18,7 @@
     },
     "apps/playground-mini": {
       "name": "@amritk/playground-mini",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "dependencies": {
         "@amritk/mini": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
@@ -32,7 +32,7 @@
     },
     "apps/playground-mini-lynx": {
       "name": "@amritk/playground-mini-lynx",
-      "version": "0.0.0",
+      "version": "0.0.3",
       "dependencies": {
         "@amritk/mini-lynx": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
@@ -48,7 +48,7 @@
     },
     "packages/mini": {
       "name": "@amritk/mini",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -74,7 +74,7 @@
     },
     "packages/mini-helpers": {
       "name": "@amritk/mini-helpers",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "devDependencies": {
         "@amritk/runtime-validators": "^0.9.0",
         "typescript": "^5",
@@ -90,7 +90,7 @@
     },
     "packages/mini-lynx": {
       "name": "@amritk/mini-lynx",
-      "version": "0.0.0",
+      "version": "0.3.0",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -114,6 +114,38 @@
         "typescript",
       ],
     },
+    "packages/mini-lynx-native": {
+      "name": "@amritk/mini-lynx-native",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@lynx-js/types": "^4.0.0",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@lynx-js/types": ">=4.0.0",
+        "typescript": "^5",
+      },
+      "optionalPeers": [
+        "@lynx-js/types",
+        "typescript",
+      ],
+    },
+    "packages/lynx-notifications": {
+      "name": "@amritk/lynx-notifications",
+      "version": "0.1.0",
+      "dependencies": {
+        "@amritk/mini-lynx-native": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+      "optionalPeers": [
+        "typescript",
+      ],
+    },
   },
   "catalog": {
     "alien-signals": "3.2.1",
@@ -124,6 +156,10 @@
     "@amritk/mini-helpers": ["@amritk/mini-helpers@workspace:packages/mini-helpers"],
 
     "@amritk/mini-lynx": ["@amritk/mini-lynx@workspace:packages/mini-lynx"],
+
+    "@amritk/mini-lynx-native": ["@amritk/mini-lynx-native@workspace:packages/mini-lynx-native"],
+
+    "@amritk/lynx-notifications": ["@amritk/lynx-notifications@workspace:packages/lynx-notifications"],
 
     "@amritk/playground-mini": ["@amritk/playground-mini@workspace:apps/playground-mini"],
 

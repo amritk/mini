@@ -55,20 +55,57 @@ const OPTIONAL_PEERS: Record<string, string> = {
 }
 
 /**
- * Every package the release publishes. `@amritk/mini-helpers` is here because
- * both of the others depend on it at runtime, so a consumer install that did
- * not carry it would fail on the first `/router` or `/forms` import.
+ * Every package the release publishes, **in sorted order** — the assertion
+ * below compares it against a sorted list of what was actually packed, so a new
+ * entry in the wrong position fails for a reason that has nothing to do with
+ * packing.
+ *
+ * `@amritk/mini-helpers` is here because both runtimes depend on it at runtime,
+ * so a consumer install that did not carry it would fail on the first `/router`
+ * or `/forms` import; `@amritk/mini-lynx-native` is here for the same reason
+ * relative to `@amritk/lynx-notifications`.
  */
-const PUBLISHED = ['@amritk/mini', '@amritk/mini-helpers', '@amritk/mini-lynx'] as const
+const PUBLISHED = [
+  '@amritk/lynx-notifications',
+  '@amritk/mini',
+  '@amritk/mini-helpers',
+  '@amritk/mini-lynx',
+  '@amritk/mini-lynx-native',
+] as const
+
+/**
+ * The packages that carry the shared reactive core, and therefore have to ship
+ * the catalog-pinned version of it.
+ *
+ * `mini-helpers` is barred from importing signals at all, which is the charter
+ * its own `purity.test.ts` enforces. The two native-module packages are off it
+ * for a related reason of their own: a second edge onto the signal engine is
+ * how a consumer ends up with two reactive graphs that cannot see each other's
+ * writes, so the notifications surface is promises and subscriptions and an app
+ * wires those into whichever graph it already has.
+ */
+const REACTIVE = ['@amritk/mini', '@amritk/mini-lynx'] as const
+
+/** The packages that depend on `@amritk/mini-helpers` at runtime. */
+const SHARES_HELPERS = ['@amritk/mini', '@amritk/mini-lynx'] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 
 const readManifest = async (path: string): Promise<Manifest> => JSON.parse(await readFile(path, 'utf-8')) as Manifest
 
-/** Every bare specifier a package's exports map offers a consumer. */
+/**
+ * Every bare specifier a package's exports map offers a consumer **as a
+ * module**.
+ *
+ * JSON exports are excluded, and not as a special case for `package.json`: an
+ * exported `.json` is data for a tool to resolve and read — `lynx.lib.json` is
+ * the native autolinker's manifest — rather than something any consumer
+ * `import`s. Probing one only proves Node wants an import attribute for JSON,
+ * which is true and says nothing about this package.
+ */
 const declaredSubpaths = (pkg: Manifest): string[] =>
   Object.keys(pkg.exports ?? {})
-    .filter((key) => key !== './package.json')
+    .filter((key) => !key.endsWith('.json'))
     .map((key) => (key === '.' ? (pkg.name as string) : `${pkg.name}/${key.slice('./'.length)}`))
 
 /** Runs an ESM probe from inside a consumer project, so bare specifiers resolve as a consumer's would. */
@@ -167,17 +204,24 @@ describe('consumer-e2e', () => {
         }
       }
       // The catalog is the single source of truth for the shared reactive core,
-      // so what ships has to be the version the catalog pins. `mini-helpers` has
-      // no entry to check: it is barred from importing signals at all, which is
-      // the charter its own `purity.test.ts` enforces.
-      if (name !== '@amritk/mini-helpers') {
+      // so what ships has to be the version the catalog pins — and a package
+      // that is meant to stay off signals has to still be off them.
+      if ((REACTIVE as readonly string[]).includes(name)) {
         expect(pkg.dependencies?.['alien-signals'], `${name} alien-signals`).toBe(catalog['alien-signals'])
+      } else {
+        expect(pkg.dependencies?.['alien-signals'], `${name} alien-signals`).toBeUndefined()
       }
       // The `workspace:*` edge onto mini-helpers has to come out as the concrete
       // version being published alongside it, or the tarball is uninstallable.
-      if (name !== '@amritk/mini-helpers') {
+      if ((SHARES_HELPERS as readonly string[]).includes(name)) {
         const shared = await readManifest(join(bareDir, 'node_modules/@amritk/mini-helpers/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-helpers'], `${name} @amritk/mini-helpers`).toBe(shared.version)
+      }
+      // Same rule one level up: the notifications package's `workspace:*` edge
+      // onto the bridge has to resolve to a concrete version too.
+      if (name === '@amritk/lynx-notifications') {
+        const bridge = await readManifest(join(bareDir, 'node_modules/@amritk/mini-lynx-native/package.json'))
+        expect(pkg.dependencies?.['@amritk/mini-lynx-native'], `${name} @amritk/mini-lynx-native`).toBe(bridge.version)
       }
     }
   })

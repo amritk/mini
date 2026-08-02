@@ -32,7 +32,9 @@ mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
 │   ├── mini-lynx/           # @amritk/mini-lynx — the same runtime on Lynx's Element PAPI
-│   └── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
+│   ├── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
+│   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
+│   └── lynx-notifications/     # @amritk/lynx-notifications — the first native module
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -182,6 +184,67 @@ reactivity, no platform.**
   `tsconfig.build.json`) so CI can type-check before it builds; the emit
   resolves it through `types` instead, which is why `bun run --workspaces build`
   builds this package first.
+
+### `@amritk/mini-lynx-native` (`packages/mini-lynx-native`)
+
+The wire between Lynx's two script contexts. Lynx is explicit that **native
+modules are background-thread only**, and `@amritk/mini-lynx` renders on the
+main thread because the Element PAPI is a main-thread API — so a component
+reaching for `NativeModules` gets `undefined`, with no error to read.
+
+This package carries calls one way and `GlobalEventEmitter` events the other:
+`callNative` / `callNativeAsync` (the two shapes a Lynx native method comes in),
+`isNativeModuleAvailable`, and `onNativeEvent`. The `/background` subpath is the
+half an app installs in its background chunk, in one line — the same "the app
+owns the wire" bargain `@amritk/mini-lynx/bridge` makes, and for the same
+reason: which module runs in the background context is a bundler question this
+package cannot answer.
+
+- **The handshake is the load-bearing part.** The two chunks have no defined
+  start order and the main-thread one usually wins, so calls queue until the
+  background half answers. Without it a call made during a component build is a
+  message that goes nowhere and a promise that never settles.
+- **No dependencies at all, and no `alien-signals` in particular.** A second
+  edge onto the signal engine gives a consumer two reactive graphs that cannot
+  see each other's writes — the same rule that keeps `mini-helpers` off it.
+- **`/testing`** ships two linked context proxies and a fake emitter, which is
+  what the suite runs against.
+
+### `@amritk/lynx-notifications` (`packages/lynx-notifications`)
+
+The first actual native module in the repo, and the reason the bridge exists.
+Local and remote push: `UNUserNotificationCenter` + APNs on iOS,
+`NotificationManager` + `AlarmManager` + FCM on Android, declared to Lynx's
+autolinker through `lynx.lib.json`.
+
+The TypeScript is a thin promise-shaped facade; the substance is the Kotlin and
+the Objective-C. `src/testing/create-fake-notifications.ts` is the executable
+statement of the contract between them — the suite drives the real facade
+against it, which is what pins method names, arities and call forms.
+
+Three checks of decreasing reach, and it is worth knowing which one a green run
+came from:
+
+- **`src/native-contract.test.ts`** parses the Kotlin `@LynxMethod` surface and
+  the Objective-C `methodLookup` table and asserts both agree with the
+  TypeScript — names, arities and event strings. It catches the one failure no
+  compiler on either side can see: a rename or an added argument in one language
+  only, which compiles everywhere and fails at the bridge on a device. It runs in
+  the normal suite, needs no toolchain, and is mutation-checked.
+- **`bun run check:android`** compiles the Kotlin against the real
+  `org.lynxsdk.lynx:lynx` AAR and packages an AAR, which also merges the
+  manifest. Outside `bun run test` because it needs an SDK and minutes; skips
+  with an explanation locally, `--require-sdk` in CI. The Gradle harness lives in
+  `android-check/` rather than `android/` so the shipped directory stays clean.
+- **`pod lib lint`** compiles the Objective-C against the real Lynx pod and iOS
+  SDK. macOS only, so CI is the only place it can ever run.
+
+**None of that is a device.** Permission flows, `AlarmManager` under Doze, APNs
+registration and FCM delivery are unverified, as is whether Lynx's annotation
+processor registers the module without the generated Spec its own template
+extends. That caveat is carried in the package's `README.md`, `AI.md` and
+`AGENTS.md`, the same way `mini-lynx` carries its worklet round-trip caveat, and
+it should be narrowed only by something that actually checked.
 
 ## The playgrounds (`apps/`)
 

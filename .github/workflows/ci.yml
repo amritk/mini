@@ -52,3 +52,63 @@ jobs:
       # and manifest-level corruption the src-aliased tests cannot see.
       - name: Smoke and e2e test built artifacts
         run: bun run test:dist
+
+  # The two jobs below are the only things anywhere that compile
+  # `@amritk/lynx-notifications`' native halves. Everything in `Check`
+  # above runs in JavaScript and would pass just as happily against Kotlin and
+  # Objective-C that do not build — `src/native-contract.test.ts` narrows that
+  # gap by comparing the two native method surfaces against the TypeScript one,
+  # but comparing signatures is not compiling.
+  #
+  # They are separate jobs rather than steps because they need toolchains the
+  # main job has no use for, and a macOS runner costs several times an Ubuntu
+  # one — keeping them apart means a failure here does not hide a failure there.
+
+  android:
+    name: Android native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # The runner image ships several platforms but the set moves; asking for
+      # the one `build.gradle.kts` compiles against is cheap and removes a
+      # failure mode that would look like a code problem.
+      - name: Install the compile SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `--require-sdk` turns the "no Android SDK, skipping" path into a
+      # failure: skipping is right for a contributor's laptop and would be a
+      # silently green CI job.
+      - name: Compile the Android library
+        run: bun run check:android --require-sdk
+
+  ios:
+    name: iOS native
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # `pod lib lint` builds the podspec's sources against the real iOS SDK,
+      # resolving `Lynx` from CocoaPods so the Lynx headers the module imports
+      # are the actual ones. It validates from the files on disk and never
+      # fetches the podspec's `source`.
+      #
+      # `--allow-warnings` because CocoaPods warns about things a library
+      # published from a monorepo subdirectory cannot avoid; it does NOT
+      # suppress compiler errors, which is the point of running this.
+      - name: Lint and compile the iOS pod
+        working-directory: packages/lynx-notifications/ios
+        run: pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios
