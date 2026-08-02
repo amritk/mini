@@ -1,0 +1,63 @@
+<!--
+  No `package` attribute: Android Gradle Plugin 8 removed it outright and fails
+  the build if it is present. The package comes from `namespace` in
+  build.gradle.kts instead.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    What this app is allowed to see.
+
+    Android 11 hid the list of installed apps: `resolveActivity` returns null
+    and `startActivity` throws for an app that is right there, unless the
+    querying app declared the scheme. These four are the ones every app uses, so
+    they are declared here and reach the host through manifest merging.
+
+    A custom scheme — `whatsapp`, `spotify`, another app of your own — is NOT
+    covered and cannot be: it is a statement about what the *host* app wants to
+    reach, and this library has no way to know. The README has the snippet;
+    without it `openURL` reports `noHandler` on a device where the app is
+    plainly installed, which is the single most confusing failure in this area.
+  -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <data android:scheme="https" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <data android:scheme="mailto" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <data android:scheme="tel" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <data android:scheme="sms" />
+    </intent>
+  </queries>
+
+  <application>
+    <!--
+      The cold-start capture, and the reason a host app needs no `onCreate`
+      wiring. Providers are created during process startup, before the first
+      activity exists, which is the earliest hook a library gets without being
+      called by the app — the mechanism Firebase and AndroidX Startup both use.
+      It stores nothing; `DeepLinkInitializer.onCreate` registers an activity
+      lifecycle callback and that is the whole of it.
+
+      `${applicationId}` is substituted by the host app's build. A fixed
+      authority would be a duplicate the moment a device had two apps built with
+      this library, and a duplicate provider authority fails the *install*, not
+      the build.
+
+      Not exported: nothing outside the app has any business reaching it.
+    -->
+    <provider
+      android:name=".DeepLinkInitializer"
+      android:authorities="${applicationId}.minilynxdeeplinking"
+      android:exported="false"
+      android:initOrder="100" />
+  </application>
+</manifest>

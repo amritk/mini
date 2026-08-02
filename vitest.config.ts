@@ -63,6 +63,14 @@ export default defineConfig({
         find: /^@amritk\/lynx-dialogs$/,
         replacement: resolve(root, 'packages/lynx-dialogs/src/index.ts'),
       },
+      {
+        find: /^@amritk\/lynx-deep-linking\/testing$/,
+        replacement: resolve(root, 'packages/lynx-deep-linking/src/testing/index.ts'),
+      },
+      {
+        find: /^@amritk\/lynx-deep-linking$/,
+        replacement: resolve(root, 'packages/lynx-deep-linking/src/index.ts'),
+      },
       // The helpers both packages share. Aliased for the same reason as the two
       // above — the suite must run against this checkout's source with no prior
       // `bun run build` — and the subpath must come first so the shorter

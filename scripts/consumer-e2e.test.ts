@@ -63,9 +63,10 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * `@amritk/mini-helpers` is here because both runtimes depend on it at runtime,
  * so a consumer install that did not carry it would fail on the first `/router`
  * or `/forms` import; `@amritk/mini-lynx-native` is here for the same reason
- * relative to `@amritk/lynx-notifications`.
+ * relative to the four `lynx-*` native-module packages.
  */
 const PUBLISHED = [
+  '@amritk/lynx-deep-linking',
   '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
   '@amritk/lynx-notifications',
@@ -80,19 +81,30 @@ const PUBLISHED = [
  * the catalog-pinned version of it.
  *
  * `mini-helpers` is barred from importing signals at all, which is the charter
- * its own `purity.test.ts` enforces. The two native-module packages are off it
- * for a related reason of their own: a second edge onto the signal engine is
- * how a consumer ends up with two reactive graphs that cannot see each other's
- * writes, so the notifications surface is promises and subscriptions and an app
- * wires those into whichever graph it already has.
+ * its own `purity.test.ts` enforces. The native-module packages are off it for a
+ * related reason of their own: a second edge onto the signal engine is how a
+ * consumer ends up with two reactive graphs that cannot see each other's
+ * writes, so their surface is promises and subscriptions and an app wires those
+ * into whichever graph it already has.
  */
 const REACTIVE = ['@amritk/mini', '@amritk/mini-lynx'] as const
 
-/** The packages that depend on `@amritk/mini-helpers` at runtime. */
-const SHARES_HELPERS = ['@amritk/mini', '@amritk/mini-lynx'] as const
+/**
+ * The packages that depend on `@amritk/mini-helpers` at runtime.
+ *
+ * `@amritk/lynx-deep-linking` is the first that is not a runtime: `parseURL`
+ * needs a query parser, one already exists here that is pure and platform-free,
+ * and a second copy would be a second thing to keep correct.
+ */
+const SHARES_HELPERS = ['@amritk/lynx-deep-linking', '@amritk/mini', '@amritk/mini-lynx'] as const
 
 /** The native-module packages, each of which reaches its platform half through the bridge. */
-const USES_BRIDGE = ['@amritk/lynx-dialogs', '@amritk/lynx-location', '@amritk/lynx-notifications'] as const
+const USES_BRIDGE = [
+  '@amritk/lynx-deep-linking',
+  '@amritk/lynx-dialogs',
+  '@amritk/lynx-location',
+  '@amritk/lynx-notifications',
+] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 

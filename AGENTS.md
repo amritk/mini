@@ -30,24 +30,28 @@ Two more sit alongside them, for the part of a Lynx app that is not rendering:
 [`packages/mini-lynx-native`](./packages/mini-lynx-native) —
 `@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
 contexts, because `NativeModules` lives only in the latter and the runtime lives
-only in the former — and three native modules built on it, with Android and iOS
+only in the former — and four native modules built on it, with Android and iOS
 sources of their own:
 [`packages/lynx-notifications`](./packages/lynx-notifications) —
 `@amritk/lynx-notifications`, local and remote push —
 [`packages/lynx-location`](./packages/lynx-location) —
-`@amritk/lynx-location`, device location — and
+`@amritk/lynx-location`, device location —
 [`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
-the platform's own date picker, action sheet and alert. Those compile in CI —
+the platform's own date picker, action sheet and alert — and
+[`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
+`@amritk/lynx-deep-linking`, deep links in and out. Those compile in CI —
 `bun run check:android` for the Kotlin, `pod lib lint` on a macOS runner for the
 Objective-C — and a parity suite pins their method surfaces against the
 TypeScript. **None of it has run on a device.** See each package's `AGENTS.md`
 for what that does and does not cover.
 
-The three are deliberately alike: each was built from the last one's shape, so a
-structural change to one is usually owed to the others. `lynx-dialogs` is the
-one that diverges, and where it does it says why — it has no events, because a
-dialog is asked once and answers once, so it carries none of the
-`GlobalEventEmitter` fan-out the other two need.
+The four are deliberately alike: each was built from the last one's shape, so a
+structural change to one is usually owed to the others. Where one diverges it
+says why — `lynx-dialogs` has no events, because a dialog is asked once and
+answers once, so it carries none of the `GlobalEventEmitter` fan-out the others
+need; `lynx-deep-linking` is the only one whose inbound half starts *outside*
+any LynxView, which is why it owns a `ContentProvider` and a `+load` and why its
+launch URL is a value rather than an event.
 
 Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
 `@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*

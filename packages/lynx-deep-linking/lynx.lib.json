@@ -1,0 +1,12 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "dev.amritk.minilynx.deeplinking",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "sourceDir": "ios",
+      "podspecPath": "ios/MiniLynxDeepLinking.podspec"
+    }
+  }
+}
