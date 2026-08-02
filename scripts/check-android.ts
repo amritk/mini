@@ -33,6 +33,7 @@ import { ROOT, runCommand } from './e2e-helpers'
 const CHECKS = [
   { name: '@amritk/lynx-notifications', dir: 'packages/lynx-notifications', project: 'notifications' },
   { name: '@amritk/lynx-location', dir: 'packages/lynx-location', project: 'location' },
+  { name: '@amritk/lynx-dialogs', dir: 'packages/lynx-dialogs', project: 'dialogs' },
   { name: '@amritk/lynx-deep-linking', dir: 'packages/lynx-deep-linking', project: 'deeplinking' },
 ] as const
 

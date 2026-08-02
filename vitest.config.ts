@@ -56,6 +56,14 @@ export default defineConfig({
         replacement: resolve(root, 'packages/lynx-location/src/index.ts'),
       },
       {
+        find: /^@amritk\/lynx-dialogs\/testing$/,
+        replacement: resolve(root, 'packages/lynx-dialogs/src/testing/index.ts'),
+      },
+      {
+        find: /^@amritk\/lynx-dialogs$/,
+        replacement: resolve(root, 'packages/lynx-dialogs/src/index.ts'),
+      },
+      {
         find: /^@amritk\/lynx-deep-linking\/testing$/,
         replacement: resolve(root, 'packages/lynx-deep-linking/src/testing/index.ts'),
       },

@@ -7,10 +7,11 @@ Consuming the package instead? See [`AI.md`](./AI.md).
 Deep links for Lynx: two native modules, and a promise-shaped facade over
 `@amritk/mini-lynx-native`.
 
-It is the third native module in this repository and it deliberately mirrors the
-first two. When you change something structural here, check
-[`../lynx-notifications`](../lynx-notifications) and
-[`../lynx-location`](../lynx-location) for the same shape — and the other way
+It is the fourth native module in this repository and it deliberately mirrors
+the first three. When you change something structural here, check
+[`../lynx-notifications`](../lynx-notifications),
+[`../lynx-location`](../lynx-location) and
+[`../lynx-dialogs`](../lynx-dialogs) for the same shape — and the other way
 round.
 
 ## Commands

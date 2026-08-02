@@ -63,10 +63,11 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * `@amritk/mini-helpers` is here because both runtimes depend on it at runtime,
  * so a consumer install that did not carry it would fail on the first `/router`
  * or `/forms` import; `@amritk/mini-lynx-native` is here for the same reason
- * relative to the three `lynx-*` native-module packages.
+ * relative to the four `lynx-*` native-module packages.
  */
 const PUBLISHED = [
   '@amritk/lynx-deep-linking',
+  '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
   '@amritk/lynx-notifications',
   '@amritk/mini',
@@ -97,8 +98,13 @@ const REACTIVE = ['@amritk/mini', '@amritk/mini-lynx'] as const
  */
 const SHARES_HELPERS = ['@amritk/lynx-deep-linking', '@amritk/mini', '@amritk/mini-lynx'] as const
 
-/** The native-module packages, which reach the platform through the bridge. */
-const BRIDGED: readonly string[] = ['@amritk/lynx-deep-linking', '@amritk/lynx-location', '@amritk/lynx-notifications']
+/** The native-module packages, each of which reaches its platform half through the bridge. */
+const USES_BRIDGE = [
+  '@amritk/lynx-deep-linking',
+  '@amritk/lynx-dialogs',
+  '@amritk/lynx-location',
+  '@amritk/lynx-notifications',
+] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 
@@ -230,7 +236,7 @@ describe('consumer-e2e', () => {
       }
       // Same rule one level up: a native-module package's `workspace:*` edge
       // onto the bridge has to resolve to a concrete version too.
-      if (BRIDGED.includes(name)) {
+      if ((USES_BRIDGE as readonly string[]).includes(name)) {
         const bridge = await readManifest(join(bareDir, 'node_modules/@amritk/mini-lynx-native/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-lynx-native'], `${name} @amritk/mini-lynx-native`).toBe(bridge.version)
       }

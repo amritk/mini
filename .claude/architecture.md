@@ -36,7 +36,8 @@ mini/
 │   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
 │   ├── lynx-notifications/     # @amritk/lynx-notifications — the first native module
 │   ├── lynx-location/          # @amritk/lynx-location — the second, built from its shape
-│   └── lynx-deep-linking/      # @amritk/lynx-deep-linking — the third, links in and out
+│   ├── lynx-dialogs/           # @amritk/lynx-dialogs — the third: date picker, sheet, alert
+│   └── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -301,7 +302,7 @@ backgrounding are all unverified, and the caveat is carried in the package's
 
 ### `@amritk/lynx-deep-linking` (`packages/lynx-deep-linking`)
 
-The third native module, and the same shape again: deep links in and out —
+The fourth native module, and the same shape again: deep links in and out —
 `Intent.ACTION_VIEW` and `onNewIntent` on Android, `UIApplication.open` and the
 app-delegate URL callbacks on iOS — behind a promise-shaped facade over
 `@amritk/mini-lynx-native`.

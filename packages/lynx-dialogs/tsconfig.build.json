@@ -1,0 +1,18 @@
+{
+  "extends": ["./tsconfig.json", "../../tsconfig.build.json"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Re-asserted because the shared `../../tsconfig.build.json` (applied last
+    // in `extends`) resets `lib`/`types` back to the Node-only defaults.
+    "lib": ["ESNext"],
+    "types": [],
+    // Dropped for the emit pass, exactly as `@amritk/mini-lynx` drops it: here
+    // the `development` condition would put another package's `src` inside this
+    // one's `rootDir`. The build resolves the bridge through the normal `types`
+    // condition instead, which is why the root `build` script builds it first.
+    "customConditions": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
+}
