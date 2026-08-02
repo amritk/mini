@@ -188,4 +188,23 @@ describe('native-contract', () => {
     expect(KOTLIN).toContain('@LynxNativeModule(name = "MiniLynxNotificationsModule")')
     expect(OBJC).toContain('return @"MiniLynxNotificationsModule";')
   })
+
+  it('points every Objective-C selector at a method that exists', () => {
+    // The one failure `pod lib lint` cannot catch either: a selector string in
+    // `methodLookup` that names no method is not a build error on iOS, because
+    // the string is only resolved when Lynx tries to dispatch through it. It
+    // fails at call time, on a device, as a promise that never settles.
+    //
+    // Method names are matched rather than full signatures — the arity is
+    // already checked against Kotlin and the fake above, so the part that is
+    // unverifiable anywhere else is simply whether the method is there at all.
+    const implemented = new Set([...OBJC.matchAll(/^-\s*\([^)]*\)\s*(\w+)/gm)].map(([, name]) => name as string))
+
+    const selectors = [...OBJC.matchAll(/NSStringFromSelector\(@selector\((\w+)/g)].map(([, name]) => name as string)
+    expect(selectors.length).toBeGreaterThan(5)
+
+    for (const selector of selectors) {
+      expect(implemented.has(selector), `no method implements the selector "${selector}"`).toBe(true)
+    }
+  })
 })

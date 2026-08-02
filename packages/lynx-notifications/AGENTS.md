@@ -131,9 +131,11 @@ one you are relying on before trusting a green run.
 `native-contract.test.ts` is the cheapest of these and catches the failure a
 compiler cannot on either side: a method renamed in one language, an argument
 added in one, an event name that drifts. All three of those compile fine and
-fail at the bridge, at runtime, on a device. **Mutation-check it if you change
-it** — a parity test that cannot fail is worse than none, because it looks like
-coverage.
+fail at the bridge, at runtime, on a device. It also checks something even
+`pod lib lint` cannot — that every selector in `methodLookup` names a method
+that exists, which on iOS is not a build error but a dispatch failure on a
+device. **Mutation-check it if you change it** — a parity test that cannot fail
+is worse than none, because it looks like coverage.
 
 `check:android` is deliberately outside `bun run test`: it needs an SDK, pulls
 from the network and takes minutes cold, and a check with those properties in
