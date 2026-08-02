@@ -260,6 +260,32 @@ describe('dom-papi', () => {
     expect(node(image).style.width).toBe('100px')
     expect(node(image).style.objectFit).toBe('cover')
   })
+
+  it('answers boundingClientRect with the browser rect', async () => {
+    // Keyboard avoidance is arithmetic over rects, so this is the one UI method
+    // the preview has to answer for `@amritk/mini-lynx/keyboard` to work here at
+    // all — and the browser genuinely knows the answer, in the same coordinate
+    // space Lynx reports it in.
+    const view = child('view')
+    const result = await new Promise<{ code: number; data?: unknown }>((resolve) => {
+      api.__InvokeUIMethod?.(view, 'boundingClientRect', {}, resolve)
+    })
+
+    expect(result.code).toBe(0)
+    expect(result.data).toMatchObject({ bottom: expect.any(Number), top: expect.any(Number) })
+  })
+
+  it('reports a failure for a method it cannot honestly answer', async () => {
+    // A preview that invented a result would be worse than one that admits it
+    // cannot: the caller would move something by the wrong amount and look fine
+    // doing it.
+    const view = child('view')
+    const result = await new Promise<{ code: number; data?: unknown }>((resolve) => {
+      api.__InvokeUIMethod?.(view, 'takeScreenshot', {}, resolve)
+    })
+
+    expect(result.code).not.toBe(0)
+  })
 })
 
 describe('__CreateList drives the recycler', () => {

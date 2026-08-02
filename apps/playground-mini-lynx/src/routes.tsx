@@ -7,6 +7,7 @@ import { EngineScreen } from './screens/engine'
 import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
 import { FormsScreen } from './screens/forms'
+import { KeyboardScreen } from './screens/keyboard'
 import { ListScreen } from './screens/list'
 import { RoutingScreen } from './screens/routing'
 import { StylingScreen } from './screens/styling'
@@ -36,6 +37,7 @@ const ROUTES: readonly AppRoute[] = [
   { path: '/flow', label: 'Flow', badge: '⇄', nav: true, view: () => <FlowScreen /> },
   { path: '/compose', label: 'Compose', badge: '⧉', nav: true, view: () => <ComposeScreen /> },
   { path: '/forms', label: 'Forms', badge: '✎', nav: true, view: () => <FormsScreen /> },
+  { path: '/keyboard', label: 'Keyboard', badge: '⌨', nav: true, view: () => <KeyboardScreen /> },
   { path: '/data', label: 'Data', badge: '⇅', nav: true, view: () => <DataScreen /> },
   { path: '/engine', label: 'Engine', badge: '◆', nav: true, view: () => <EngineScreen /> },
   { path: '/routing', label: 'Routing', badge: '↦', nav: true, view: (params) => <RoutingScreen params={params} /> },

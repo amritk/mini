@@ -10,6 +10,7 @@ import { EngineScreen } from './screens/engine'
 import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
 import { FormsScreen } from './screens/forms'
+import { KeyboardScreen } from './screens/keyboard'
 import { ListScreen } from './screens/list'
 import { RoutingScreen } from './screens/routing'
 import { StylingScreen } from './screens/styling'
@@ -38,6 +39,7 @@ const SCREENS: readonly (readonly [name: string, screen: () => LynxElement])[] =
   ['flow', FlowScreen],
   ['compose', ComposeScreen],
   ['forms', FormsScreen],
+  ['keyboard', KeyboardScreen],
   ['data', DataScreen],
   ['engine', EngineScreen],
   ['routing', () => RoutingScreen({ params: () => ({ owner: 'amritk' }) })],

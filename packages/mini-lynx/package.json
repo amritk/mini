@@ -89,6 +89,12 @@
       "import": "./dist/gestures/index.js",
       "default": "./dist/gestures/index.js"
     },
+    "./keyboard": {
+      "development": "./src/keyboard/index.ts",
+      "types": "./dist/keyboard/index.d.ts",
+      "import": "./dist/keyboard/index.js",
+      "default": "./dist/keyboard/index.js"
+    },
     "./recycle": {
       "development": "./src/recycle/index.ts",
       "types": "./dist/recycle/index.d.ts",
