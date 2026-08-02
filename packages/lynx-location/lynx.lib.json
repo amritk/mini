@@ -1,0 +1,12 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "dev.amritk.minilynx.location",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "sourceDir": "ios",
+      "podspecPath": "ios/MiniLynxLocation.podspec"
+    }
+  }
+}

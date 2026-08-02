@@ -1,0 +1,37 @@
+<!--
+  No `package` attribute: Android Gradle Plugin 8 removed it outright and fails
+  the build if it is present. The package comes from `namespace` in
+  build.gradle.kts instead.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    Declared here so an app that installs this library inherits them through
+    manifest merging rather than having to remember. Both are listed because
+    `precise: false` requests only the coarse one, and a permission that is
+    requested without being declared is refused instantly and silently.
+
+    Worth knowing before installing this: these appear in the host app's merged
+    manifest, which means they appear on its Play Store listing and in its data
+    safety form. That is the cost of a location library and there is no version
+    of it that avoids the declaration — but it should not be a surprise.
+
+    Deliberately absent: ACCESS_BACKGROUND_LOCATION. It is a second prompt and a
+    Play Store review conversation, and nothing here can use it.
+  -->
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+  <application>
+    <!--
+      The prompt host. Transparent, no title, and excluded from recents: it
+      exists only because a runtime permission request needs an Activity to
+      deliver its result to, and the user should never see it as a screen.
+    -->
+    <activity
+      android:name=".LocationPermissionActivity"
+      android:theme="@android:style/Theme.Translucent.NoTitleBar"
+      android:excludeFromRecents="true"
+      android:exported="false" />
+  </application>
+</manifest>

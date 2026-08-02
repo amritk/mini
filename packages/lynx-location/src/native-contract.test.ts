@@ -10,7 +10,7 @@ import { createFakeEmitter } from '@amritk/mini-lynx-native/testing'
 import { describe, expect, it } from 'vitest'
 
 import { EVENTS } from './native-module'
-import { createFakeNotifications } from './testing/create-fake-notifications'
+import { createFakeLocation } from './testing/create-fake-location'
 
 /**
  * The JavaScript-to-native contract, checked across all three implementations
@@ -31,17 +31,18 @@ import { createFakeNotifications } from './testing/create-fake-notifications'
  *
  * Deliberately NOT checked here: whether the implementations are *correct*.
  * This suite reads signatures. `check:android` proves the Kotlin compiles. That
- * a scheduled notification actually fires is a device's answer to give.
+ * a watch actually fires when the user walks down the road is a device's answer
+ * to give.
  */
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const read = (path: string): string => readFileSync(join(PACKAGE_ROOT, path), 'utf-8')
 
-const KOTLIN = read('android/src/main/java/dev/amritk/minilynx/notifications/MiniLynxNotificationsModule.kt')
-const KOTLIN_EVENTS = read('android/src/main/java/dev/amritk/minilynx/notifications/NotificationEvents.kt')
-const OBJC = read('ios/src/MiniLynxNotificationsModule.m')
-const OBJC_CENTER = read('ios/src/MiniLynxNotificationsCenter.m')
+const KOTLIN = read('android/src/main/java/dev/amritk/minilynx/location/MiniLynxLocationModule.kt')
+const KOTLIN_EVENTS = read('android/src/main/java/dev/amritk/minilynx/location/LocationEvents.kt')
+const OBJC = read('ios/src/MiniLynxLocationModule.m')
+const OBJC_CENTER = read('ios/src/MiniLynxLocationCenter.m')
 
 /** How many arguments a native method takes, keyed by its JavaScript name. */
 type Surface = Map<string, number>
@@ -83,13 +84,23 @@ const objcSurface = (): Surface => {
 
 /** The fake's surface, read from the object rather than parsed — it is right here. */
 const fakeSurface = (): Surface => {
-  const { module } = createFakeNotifications(createFakeEmitter())
+  const { module } = createFakeLocation(createFakeEmitter())
   const surface: Surface = new Map()
   for (const [name, value] of Object.entries(module)) {
     if (typeof value === 'function') surface.set(name, value.length)
   }
   return surface
 }
+
+/** The facade files that reach the native module. Listed so a new one cannot be silently missed. */
+const FACADE_FILES = [
+  'get-current-position.ts',
+  'get-last-known-position.ts',
+  'get-permission-status.ts',
+  'is-location-enabled.ts',
+  'request-permission.ts',
+  'watch-position.ts',
+]
 
 /**
  * Every native method the facade calls, and how many arguments it hands over.
@@ -114,30 +125,15 @@ const facadeCalls = (): Surface => {
   return surface
 }
 
-/** The facade files that reach the native module. Listed so a new one cannot be silently missed. */
-const FACADE_FILES = [
-  'cancel-all-notifications.ts',
-  'cancel-notification.ts',
-  'create-notification-channel.ts',
-  'get-badge-count.ts',
-  'get-device-token.ts',
-  'get-permission-status.ts',
-  'get-scheduled-notifications.ts',
-  'on-notification-response.ts',
-  'request-permission.ts',
-  'schedule-notification.ts',
-  'set-badge-count.ts',
-]
-
 const sorted = (surface: Surface): string[] => [...surface.keys()].sort()
 
 describe('native-contract', () => {
   it('finds a method surface in each implementation', () => {
     // A regex that silently matched nothing would make every comparison below
     // pass by agreeing that all three surfaces are empty.
-    expect(kotlinSurface().size).toBeGreaterThan(5)
-    expect(objcSurface().size).toBeGreaterThan(5)
-    expect(fakeSurface().size).toBeGreaterThan(5)
+    expect(kotlinSurface().size).toBeGreaterThan(4)
+    expect(objcSurface().size).toBeGreaterThan(4)
+    expect(fakeSurface().size).toBeGreaterThan(4)
   })
 
   it('exposes the same method names from Kotlin, Objective-C and the fake', () => {
@@ -174,7 +170,7 @@ describe('native-contract', () => {
   })
 
   it('spells the event names identically in all three languages', () => {
-    const names = (source: string): string[] => [...new Set(source.match(/mini-lynx:notifications:\w+/g) ?? [])].sort()
+    const names = (source: string): string[] => [...new Set(source.match(/mini-lynx:location:\w+/g) ?? [])].sort()
 
     const expected = Object.values(EVENTS).sort()
     expect(names(KOTLIN_EVENTS)).toEqual(expected)
@@ -185,8 +181,8 @@ describe('native-contract', () => {
     // `MODULE` in TypeScript, `@LynxNativeModule(name = …)` in Kotlin and
     // `+name` in Objective-C are the key `NativeModules` exposes the module
     // under. A mismatch is a module that is simply not there.
-    expect(KOTLIN).toContain('@LynxNativeModule(name = "MiniLynxNotificationsModule")')
-    expect(OBJC).toContain('return @"MiniLynxNotificationsModule";')
+    expect(KOTLIN).toContain('@LynxNativeModule(name = "MiniLynxLocationModule")')
+    expect(OBJC).toContain('return @"MiniLynxLocationModule";')
   })
 
   it('points every Objective-C selector at a method that exists', () => {
@@ -201,10 +197,21 @@ describe('native-contract', () => {
     const implemented = new Set([...OBJC.matchAll(/^-\s*\([^)]*\)\s*(\w+)/gm)].map(([, name]) => name as string))
 
     const selectors = [...OBJC.matchAll(/NSStringFromSelector\(@selector\((\w+)/g)].map(([, name]) => name as string)
-    expect(selectors.length).toBeGreaterThan(5)
+    expect(selectors.length).toBeGreaterThan(4)
 
     for (const selector of selectors) {
       expect(implemented.has(selector), `no method implements the selector "${selector}"`).toBe(true)
+    }
+  })
+
+  it('agrees on the error codes both native sides can report', () => {
+    // A code that only one platform can produce is a branch an app writes and
+    // never sees fire, and a code the facade does not model arrives as a string
+    // no `LocationErrorCode` covers.
+    const codes = ['permissionDenied', 'locationDisabled', 'timeout', 'unavailable']
+    for (const code of codes) {
+      expect(`${KOTLIN}${KOTLIN_EVENTS}`, `Kotlin never reports "${code}"`).toContain(`"${code}"`)
+      expect(`${OBJC}${OBJC_CENTER}`, `Objective-C never reports "${code}"`).toContain(`@"${code}"`)
     }
   })
 })

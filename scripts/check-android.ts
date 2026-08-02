@@ -1,8 +1,8 @@
 /**
- * Compiles `@amritk/lynx-notifications`' Android library.
+ * Compiles every Android library in the repository.
  *
  * This is the only thing in the repository that can tell you the Kotlin is
- * real. Everything else about that package — the facade, the fake, the parity
+ * real. Everything else about those packages — the facade, the fake, the parity
  * suite — runs in JavaScript and would pass just as happily against native code
  * that does not compile.
  *
@@ -20,7 +20,20 @@ import { join } from 'node:path'
 
 import { ROOT, runCommand } from './e2e-helpers'
 
-const CHECK_DIR = join(ROOT, 'packages/lynx-notifications/android-check')
+/**
+ * Every package with an Android half, and the Gradle project that compiles it.
+ *
+ * Each check is its own standalone build rather than one build with two
+ * modules, because each `android-check` mirrors what a host app's Gradle sees:
+ * one autolinked library, resolving its own plugins. Sharing a build would let
+ * one library compile only because the other happened to put something on the
+ * classpath — which is exactly the failure a consumer would hit and this could
+ * not see.
+ */
+const CHECKS = [
+  { name: '@amritk/lynx-notifications', dir: 'packages/lynx-notifications', project: 'notifications' },
+  { name: '@amritk/lynx-location', dir: 'packages/lynx-location', project: 'location' },
+] as const
 
 /** The two spellings the Android tooling accepts, in the order it prefers them. */
 const androidHome = (): string | undefined => {
@@ -48,30 +61,38 @@ const main = async (): Promise<void> => {
 
   console.log(`check:android using ${sdk}`)
 
-  // `assembleRelease` rather than `compileReleaseKotlin`: it additionally merges
-  // the AndroidManifest and verifies resources, which is where the library's
-  // receivers, activity and intent filters are — and a manifest that does not
-  // merge is exactly as broken as Kotlin that does not compile.
-  const { stdout, stderr } = await runCommand(
-    'gradle',
-    ['--console=plain', '--no-daemon', ':notifications:assembleRelease'],
-    { cwd: CHECK_DIR, env: { ...process.env, ANDROID_HOME: sdk }, maxBuffer: 32 * 1024 * 1024 },
-  )
+  for (const check of CHECKS) {
+    console.log(`check:android compiling ${check.name}`)
 
-  const output = `${stdout}\n${stderr}`
-  // Kotlin reports warnings on stdout and keeps going. A deprecation in this
-  // library is worth failing on: the code is unverifiable on a device from
-  // here, so a compiler telling us something is wrong is a signal we cannot
-  // afford to let scroll past.
-  const warnings = output.split('\n').filter((line) => line.startsWith('w: ') && line.includes('/lynx-notifications/'))
+    // `assembleRelease` rather than `compileReleaseKotlin`: it additionally
+    // merges the AndroidManifest and verifies resources, which is where each
+    // library's receivers, activity and intent filters are — and a manifest
+    // that does not merge is exactly as broken as Kotlin that does not compile.
+    const { stdout, stderr } = await runCommand(
+      'gradle',
+      ['--console=plain', '--no-daemon', `:${check.project}:assembleRelease`],
+      {
+        cwd: join(ROOT, check.dir, 'android-check'),
+        env: { ...process.env, ANDROID_HOME: sdk },
+        maxBuffer: 32 * 1024 * 1024,
+      },
+    )
 
-  if (warnings.length > 0) {
-    console.error('check:android failed: the Kotlin compiled with warnings\n')
-    for (const warning of warnings) console.error(warning)
-    process.exit(1)
+    const output = `${stdout}\n${stderr}`
+    // Kotlin reports warnings on stdout and keeps going. A deprecation in these
+    // libraries is worth failing on: the code is unverifiable on a device from
+    // here, so a compiler telling us something is wrong is a signal we cannot
+    // afford to let scroll past.
+    const warnings = output.split('\n').filter((line) => line.startsWith('w: ') && line.includes(`/${check.dir}/`))
+
+    if (warnings.length > 0) {
+      console.error(`check:android failed: ${check.name} compiled with warnings\n`)
+      for (const warning of warnings) console.error(warning)
+      process.exit(1)
+    }
   }
 
-  console.log('check:android passed: the Android library compiles and packages')
+  console.log('check:android passed: every Android library compiles and packages')
 }
 
 await main()
