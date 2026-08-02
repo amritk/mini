@@ -54,7 +54,8 @@ jobs:
         run: bun run test:dist
 
   # The two jobs below are the only things anywhere that compile the native
-  # halves of `@amritk/lynx-notifications` and `@amritk/lynx-location`.
+  # halves of `@amritk/lynx-notifications`, `@amritk/lynx-location` and
+  # `@amritk/lynx-deep-linking`.
   # Everything in `Check` above runs in JavaScript and would pass just as
   # happily against Kotlin and Objective-C that do not build —
   # `src/native-contract.test.ts` narrows that gap by comparing the two native
@@ -119,3 +120,7 @@ jobs:
       - name: Lint and compile the location pod
         working-directory: packages/lynx-location/ios
         run: pod lib lint MiniLynxLocation.podspec --allow-warnings --platforms=ios
+
+      - name: Lint and compile the deep-linking pod
+        working-directory: packages/lynx-deep-linking/ios
+        run: pod lib lint MiniLynxDeepLinking.podspec --allow-warnings --platforms=ios

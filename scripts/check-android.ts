@@ -33,6 +33,7 @@ import { ROOT, runCommand } from './e2e-helpers'
 const CHECKS = [
   { name: '@amritk/lynx-notifications', dir: 'packages/lynx-notifications', project: 'notifications' },
   { name: '@amritk/lynx-location', dir: 'packages/lynx-location', project: 'location' },
+  { name: '@amritk/lynx-deep-linking', dir: 'packages/lynx-deep-linking', project: 'deeplinking' },
 ] as const
 
 /** The two spellings the Android tooling accepts, in the order it prefers them. */
@@ -66,8 +67,9 @@ const main = async (): Promise<void> => {
 
     // `assembleRelease` rather than `compileReleaseKotlin`: it additionally
     // merges the AndroidManifest and verifies resources, which is where each
-    // library's receivers, activity and intent filters are — and a manifest
-    // that does not merge is exactly as broken as Kotlin that does not compile.
+    // library's receivers, activities, provider and queries are — and a
+    // manifest that does not merge is exactly as broken as Kotlin that does not
+    // compile.
     const { stdout, stderr } = await runCommand(
       'gradle',
       ['--console=plain', '--no-daemon', `:${check.project}:assembleRelease`],

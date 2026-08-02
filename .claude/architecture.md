@@ -35,7 +35,8 @@ mini/
 │   ├── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 │   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
 │   ├── lynx-notifications/     # @amritk/lynx-notifications — the first native module
-│   └── lynx-location/          # @amritk/lynx-location — the second, built from its shape
+│   ├── lynx-location/          # @amritk/lynx-location — the second, built from its shape
+│   └── lynx-deep-linking/      # @amritk/lynx-deep-linking — the third, links in and out
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -297,6 +298,55 @@ exists. A dangling selector is not a build error on iOS — `pod lib lint` passe
 actually answers, what a fix contains outdoors, and whether a watch survives a
 backgrounding are all unverified, and the caveat is carried in the package's
 `README.md`, `AI.md` and `AGENTS.md` exactly as its sibling carries its own.
+
+### `@amritk/lynx-deep-linking` (`packages/lynx-deep-linking`)
+
+The third native module, and the same shape again: deep links in and out —
+`Intent.ACTION_VIEW` and `onNewIntent` on Android, `UIApplication.open` and the
+app-delegate URL callbacks on iOS — behind a promise-shaped facade over
+`@amritk/mini-lynx-native`.
+
+It exists because the two published community packages are parts of frameworks
+rather than libraries: `@sigx/lynx-linking` depends on `@sigx/lynx-core` and a
+`sigx prebuild` step, and `@tamer4lynx/tamer-linking` peers on ReactLynx and
+links through the `t4l` CLI. Neither reaches the main thread a `mini-lynx` tree
+renders on, and adopting either would mean an edge onto a second framework for
+about 200 lines of native code.
+
+- **The launch URL is a value; every later link is an event.** `getInitialURL`
+  answers what started the process and never changes, and `onDeepLink` never
+  re-delivers it. Both native halves enforce that with a mechanism of their own
+  — a consumed-marker written onto the Android `Intent`, a first-inbound-URL
+  rule on iOS — because iOS hands a delegate-based app its launch URL twice and
+  an app wired to both mechanisms would navigate twice for one tap.
+- **Cold start is automatic; a link into a running app is one line.** That
+  asymmetry is not a design, it is which callbacks each platform lets a library
+  observe: a `ContentProvider` (Android) and a `+load` (iOS) can both run before
+  the first screen exists, while `onNewIntent` and `application:openURL:` are
+  delivered only to the host app. `@amritk/lynx-notifications` makes the same
+  bargain for its APNs callbacks.
+- **`parseURL` reports the first segment of a custom-scheme URL as the host**,
+  because `//` opens an authority and the grammar does not care that `myapp:`
+  has no host. Every parser on both platforms agrees, so "helpfully" disagreeing
+  would put the package at odds with the app's own server and email templates.
+  The package documents the surprise instead of hiding it.
+- **Depends on:** `@amritk/mini-lynx-native` and `@amritk/mini-helpers` — the
+  first native-module package to need the latter, for `parseQuery`, which is
+  already pure and platform-free and would otherwise be copied. No
+  `alien-signals`, for the reason the bridge and `mini-helpers` are kept off it.
+- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline.
+
+Its parity suite adds two checks the other two do not need: that both native
+sides publish the link payload under the same key, and that the Android manifest
+still carries the `<provider>` and `<queries>` entries. Deleting either compiles
+cleanly and passes every other test — the first makes `getInitialURL` answer
+null forever, the second makes `openURL('mailto:…')` fail on Android 11+.
+
+**None of that is a device either**, and the cold-start path is the part that
+most wants one: it depends on a provider being created before the first activity
+and on `+load` running before the launch notification. The caveat is carried in
+the package's `README.md`, `AI.md` and `AGENTS.md` exactly as its siblings carry
+theirs.
 
 ## The playgrounds (`apps/`)
 

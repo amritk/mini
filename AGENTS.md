@@ -30,12 +30,14 @@ Two more sit alongside them, for the part of a Lynx app that is not rendering:
 [`packages/mini-lynx-native`](./packages/mini-lynx-native) —
 `@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
 contexts, because `NativeModules` lives only in the latter and the runtime lives
-only in the former — and two native modules built on it, with Android and iOS
+only in the former — and three native modules built on it, with Android and iOS
 sources of their own:
 [`packages/lynx-notifications`](./packages/lynx-notifications) —
-`@amritk/lynx-notifications`, local and remote push — and
+`@amritk/lynx-notifications`, local and remote push —
 [`packages/lynx-location`](./packages/lynx-location) —
-`@amritk/lynx-location`, device location. Those compile in CI —
+`@amritk/lynx-location`, device location — and
+[`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
+`@amritk/lynx-deep-linking`, deep links in and out. Those compile in CI —
 `bun run check:android` for the Kotlin, `pod lib lint` on a macOS runner for the
 Objective-C — and a parity suite pins their method surfaces against the
 TypeScript. **None of it has run on a device.** See each package's `AGENTS.md`
