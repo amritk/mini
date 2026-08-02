@@ -30,6 +30,13 @@ and subscriptions rather than signals, deliberately — a second edge onto the
 signal engine is how a consumer ends up with two reactive graphs that cannot see
 each other's writes.
 
-The native halves have **not** been compiled or run on a device; this repository
-has no Android SDK and no Xcode. The caveat is carried in the package's
-`README.md`, `AI.md` and `AGENTS.md`.
+Both native halves are compiled in CI — Gradle against the real
+`org.lynxsdk.lynx:lynx` AAR for Android, `pod lib lint` against the real Lynx pod
+on a macOS runner for iOS — and `src/native-contract.test.ts` pins their method
+names, arities and event strings against the TypeScript, which is the one class
+of drift no compiler on either side can catch. `bun run check:android` runs the
+Android compile locally and skips with an explanation when there is no SDK.
+
+**None of that has run on a device.** Permission flows, `AlarmManager` under
+Doze, APNs registration and FCM delivery are unverified. The caveat is carried in
+the package's `README.md`, `AI.md` and `AGENTS.md`.

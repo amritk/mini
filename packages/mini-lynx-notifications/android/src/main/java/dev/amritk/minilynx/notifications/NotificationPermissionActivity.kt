@@ -52,8 +52,15 @@ internal class NotificationPermissionActivity : Activity() {
     val callback = takePending()
     finish()
     // No transition: a flash of a blank translucent activity is the one visual
-    // artefact this approach can produce, and this removes it.
-    overridePendingTransition(0, 0)
+    // artefact this approach can produce, and this removes it. Android 34
+    // replaced `overridePendingTransition` with a form that names which
+    // transition is being overridden, and deprecated the old one.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+    } else {
+      @Suppress("DEPRECATION")
+      overridePendingTransition(0, 0)
+    }
     callback?.invoke(granted)
   }
 

@@ -203,14 +203,26 @@ installNativeBridge({ peer: contexts.background, emitter, modules: { [MODULE]: n
 notifications.deliver({ title: 'Order shipped' })
 ```
 
-## Status
+## Status, and what is actually verified
 
-The TypeScript is tested. **The Kotlin and the Objective-C have not been
-compiled or run on a device** — this repository has no Android SDK and no Xcode,
-and nothing in its suite can verify them. They are written against the documented
-Lynx, Android and iOS APIs, and the fake in `/testing` is the executable
-statement of the contract they are supposed to satisfy. Treat the native halves
-as a starting point to build and test on a device, not as shipped-and-proven.
+| | Checked by | Runs where |
+| --- | --- | --- |
+| TypeScript facade | `bun run test` | everywhere |
+| JS ⇄ native contract (names, arities, event names) | `src/native-contract.test.ts` | everywhere |
+| Kotlin compiles and packages to an AAR | `bun run check:android` | needs an Android SDK; CI |
+| Objective-C compiles against the iOS SDK | `pod lib lint` | macOS only; CI |
+| Any of it working on a device | — | **nothing** |
+
+The last row is the one to keep in mind. Both native halves compile against the
+real Lynx SDK, and the contract between the three implementations is pinned by a
+test that fails when any of them drifts. None of that is the same as a
+notification appearing on a phone: permission flows, `AlarmManager` behaviour
+under Doze, APNs registration and FCM delivery are all things only a device can
+answer.
+
+`bun run check:android` skips with an explanation when there is no SDK, so a
+contributor without one is told what is being skipped rather than handed a
+failure they cannot act on. CI passes `--require-sdk` and fails instead.
 
 ## Licence
 

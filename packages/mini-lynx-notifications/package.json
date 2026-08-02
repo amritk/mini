@@ -30,6 +30,8 @@
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "android",
+    "!android/build",
+    "!android/.gradle",
     "ios",
     "lynx.lib.json",
     "AI.md"

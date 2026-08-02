@@ -101,5 +101,7 @@ immediately.
   `onCleanup`.
 - **Nothing here is reactive.** Wire a promise into your own signal:
   `const status = signal('undetermined'); getPermissionStatus().then(status)`.
-- **The native halves are unverified on device.** See the README's Status
-  section before treating this as production-ready.
+- **Both native halves compile against the real Lynx SDK in CI, but nothing has
+  run them on a device.** Permission flows, Doze-delayed alarms, APNs
+  registration and FCM delivery are all unverified. See the README's status
+  table before treating this as production-ready.

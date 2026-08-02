@@ -3,7 +3,7 @@ package dev.amritk.minilynx.notifications
 import android.app.NotificationManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
-import com.lynx.jsbridge.Callback
+import com.lynx.react.bridge.Callback
 import com.lynx.jsbridge.LynxContextModule
 import com.lynx.jsbridge.LynxMethod
 import com.lynx.jsbridge.LynxNativeModule

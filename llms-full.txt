@@ -521,3 +521,207 @@ schemaToValidator(schema: object): (values: Record<string, unknown>) => FormErro
   installed — an optional peer, and the only dependency anywhere in the package.
 - **Nothing here is reactive.** These are plain functions; call them inside a
   binding (`() => matchRoute(...)`) if you want the result to track a signal.
+
+---
+
+# AI.md — @amritk/mini-lynx-native
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
+
+## Mental model
+
+Lynx runs your code in **two JavaScript contexts**. `NativeModules` and
+`GlobalEventEmitter` exist only in the **background** one. `@amritk/mini-lynx`
+renders in the **main** one, because the Element PAPI is a main-thread API.
+
+They do not overlap. A component reaching for `NativeModules` gets `undefined` —
+not an error, just an absent property.
+
+This package carries calls from the main thread to the background one and events
+back. It is a wire, nothing more: it invents no capability and wraps no specific
+module.
+
+## Setup is two lines and both are required
+
+```ts
+// background chunk
+import { installNativeBridge } from '@amritk/mini-lynx-native/background'
+installNativeBridge()
+```
+
+```ts
+// main-thread chunk
+import { callNative } from '@amritk/mini-lynx-native'
+const level = await callNative<number>('BatteryModule', 'level')
+```
+
+If you only write the second one, every call queues forever and nothing says
+why. This is the single most likely thing to get wrong.
+
+## The surface, in full
+
+```ts
+import {
+  callNative,
+  callNativeAsync,
+  isNativeModuleAvailable,
+  onNativeEvent,
+  resetNativeChannel,
+  setPeerContext,
+} from '@amritk/mini-lynx-native'
+
+callNative<T>(module: string, method: string, ...args: unknown[]): Promise<T>
+callNativeAsync<T>(module: string, method: string, ...args: unknown[]): Promise<T>
+isNativeModuleAvailable(module: string, method?: string): Promise<boolean>
+onNativeEvent(name: string, listener: (...args: unknown[]) => void): () => void
+resetNativeChannel(): void
+setPeerContext(proxy: ContextProxy | null): void
+
+import { installNativeBridge } from '@amritk/mini-lynx-native/background'
+installNativeBridge(options?: InstallBridgeOptions): () => void
+
+import { createFakeContexts, createFakeEmitter } from '@amritk/mini-lynx-native/testing'
+```
+
+## Gotchas
+
+- **`callNative` vs `callNativeAsync` is about the NATIVE method's shape, not
+  the JavaScript one.** Both return a promise. Use `callNative` when the native
+  method returns its result; use `callNativeAsync` when it takes a trailing
+  callback. Picking the wrong one is a promise that never settles (using
+  `callNative` on a callback method) or `undefined` (the other way round).
+- **A native value cannot be read during a component's build.** Everything
+  crosses a thread. Bind a signal, start the call, write the signal when it
+  settles — do not try to `await` your way into a synchronous render.
+- **Only JSON crosses.** No functions, no class instances, no `Date`. Pass
+  timestamps as numbers.
+- **`callNativeAsync` settles on the FIRST callback invocation.** A native
+  method that calls back repeatedly loses everything after the first. For
+  streams, publish from native through `sendGlobalEvent` and use
+  `onNativeEvent`.
+- **A rejection means the call could not be MADE** — module not linked, method
+  not on it, native threw. A native method that came back with `{ ok: false }`
+  is a *resolved* promise; reading it is your job. Lynx has no error convention
+  for callbacks.
+- **`onNativeEvent` arguments are `unknown`** because `sendGlobalEvent`'s are.
+  Narrow once at the edge of your own code rather than casting at each use.
+- **Always unsubscribe.** The returned function drops the listener and, when it
+  was the last on that name, detaches from the emitter. Register it with
+  `onCleanup`; a screen that never lets go leaks across every navigation.
+- **Feature-detect before offering a control.** A Lynx bundle can run inside a
+  host that linked a module and one that did not. `isNativeModuleAvailable` is
+  how you hide a screen rather than fail when it is pressed.
+- **Nothing here is reactive.** No signals, deliberately — a second edge onto the
+  signal engine gives a consumer two reactive graphs that cannot see each
+  other's writes. Wire a promise into your own signal in one line.
+
+---
+
+# AI.md — @amritk/mini-lynx-notifications
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
+
+## Mental model
+
+A native module on each platform, plus a promise-shaped facade that reaches it.
+`UNUserNotificationCenter` + APNs on iOS; `NotificationManager` + `AlarmManager`
++ FCM on Android.
+
+Everything is a promise, because `NativeModules` lives in Lynx's background
+context and a `@amritk/mini-lynx` tree renders on the main thread. There is no
+synchronous read of anything here.
+
+## Setup: one line you will forget
+
+```ts
+// background chunk — without this every call queues forever and nothing says why
+import { installNativeBridge } from '@amritk/mini-lynx-native/background'
+installNativeBridge()
+```
+
+The native side links itself through `lynx.lib.json`. Credentials do not — see
+the README for the APNs entitlement, the two app-delegate forwards, and
+`google-services.json`.
+
+## The surface, in full
+
+```ts
+import {
+  cancelAllNotifications,
+  cancelNotification,
+  createNotificationChannel,
+  getBadgeCount,
+  getDeviceToken,
+  getPermissionStatus,
+  getScheduledNotifications,
+  isNotificationsAvailable,
+  onDeviceToken,
+  onNotificationReceived,
+  onNotificationResponse,
+  requestPermission,
+  scheduleNotification,
+  setBadgeCount,
+} from '@amritk/mini-lynx-notifications'
+
+getPermissionStatus(): Promise<PermissionStatus>          // 'undetermined' | 'denied' | 'granted' | 'provisional'
+requestPermission(request?: PermissionRequest): Promise<PermissionStatus>
+getDeviceToken(): Promise<DeviceToken | null>             // { token, service: 'apns' | 'fcm' }
+onDeviceToken(listener): () => void
+scheduleNotification(request: NotificationRequest): Promise<string>
+cancelNotification(id: string): Promise<void>
+cancelAllNotifications(): Promise<void>
+getScheduledNotifications(): Promise<readonly ScheduledNotification[]>
+onNotificationReceived(listener: (n: Notification) => void): () => void
+onNotificationResponse(listener: (r: NotificationResponse) => void): () => void
+getBadgeCount(): Promise<number>
+setBadgeCount(count: number): Promise<void>
+createNotificationChannel(channel: NotificationChannel): Promise<void>
+isNotificationsAvailable(): Promise<boolean>
+```
+
+A trigger is `{ type: 'timeInterval', seconds, repeats? }` or
+`{ type: 'date', timestamp }` (milliseconds since the epoch). Omit it to deliver
+immediately.
+
+## Gotchas
+
+- **You get one permission prompt, ever.** A request after a refusal shows
+  nothing and resolves `denied`. Check `getPermissionStatus()` first and branch:
+  `undetermined` → ask, `denied` → explain and link to settings. Prompting
+  unconditionally on launch is the classic bug and it never recovers.
+- **Do not collapse the four statuses to a boolean.** `denied` and
+  `undetermined` need different handling; `provisional` (iOS) means granted but
+  quiet.
+- **Android drops a notification with no valid channel, in silence.** Call
+  `createNotificationChannel` at startup. It is a no-op on iOS, so call it
+  unconditionally.
+- **A channel is immutable after creation.** Only name and description change on
+  an existing one. Wrong importance means a new id.
+- **A foreground notification shows no banner.** It arrives at
+  `onNotificationReceived`; showing something is your job. A backgrounded arrival
+  does *not* come through there — you hear about it only via
+  `onNotificationResponse` if the user taps.
+- **Subscribe to `onNotificationResponse` at the app root, in the first
+  render.** A cold-start tap is held natively and replayed **once**, to whoever
+  subscribes first. Subscribing on the screen the notification points at cannot
+  work — that screen does not exist yet.
+- **Reusing an `id` replaces the notification.** That is the mechanism for
+  updating a live one, not a mistake.
+- **The device token rotates.** Send every `onDeviceToken` arrival to your
+  backend, not just the first `getDeviceToken`.
+- **`getDeviceToken()` resolving `null` is normal**, not an error: no permission,
+  offline, a simulator with no paired Mac, or a build with no Firebase.
+- **Android scheduling is inexact.** Doze can delay it. Fine for reminders,
+  wrong for countdowns.
+- **`getBadgeCount` on Android reports what this app last set**, not a system
+  value — Android has no badge API. iOS is exact.
+- **Always unsubscribe.** Every `on*` returns the unsubscribe; register it with
+  `onCleanup`.
+- **Nothing here is reactive.** Wire a promise into your own signal:
+  `const status = signal('undetermined'); getPermissionStatus().then(status)`.
+- **Both native halves compile against the real Lynx SDK in CI, but nothing has
+  run them on a device.** Permission flows, Doze-delayed alarms, APNs
+  registration and FCM delivery are all unverified. See the README's status
+  table before treating this as production-ready.

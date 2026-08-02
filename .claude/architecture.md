@@ -222,11 +222,29 @@ the Objective-C. `src/testing/create-fake-notifications.ts` is the executable
 statement of the contract between them — the suite drives the real facade
 against it, which is what pins method names, arities and call forms.
 
-**The native halves have never been compiled.** There is no Android SDK and no
-Xcode here, and nothing in the suite can verify a line of them. That caveat is
-carried in the package's `README.md`, `AI.md` and `AGENTS.md`, the same way
-`mini-lynx` carries its worklet round-trip caveat, and it should not be quietly
-dropped.
+Three checks of decreasing reach, and it is worth knowing which one a green run
+came from:
+
+- **`src/native-contract.test.ts`** parses the Kotlin `@LynxMethod` surface and
+  the Objective-C `methodLookup` table and asserts both agree with the
+  TypeScript — names, arities and event strings. It catches the one failure no
+  compiler on either side can see: a rename or an added argument in one language
+  only, which compiles everywhere and fails at the bridge on a device. It runs in
+  the normal suite, needs no toolchain, and is mutation-checked.
+- **`bun run check:android`** compiles the Kotlin against the real
+  `org.lynxsdk.lynx:lynx` AAR and packages an AAR, which also merges the
+  manifest. Outside `bun run test` because it needs an SDK and minutes; skips
+  with an explanation locally, `--require-sdk` in CI. The Gradle harness lives in
+  `android-check/` rather than `android/` so the shipped directory stays clean.
+- **`pod lib lint`** compiles the Objective-C against the real Lynx pod and iOS
+  SDK. macOS only, so CI is the only place it can ever run.
+
+**None of that is a device.** Permission flows, `AlarmManager` under Doze, APNs
+registration and FCM delivery are unverified, as is whether Lynx's annotation
+processor registers the module without the generated Spec its own template
+extends. That caveat is carried in the package's `README.md`, `AI.md` and
+`AGENTS.md`, the same way `mini-lynx` carries its worklet round-trip caveat, and
+it should be narrowed only by something that actually checked.
 
 ## The playgrounds (`apps/`)
 
