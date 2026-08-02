@@ -130,8 +130,8 @@
         "typescript",
       ],
     },
-    "packages/mini-lynx-notifications": {
-      "name": "@amritk/mini-lynx-notifications",
+    "packages/lynx-notifications": {
+      "name": "@amritk/lynx-notifications",
       "version": "0.1.0",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
@@ -159,7 +159,7 @@
 
     "@amritk/mini-lynx-native": ["@amritk/mini-lynx-native@workspace:packages/mini-lynx-native"],
 
-    "@amritk/mini-lynx-notifications": ["@amritk/mini-lynx-notifications@workspace:packages/mini-lynx-notifications"],
+    "@amritk/lynx-notifications": ["@amritk/lynx-notifications@workspace:packages/lynx-notifications"],
 
     "@amritk/playground-mini": ["@amritk/playground-mini@workspace:apps/playground-mini"],
 

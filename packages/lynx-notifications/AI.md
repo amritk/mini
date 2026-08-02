@@ -1,4 +1,4 @@
-# AI.md — @amritk/mini-lynx-notifications
+# AI.md — @amritk/lynx-notifications
 
 For an LLM consuming this package. Editing the repo instead? See
 [`AGENTS.md`](./AGENTS.md).
@@ -43,7 +43,7 @@ import {
   requestPermission,
   scheduleNotification,
   setBadgeCount,
-} from '@amritk/mini-lynx-notifications'
+} from '@amritk/lynx-notifications'
 
 getPermissionStatus(): Promise<PermissionStatus>          // 'undetermined' | 'denied' | 'granted' | 'provisional'
 requestPermission(request?: PermissionRequest): Promise<PermissionStatus>

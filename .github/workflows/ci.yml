@@ -54,7 +54,7 @@ jobs:
         run: bun run test:dist
 
   # The two jobs below are the only things anywhere that compile
-  # `@amritk/mini-lynx-notifications`' native halves. Everything in `Check`
+  # `@amritk/lynx-notifications`' native halves. Everything in `Check`
   # above runs in JavaScript and would pass just as happily against Kotlin and
   # Objective-C that do not build — `src/native-contract.test.ts` narrows that
   # gap by comparing the two native method surfaces against the TypeScript one,
@@ -110,5 +110,5 @@ jobs:
       # published from a monorepo subdirectory cannot avoid; it does NOT
       # suppress compiler errors, which is the point of running this.
       - name: Lint and compile the iOS pod
-        working-directory: packages/mini-lynx-notifications/ios
+        working-directory: packages/lynx-notifications/ios
         run: pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios

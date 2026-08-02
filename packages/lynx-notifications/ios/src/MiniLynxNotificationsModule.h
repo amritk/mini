@@ -4,7 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
- * The iOS half of `@amritk/mini-lynx-notifications`.
+ * The iOS half of `@amritk/lynx-notifications`.
  *
  * Every method is the other end of one function in the package's TypeScript,
  * and `src/testing/create-fake-notifications.ts` is the executable statement of

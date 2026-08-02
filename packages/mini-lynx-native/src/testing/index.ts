@@ -9,7 +9,7 @@
  * under test are the ones that ship.
  *
  * Exported publicly rather than kept internal because a module package built on
- * this bridge — `@amritk/mini-lynx-notifications` is the first — needs the same
+ * this bridge — `@amritk/lynx-notifications` is the first — needs the same
  * two fakes to test its own facade, and a second copy of them would be a second
  * thing to keep faithful.
  */

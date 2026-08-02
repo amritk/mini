@@ -1,6 +1,6 @@
 ---
 '@amritk/mini-lynx-native': minor
-'@amritk/mini-lynx-notifications': minor
+'@amritk/lynx-notifications': minor
 ---
 
 Add native modules for Lynx, starting with push notifications.
@@ -22,7 +22,7 @@ rather than lost, because the main-thread chunk usually runs first. The
 `/background` subpath is the half an app installs in its background chunk, in
 one line; `/testing` ships the fakes both halves run against.
 
-**`@amritk/mini-lynx-notifications`** is the first module built on it: local and
+**`@amritk/lynx-notifications`** is the first module built on it: local and
 remote push, with an Android implementation (`NotificationManager`,
 `AlarmManager`, FCM) and an iOS one (`UNUserNotificationCenter`, APNs) declared
 to Lynx's autolinker through `lynx.lib.json`. The JavaScript surface is promises

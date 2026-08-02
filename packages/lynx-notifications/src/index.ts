@@ -1,5 +1,5 @@
 /**
- * `@amritk/mini-lynx-notifications` — local and remote push notifications for
+ * `@amritk/lynx-notifications` — local and remote push notifications for
  * Lynx.
  *
  * Lynx ships no notifications module and, at the time of writing, neither does
@@ -21,7 +21,7 @@
  *
  * ```tsx
  * // 2. anywhere on the main thread — the app itself
- * import { getPermissionStatus, requestPermission, scheduleNotification } from '@amritk/mini-lynx-notifications'
+ * import { getPermissionStatus, requestPermission, scheduleNotification } from '@amritk/lynx-notifications'
  *
  * if ((await getPermissionStatus()) === 'undetermined') await requestPermission()
  * await scheduleNotification({ title: 'Standup', trigger: { type: 'timeInterval', seconds: 300 } })

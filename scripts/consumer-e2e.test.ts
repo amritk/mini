@@ -55,18 +55,22 @@ const OPTIONAL_PEERS: Record<string, string> = {
 }
 
 /**
- * Every package the release publishes. `@amritk/mini-helpers` is here because
- * both runtimes depend on it at runtime, so a consumer install that did not
- * carry it would fail on the first `/router` or `/forms` import;
- * `@amritk/mini-lynx-native` is here for the same reason relative to
- * `@amritk/mini-lynx-notifications`.
+ * Every package the release publishes, **in sorted order** — the assertion
+ * below compares it against a sorted list of what was actually packed, so a new
+ * entry in the wrong position fails for a reason that has nothing to do with
+ * packing.
+ *
+ * `@amritk/mini-helpers` is here because both runtimes depend on it at runtime,
+ * so a consumer install that did not carry it would fail on the first `/router`
+ * or `/forms` import; `@amritk/mini-lynx-native` is here for the same reason
+ * relative to `@amritk/lynx-notifications`.
  */
 const PUBLISHED = [
+  '@amritk/lynx-notifications',
   '@amritk/mini',
   '@amritk/mini-helpers',
   '@amritk/mini-lynx',
   '@amritk/mini-lynx-native',
-  '@amritk/mini-lynx-notifications',
 ] as const
 
 /**
@@ -215,7 +219,7 @@ describe('consumer-e2e', () => {
       }
       // Same rule one level up: the notifications package's `workspace:*` edge
       // onto the bridge has to resolve to a concrete version too.
-      if (name === '@amritk/mini-lynx-notifications') {
+      if (name === '@amritk/lynx-notifications') {
         const bridge = await readManifest(join(bareDir, 'node_modules/@amritk/mini-lynx-native/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-lynx-native'], `${name} @amritk/mini-lynx-native`).toBe(bridge.version)
       }

@@ -34,7 +34,7 @@ mini/
 │   ├── mini-lynx/           # @amritk/mini-lynx — the same runtime on Lynx's Element PAPI
 │   ├── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 │   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
-│   └── mini-lynx-notifications/ # @amritk/mini-lynx-notifications — the first native module
+│   └── lynx-notifications/     # @amritk/lynx-notifications — the first native module
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -210,7 +210,7 @@ package cannot answer.
 - **`/testing`** ships two linked context proxies and a fake emitter, which is
   what the suite runs against.
 
-### `@amritk/mini-lynx-notifications` (`packages/mini-lynx-notifications`)
+### `@amritk/lynx-notifications` (`packages/lynx-notifications`)
 
 The first actual native module in the repo, and the reason the bridge exists.
 Local and remote push: `UNUserNotificationCenter` + APNs on iOS,

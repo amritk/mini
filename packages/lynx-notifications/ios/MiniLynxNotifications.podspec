@@ -2,7 +2,7 @@ Pod::Spec.new do |s|
   s.name = 'MiniLynxNotifications'
   s.version = '0.1.0'
   s.summary = 'Local and remote push notifications for Lynx'
-  s.homepage = 'https://github.com/amritk/mini/tree/main/packages/mini-lynx-notifications'
+  s.homepage = 'https://github.com/amritk/mini/tree/main/packages/lynx-notifications'
   s.license = { :type => 'MIT' }
   s.author = 'amritk'
   # `pod lib lint` validates against the files on disk and never fetches this,

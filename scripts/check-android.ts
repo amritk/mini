@@ -1,5 +1,5 @@
 /**
- * Compiles `@amritk/mini-lynx-notifications`' Android library.
+ * Compiles `@amritk/lynx-notifications`' Android library.
  *
  * This is the only thing in the repository that can tell you the Kotlin is
  * real. Everything else about that package — the facade, the fake, the parity
@@ -20,7 +20,7 @@ import { join } from 'node:path'
 
 import { ROOT, runCommand } from './e2e-helpers'
 
-const CHECK_DIR = join(ROOT, 'packages/mini-lynx-notifications/android-check')
+const CHECK_DIR = join(ROOT, 'packages/lynx-notifications/android-check')
 
 /** The two spellings the Android tooling accepts, in the order it prefers them. */
 const androidHome = (): string | undefined => {
@@ -63,9 +63,7 @@ const main = async (): Promise<void> => {
   // library is worth failing on: the code is unverifiable on a device from
   // here, so a compiler telling us something is wrong is a signal we cannot
   // afford to let scroll past.
-  const warnings = output
-    .split('\n')
-    .filter((line) => line.startsWith('w: ') && line.includes('/mini-lynx-notifications/'))
+  const warnings = output.split('\n').filter((line) => line.startsWith('w: ') && line.includes('/lynx-notifications/'))
 
   if (warnings.length > 0) {
     console.error('check:android failed: the Kotlin compiled with warnings\n')

@@ -22,7 +22,7 @@ import { type NativeEventListener, subscribe } from './channel'
  * Because the emitter's are. `sendGlobalEvent` carries whatever the native
  * caller passed, and nothing between there and here inspects it. Narrow it at
  * the edge of your own code — a module package like
- * `@amritk/mini-lynx-notifications` is the right place to do that once, so
+ * `@amritk/lynx-notifications` is the right place to do that once, so
  * screens get a typed payload instead of a cast each.
  *
  * ## Unsubscribing is not optional

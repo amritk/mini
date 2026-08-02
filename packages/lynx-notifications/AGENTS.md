@@ -1,4 +1,4 @@
-# AGENTS.md — @amritk/mini-lynx-notifications
+# AGENTS.md — @amritk/lynx-notifications
 
 Contributor guide for AI agents editing **this package**. Repo-wide rules:
 [`../../AGENTS.md`](../../AGENTS.md) and [`../../CLAUDE.md`](../../CLAUDE.md).
@@ -10,9 +10,9 @@ promise-shaped facade over `@amritk/mini-lynx-native`.
 ## Commands
 
 ```bash
-bun run --filter='@amritk/mini-lynx-notifications' test
-bun run --filter='@amritk/mini-lynx-notifications' types:check
-bun run --filter='@amritk/mini-lynx-notifications' build
+bun run --filter='@amritk/lynx-notifications' test
+bun run --filter='@amritk/lynx-notifications' types:check
+bun run --filter='@amritk/lynx-notifications' build
 
 # Compiles the Kotlin against the real Lynx AAR and packages an AAR.
 # Needs ANDROID_HOME with platforms/android-35; skips with a message without one.

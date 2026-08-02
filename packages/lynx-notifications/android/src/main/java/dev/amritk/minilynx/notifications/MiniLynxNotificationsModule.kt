@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 /**
- * The Android half of `@amritk/mini-lynx-notifications`.
+ * The Android half of `@amritk/lynx-notifications`.
  *
  * Every method here is the other end of one function in the package's
  * TypeScript. The names, arities and call forms have to match exactly:

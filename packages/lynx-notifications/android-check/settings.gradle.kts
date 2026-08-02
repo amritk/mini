@@ -33,7 +33,7 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "mini-lynx-notifications-android-check"
+rootProject.name = "lynx-notifications-android-check"
 
 include(":notifications")
 project(":notifications").projectDir = file("../android")

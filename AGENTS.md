@@ -31,8 +31,8 @@ Two more sit alongside them, for the part of a Lynx app that is not rendering:
 `@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
 contexts, because `NativeModules` lives only in the latter and the runtime lives
 only in the former — and
-[`packages/mini-lynx-notifications`](./packages/mini-lynx-notifications) —
-`@amritk/mini-lynx-notifications`, the first native module built on it, with
+[`packages/lynx-notifications`](./packages/lynx-notifications) —
+`@amritk/lynx-notifications`, the first native module built on it, with
 Android and iOS sources of its own. Those compile in CI — `bun run check:android`
 for the Kotlin, `pod lib lint` on a macOS runner for the Objective-C — and a
 parity suite pins their method surfaces against the TypeScript. **None of it has

@@ -1,4 +1,4 @@
-# @amritk/mini-lynx-notifications
+# @amritk/lynx-notifications
 
 Local and remote push notifications for Lynx — an Android module, an iOS module,
 and a promise-shaped facade that reaches them from the main thread.
@@ -22,7 +22,7 @@ still "write native code and send it into your Lynx code".
 ## Install
 
 ```sh
-bun add @amritk/mini-lynx-notifications
+bun add @amritk/lynx-notifications
 ```
 
 `@amritk/mini-lynx-native` comes with it — it is the thread hop this package's
@@ -48,7 +48,7 @@ import {
   onNotificationResponse,
   requestPermission,
   scheduleNotification,
-} from '@amritk/mini-lynx-notifications'
+} from '@amritk/lynx-notifications'
 
 // At the app root, during the first render — a cold-start tap is replayed to
 // whoever subscribes first, and only once.
@@ -185,14 +185,14 @@ Without this, local notifications work and `getDeviceToken` always resolves
 
 ## Testing
 
-`@amritk/mini-lynx-notifications/testing` ships the native module in memory, so
+`@amritk/lynx-notifications/testing` ships the native module in memory, so
 your own screens can be tested with no device:
 
 ```ts
 import { installNativeBridge } from '@amritk/mini-lynx-native/background'
 import { createFakeContexts, createFakeEmitter } from '@amritk/mini-lynx-native/testing'
-import { MODULE } from '@amritk/mini-lynx-notifications'
-import { createFakeNotifications } from '@amritk/mini-lynx-notifications/testing'
+import { MODULE } from '@amritk/lynx-notifications'
+import { createFakeNotifications } from '@amritk/lynx-notifications/testing'
 
 const contexts = createFakeContexts()
 const emitter = createFakeEmitter()

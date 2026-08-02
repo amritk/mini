@@ -1,5 +1,5 @@
 {
-  "name": "@amritk/mini-lynx-notifications",
+  "name": "@amritk/lynx-notifications",
   "version": "0.1.0",
   "description": "Local and remote push notifications for Lynx: an Android and iOS native module, and a promise-shaped facade that reaches it from the main thread.",
   "type": "module",
@@ -19,9 +19,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/amritk/mini.git",
-    "directory": "packages/mini-lynx-notifications"
+    "directory": "packages/lynx-notifications"
   },
-  "homepage": "https://github.com/amritk/mini/tree/main/packages/mini-lynx-notifications#readme",
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/lynx-notifications#readme",
   "bugs": {
     "url": "https://github.com/amritk/mini/issues"
   },
@@ -42,7 +42,7 @@
   "scripts": {
     "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
     "types:check": "tsgo -p . --noEmit",
-    "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx-notifications/"
+    "test": "NODE_ENV=production vitest run --root ../.. packages/lynx-notifications/"
   },
   "exports": {
     "./package.json": "./package.json",
