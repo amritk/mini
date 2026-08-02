@@ -41,6 +41,18 @@ import { describe, expect, it } from 'vitest'
  * on the day something goes wrong on a device, which is the only day any of
  * them runs.
  *
+ * It moved a third time, by 110 bytes (5449 → 5559 measured), to buy back main
+ * thread time in the paths every screen runs. Four of the five are lookup tables
+ * for answers that depend on nothing but a string an app repeats on every
+ * element — the event-prefix parse in `apply-prop.ts`, the CSS spelling in
+ * `style/to-css-name.ts`, the unitless verdict in `style/to-style-text.ts` — and
+ * the fifth is `add-event.ts` learning not to copy a handler set of one on every
+ * delivered event. Together they cut about a quarter off the runtime's own cost
+ * to build a thousand-row list, measured against an engine that does nothing but
+ * keep the tree. That is a good trade at this altitude specifically because the
+ * runtime is MAIN-THREAD: the work it saves is not work moved to a background
+ * thread, it is work the frame no longer has to fit around.
+ *
  * It stays snug against the measured size on purpose. `/flow` is several times
  * the headroom and `/testing` is a complete Element PAPI, so a real leak cannot
  * hide in it. Raise it only for a deliberate, reviewed change to the core.
@@ -49,7 +61,7 @@ import { describe, expect, it } from 'vitest'
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** Gzipped-byte ceiling for the bundled `.` entry. */
-const GZIP_BUDGET = 5450
+const GZIP_BUDGET = 5560
 
 /** Subpath directories whose sources must never enter the core graph. */
 const SUBPATH_DIRS = ['flow/', 'composition/', 'router/', 'testing/', 'forms/', 'query/', 'bridge/']

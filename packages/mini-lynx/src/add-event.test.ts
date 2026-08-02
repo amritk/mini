@@ -182,6 +182,50 @@ describe('add-event', () => {
     expect(fired).toEqual(['self', 'other', 'other'])
   })
 
+  it('survives a lone handler detaching itself mid-dispatch', () => {
+    // The one-handler case takes its own path through the dispatcher — it reads
+    // the handler out rather than copying a set of one — so it needs the
+    // self-detach guarantee proved separately from the fan-out case above.
+    const { engine, view } = setup()
+    const fired: string[] = []
+    const detachSelf = addEvent(view, 'bindEvent', 'tap', () => {
+      fired.push('once')
+      detachSelf()
+    })
+
+    engine.dispatch(fake(view), 'tap')
+    engine.dispatch(fake(view), 'tap')
+
+    expect(fired).toEqual(['once'])
+    // Detaching the last handler drops the dispatcher, so the engine is not left
+    // calling into an empty registration.
+    expect(registrations(engine)).toEqual([
+      `__AddEvent(#${fake(view).id}, "bindEvent", "tap", worklet)`,
+      `__AddEvent(#${fake(view).id}, "bindEvent", "tap", null)`,
+    ])
+  })
+
+  it('does not run a handler attached by the lone handler until the next dispatch', () => {
+    // A handler bound during delivery belongs to the NEXT event, not the one
+    // being delivered. The fan-out path gets that from copying the set; the
+    // one-handler path has to get it from reading the handler out first, which
+    // is the case this pins.
+    const { engine, view } = setup()
+    const fired: string[] = []
+    addEvent(view, 'bindEvent', 'tap', () => {
+      fired.push('first')
+      if (fired.length === 1) addEvent(view, 'bindEvent', 'tap', () => fired.push('late'))
+    })
+
+    engine.dispatch(fake(view), 'tap')
+
+    expect(fired).toEqual(['first'])
+
+    engine.dispatch(fake(view), 'tap')
+
+    expect(fired).toEqual(['first', 'first', 'late'])
+  })
+
   it('survives a handler detaching a later one mid-dispatch', () => {
     const { engine, view } = setup()
     const fired: string[] = []

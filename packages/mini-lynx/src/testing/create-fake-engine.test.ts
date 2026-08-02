@@ -30,6 +30,24 @@ describe('create-fake-engine', () => {
     expect(second.calls()).toEqual([])
   })
 
+  it('reports the last thousand calls however many it has seen', () => {
+    // The log is trimmed in batches rather than on every call, because trimming
+    // eagerly costs an array copy per engine call and makes the fake, rather
+    // than the runtime, the thing its own benchmark measures. The slack that
+    // buys has to stay invisible: whatever the trim is doing internally, a
+    // caller sees a thousand entries and they are the most recent thousand.
+    const engine = createFakeEngine()
+    const view = engine.api.__CreateElement('view', 0)
+
+    for (let index = 0; index < 5000; index++) engine.api.__SetAttribute(view, 'index', index)
+
+    const calls = engine.calls()
+
+    expect(calls).toHaveLength(1000)
+    expect(calls[999]).toBe(`__SetAttribute(#${fake(view).id}, "index", 4999)`)
+    expect(calls[0]).toBe(`__SetAttribute(#${fake(view).id}, "index", 4000)`)
+  })
+
   it('keeps one listener per type and name, overwriting silently', () => {
     // The engine's real constraint, reproduced rather than smoothed over.
     // Working around it is `add-event.ts`'s job, and a fake that allowed many

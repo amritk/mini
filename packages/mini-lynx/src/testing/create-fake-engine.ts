@@ -145,7 +145,16 @@ export const createFakeEngine = (): FakeEngine => {
     calls.push(line)
     // A log nobody trims grows for as long as the engine is alive, and it is
     // always the most recent calls that a test or a screen cares about.
-    if (calls.length > 1000) calls = calls.slice(-1000)
+    //
+    // Trimmed in batches rather than on every call, and that is a real cost
+    // rather than tidiness. Trimming the moment the log passes the limit means
+    // copying `KEPT_CALLS` entries per engine call FOREVER after the first
+    // thousand — so a suite that builds a thousand rows pays twenty-five million
+    // array writes for a log it keeps a thousand lines of, and the fake, not the
+    // runtime, becomes what its own benchmark measures. Letting it run to a high
+    // water mark first amortises the copy to nothing per call. `calls()` slices
+    // to the limit on the way out, so nobody can observe the slack.
+    if (calls.length >= TRIM_CALLS_AT) calls = calls.slice(-KEPT_CALLS)
   }
 
   const element = (tag: string): FakeElement => ({
@@ -389,7 +398,10 @@ export const createFakeEngine = (): FakeEngine => {
     page,
     pageElement: toLynx(page),
     flushes: () => flushes,
-    calls: () => calls,
+    // Sliced here rather than trimmed eagerly, so the slack `record` leaves
+    // between trims stays an implementation detail — a caller sees the last
+    // `KEPT_CALLS` calls and never the batch that has not been dropped yet.
+    calls: () => (calls.length > KEPT_CALLS ? calls.slice(-KEPT_CALLS) : calls),
     clearCalls: () => {
       calls = []
     },
@@ -520,6 +532,24 @@ const descendants = (node: FakeElement, visit: (node: FakeElement) => unknown): 
  * that such code fails here too.
  */
 const FIRST_ELEMENT_ID = 10
+
+/**
+ * How many of the most recent PAPI calls {@link FakeEngine.calls} reports.
+ *
+ * A window rather than the whole history because a test asserts on what just
+ * happened, and an engine driving a long-lived screen would otherwise hold every
+ * string it ever formatted.
+ */
+const KEPT_CALLS = 1000
+
+/**
+ * Where the log is actually trimmed back to {@link KEPT_CALLS}.
+ *
+ * The gap between the two is what makes the trim amortised — see `record`. It
+ * costs at most this many strings of slack, which is a trade a test double can
+ * afford and a per-call array copy is not.
+ */
+const TRIM_CALLS_AT = KEPT_CALLS * 4
 
 /** Renders a value the way a call log should show it — short, and obviously a value. */
 const format = (value: unknown): string => {
