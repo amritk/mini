@@ -1,0 +1,13 @@
+<!--
+  No `package` attribute: Android Gradle Plugin 8 removed it outright and fails
+  the build if it is present. The package comes from `namespace` in
+  build.gradle.kts instead.
+
+  Deliberately empty otherwise, and that is worth stating rather than leaving to
+  be noticed. The other native libraries here declare permissions and a
+  transparent Activity to host a system prompt; showing a dialog needs neither,
+  because neither platform gates it. Nothing from this library appears in the
+  host app's merged manifest, on its Play Store listing, or in its data safety
+  form.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
