@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // No DOM lib and no Node types, for exactly the reason `@amritk/mini-lynx`
+    // omits them: this package runs in Lynx's two script contexts, neither of
+    // which is a browser and neither of which is Node. The background context
+    // is the more permissive of the two and it is still not either, so a stray
+    // `document` or `Buffer` must fail here rather than on a device.
+    "lib": ["ESNext"],
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

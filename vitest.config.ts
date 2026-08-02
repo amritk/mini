@@ -23,6 +23,30 @@ export default defineConfig({
         replacement: resolve(root, 'packages/mini-lynx/src/jsx-dev-runtime.ts'),
       },
       { find: /^@amritk\/mini-lynx$/, replacement: resolve(root, 'packages/mini-lynx/src/index.ts') },
+      // The native-module packages. Their subpaths must be matched before the
+      // bare package pattern for the same reason the jsx-runtime entries above
+      // are: a shorter anchored pattern cannot swallow them, but keeping the
+      // order consistent is what stops the next one from being wrong.
+      {
+        find: /^@amritk\/mini-lynx-native\/background$/,
+        replacement: resolve(root, 'packages/mini-lynx-native/src/background/index.ts'),
+      },
+      {
+        find: /^@amritk\/mini-lynx-native\/testing$/,
+        replacement: resolve(root, 'packages/mini-lynx-native/src/testing/index.ts'),
+      },
+      {
+        find: /^@amritk\/mini-lynx-native$/,
+        replacement: resolve(root, 'packages/mini-lynx-native/src/index.ts'),
+      },
+      {
+        find: /^@amritk\/mini-lynx-notifications\/testing$/,
+        replacement: resolve(root, 'packages/mini-lynx-notifications/src/testing/index.ts'),
+      },
+      {
+        find: /^@amritk\/mini-lynx-notifications$/,
+        replacement: resolve(root, 'packages/mini-lynx-notifications/src/index.ts'),
+      },
       // The helpers both packages share. Aliased for the same reason as the two
       // above — the suite must run against this checkout's source with no prior
       // `bun run build` — and the subpath must come first so the shorter

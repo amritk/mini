@@ -32,7 +32,9 @@ mini/
 ├── packages/
 │   ├── mini/                  # @amritk/mini — reactive DOM bindings + compilerless JSX
 │   ├── mini-lynx/           # @amritk/mini-lynx — the same runtime on Lynx's Element PAPI
-│   └── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
+│   ├── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
+│   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
+│   └── mini-lynx-notifications/ # @amritk/mini-lynx-notifications — the first native module
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -182,6 +184,49 @@ reactivity, no platform.**
   `tsconfig.build.json`) so CI can type-check before it builds; the emit
   resolves it through `types` instead, which is why `bun run --workspaces build`
   builds this package first.
+
+### `@amritk/mini-lynx-native` (`packages/mini-lynx-native`)
+
+The wire between Lynx's two script contexts. Lynx is explicit that **native
+modules are background-thread only**, and `@amritk/mini-lynx` renders on the
+main thread because the Element PAPI is a main-thread API — so a component
+reaching for `NativeModules` gets `undefined`, with no error to read.
+
+This package carries calls one way and `GlobalEventEmitter` events the other:
+`callNative` / `callNativeAsync` (the two shapes a Lynx native method comes in),
+`isNativeModuleAvailable`, and `onNativeEvent`. The `/background` subpath is the
+half an app installs in its background chunk, in one line — the same "the app
+owns the wire" bargain `@amritk/mini-lynx/bridge` makes, and for the same
+reason: which module runs in the background context is a bundler question this
+package cannot answer.
+
+- **The handshake is the load-bearing part.** The two chunks have no defined
+  start order and the main-thread one usually wins, so calls queue until the
+  background half answers. Without it a call made during a component build is a
+  message that goes nowhere and a promise that never settles.
+- **No dependencies at all, and no `alien-signals` in particular.** A second
+  edge onto the signal engine gives a consumer two reactive graphs that cannot
+  see each other's writes — the same rule that keeps `mini-helpers` off it.
+- **`/testing`** ships two linked context proxies and a fake emitter, which is
+  what the suite runs against.
+
+### `@amritk/mini-lynx-notifications` (`packages/mini-lynx-notifications`)
+
+The first actual native module in the repo, and the reason the bridge exists.
+Local and remote push: `UNUserNotificationCenter` + APNs on iOS,
+`NotificationManager` + `AlarmManager` + FCM on Android, declared to Lynx's
+autolinker through `lynx.lib.json`.
+
+The TypeScript is a thin promise-shaped facade; the substance is the Kotlin and
+the Objective-C. `src/testing/create-fake-notifications.ts` is the executable
+statement of the contract between them — the suite drives the real facade
+against it, which is what pins method names, arities and call forms.
+
+**The native halves have never been compiled.** There is no Android SDK and no
+Xcode here, and nothing in the suite can verify a line of them. That caveat is
+carried in the package's `README.md`, `AI.md` and `AGENTS.md`, the same way
+`mini-lynx` carries its worklet round-trip caveat, and it should not be quietly
+dropped.
 
 ## The playgrounds (`apps/`)
 

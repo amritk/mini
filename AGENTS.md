@@ -26,6 +26,16 @@ two shapes:
   same model rendered through a pluggable `Host`, so it targets a native view
   tree, the DOM, or plain objects.
 
+Two more sit alongside them, for the part of a Lynx app that is not rendering:
+[`packages/mini-lynx-native`](./packages/mini-lynx-native) —
+`@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
+contexts, because `NativeModules` lives only in the latter and the runtime lives
+only in the former — and
+[`packages/mini-lynx-notifications`](./packages/mini-lynx-notifications) —
+`@amritk/mini-lynx-notifications`, the first native module built on it, with
+Android and iOS sources of its own. **Those native sources are unverified: this
+repository cannot compile or run them.** See that package's `AGENTS.md`.
+
 Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
 `@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*
 in both (route matching, query parsing, JSON Schema compilation). It is a leaf:

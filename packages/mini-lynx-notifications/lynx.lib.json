@@ -1,0 +1,12 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "dev.amritk.minilynx.notifications",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "sourceDir": "ios",
+      "podspecPath": "ios/MiniLynxNotifications.podspec"
+    }
+  }
+}
