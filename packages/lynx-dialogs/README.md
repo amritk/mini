@@ -1,11 +1,11 @@
 # @amritk/lynx-dialogs
 
-**The platform's own date picker and action sheet, for Lynx.** An Android native
-module, an iOS native module, and a promise-shaped facade that reaches them from
-a main-thread [`@amritk/mini-lynx`](../mini-lynx) tree.
+**The platform's own date picker, action sheet and alert, for Lynx.** An Android
+native module, an iOS native module, and a promise-shaped facade that reaches
+them from a main-thread [`@amritk/mini-lynx`](../mini-lynx) tree.
 
 ```ts
-import { presentActionSheet, presentDatePicker } from '@amritk/lynx-dialogs'
+import { presentActionSheet, presentAlert, presentDatePicker } from '@amritk/lynx-dialogs'
 
 const date = await presentDatePicker({ mode: 'date', maximum: Date.now() })
 if (date.ok) console.log(new Date(date.value))
@@ -15,6 +15,13 @@ const choice = await presentActionSheet({
   actions: [{ label: 'Replace' }, { label: 'Delete', destructive: true }],
 })
 if (choice.ok) apply(choice.index)
+
+const confirm = await presentAlert({
+  title: 'Delete this photo?',
+  message: 'This cannot be undone.',
+  buttons: [{ label: 'Cancel', style: 'cancel' }, { label: 'Delete', style: 'destructive' }],
+})
+if (confirm.ok && confirm.index === 1) remove()
 ```
 
 ## Why this exists
@@ -30,8 +37,8 @@ against the gap do not fill it:
   *is* a real `UIDatePicker`/`DatePickerDialog`, bolted to another framework's
   bridge — it depends on `@sigx/lynx-core` and cannot be reached from here.
 
-Nothing native exists for action sheets at all. Lynx's official answer is "write
-native code and send it into your Lynx code", so that is what this is.
+Nothing native exists for action sheets or alerts at all. Lynx's official answer
+is "write native code and send it into your Lynx code", so that is what this is.
 
 The parts that make these controls feel right are the parts you cannot draw: the
 wheel's deceleration and haptics, the calendar's locale and first-day-of-week,
@@ -87,9 +94,18 @@ LynxEnv.inst().registerModule("MiniLynxDialogsModule", MiniLynxDialogsModule::cl
 ```ts
 presentDatePicker(options?: DatePickerOptions): Promise<DatePickerResult>
 presentActionSheet(options: ActionSheetOptions): Promise<ActionSheetResult>
+presentAlert(options: AlertOptions): Promise<AlertResult>
 dismissActiveDialog(): Promise<void>
 areDialogsAvailable(): Promise<boolean>
 ```
+
+### Which one
+
+An **alert** interrupts: centred, about what the user just did, a question with
+a small number of answers. An **action sheet** offers: from the edge, about what
+the user is pointing at, a list of what can be done to it. The practical test is
+the count — three buttons is Android's hard cap for an alert, so anything longer
+is a sheet.
 
 Every outcome is a discriminated union, never a rejection:
 
@@ -100,6 +116,10 @@ type DatePickerResult =
 
 type ActionSheetResult =
   | { ok: true; index: number }                                        // a position in `actions`
+  | { ok: false; reason: 'dismissed' | 'busy' | 'unavailable'; message: string }
+
+type AlertResult =
+  | { ok: true; index: number }                                        // a position in `buttons`
   | { ok: false; reason: 'dismissed' | 'busy' | 'unavailable'; message: string }
 ```
 
@@ -120,9 +140,16 @@ documented at the option it affects.
 | `use24HourClock` | a locale substitution, since `UIDatePicker` has no switch | passed straight to `TimePickerDialog` |
 | `anchor` | positions the iPad popover | ignored — a dialog is centred by the window manager |
 | default cancel label | localised by the system on the picker; English on the sheet | localised by the system |
+| alert buttons | would stack any number; capped at three to match | **exactly three slots** — the API caps at three |
+| alert dismissal | none — an alert has no gesture out, only its buttons | back gesture and tap outside both cancel |
 
 Cancelling **either** step of an Android `datetime` cancels the whole thing. A
 half-answered datetime is not a value worth handing back.
+
+`AlertButtons` is a one-to-three tuple rather than an array, so the Android cap
+is a type error instead of a button that quietly goes missing on half the
+devices. At most one button may carry `style: 'cancel'` — `UIAlertController`
+raises on a second, and the native side demotes extras rather than crashing.
 
 ## One dialog at a time
 
@@ -165,9 +192,13 @@ const pending = presentDatePicker({ mode: 'date' })
 dialogs.confirmDate(Date.now())      // or dialogs.cancel(), which is the branch worth testing
 ```
 
+`chooseAction(index)` answers a sheet, `chooseButton(index)` answers an alert,
+and `presented()` says what is on screen.
+
 It reproduces the platforms rather than smoothing them over: a second
-presentation is refused, a disabled row cannot be chosen, and a value outside the
-picker's bounds cannot be confirmed.
+presentation is refused, a disabled row cannot be chosen, a value outside the
+picker's bounds cannot be confirmed, and an alert with no buttons is refused
+rather than presented.
 
 ## No signals here
 

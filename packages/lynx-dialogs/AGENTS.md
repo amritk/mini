@@ -4,8 +4,8 @@ Contributor guide for AI agents editing **this package**. Repo-wide rules:
 [`../../AGENTS.md`](../../AGENTS.md) and [`../../CLAUDE.md`](../../CLAUDE.md).
 Consuming the package instead? See [`AI.md`](./AI.md).
 
-Native date pickers and action sheets for Lynx: two native modules, and a
-promise-shaped facade over `@amritk/mini-lynx-native`.
+Native date pickers, action sheets and alerts for Lynx: two native modules, and
+a promise-shaped facade over `@amritk/mini-lynx-native`.
 
 It is the third native module in this repository and it deliberately mirrors the
 first two. When you change something structural here, check
@@ -38,7 +38,7 @@ src/
   types.ts                  The shapes that cross to native. One file, so Kotlin
                             and Objective-C have a single thing to agree with
   native-module.ts          MODULE — the only string that crosses
-  present-date-picker.ts / present-action-sheet.ts
+  present-date-picker.ts / present-action-sheet.ts / present-alert.ts
   dismiss-active-dialog.ts / are-dialogs-available.ts
   native-contract.test.ts   Parses both native surfaces, compares to this one
   dialogs.test.ts           The facade over the real bridge, against the fake
@@ -55,6 +55,7 @@ android/
     DatePickers.kt             DatePickerDialog, TimePickerDialog, and the two-step
     ActionSheets.kt            AlertDialog + list, and the custom header
     ActionSheetAdapter.kt      Destructive and disabled rows, which setItems cannot do
+    Alerts.kt                  AlertDialog + buttons, and the three-slot mapping
     DialogResults.kt           Every string that crosses
     Options.kt                 Reading a ReadableMap without trusting it
 ios/
@@ -110,6 +111,35 @@ lynx.lib.json               The autolink manifest
   `setMessage`. `AlertController.setupContent` only moves the `ListView` into the
   content panel when there is no message to put there — set both and the message
   appears, the rows do not, and nothing says why. Do not "simplify" it back.
+- **An alert has one to three buttons, and `AlertButtons` is a tuple because of
+  it.** `AlertDialog` has exactly three button slots — positive, negative,
+  neutral — and there is no fourth. Making that an array with a runtime check
+  would move a compile error onto a device, and only onto the Android half of
+  it. iOS caps at three too, deliberately: an alert that reads differently on the
+  two platforms is worse than one that never offered the fourth choice.
+- **`Alerts.SLOTS` maps array order onto reading order, not onto slot numbers.**
+  Android lays buttons out negative, neutral, positive regardless of the order
+  they were added, so a two-button alert has to use negative and positive to put
+  `buttons[0]` on the left. A press reports the *slot*, which is why
+  `indexBySlot` exists — answering with the slot number would hand JavaScript
+  -1, -2 or -3 where it expected an index.
+- **Destructive alert buttons are tinted after `show()`.** `getButton` returns
+  null until the dialog has built its view, so tinting any earlier silently does
+  nothing and looks like the colour was simply ignored.
+- **At most one iOS alert action may be `UIAlertActionStyleCancel`.**
+  `UIAlertController` raises on the second, which is a crash reachable straight
+  from an options bag. `presentAlert:callback:` keeps a `cancelTaken` flag and
+  demotes any extra to the default style. Do not remove it in the belief that
+  the JavaScript side validates this — it does not.
+- **An alert with no buttons is refused on both platforms.** On Android it would
+  merely be odd; on iOS an alert has no dismissal gesture at all, so one with no
+  buttons is a modal the user can never leave and an app that is finished. The
+  tuple type makes it unreachable from typed code and both halves check anyway,
+  because the cost of being wrong is the whole session.
+- **The Android alert stays cancelable, and that asymmetry is deliberate.** The
+  back gesture dismissing a dialog is something Android users expect everywhere
+  else in the system. `AlertResult` documents that `dismissed` is a real outcome
+  there and effectively never one on iOS.
 - **No `androidx.appcompat` and no Material.** A bottom sheet would mean
   `com.google.android.material` and a required `Theme.Material3` on the host's
   Activity. The framework `AlertDialog` is themed by whatever the host already
@@ -205,6 +235,9 @@ first:
   it;
 - that `Callback.invoke(JavaOnlyMap)` arrives as a single object argument on the
   JavaScript side, which every result here assumes;
+- that `AlertDialog.getButton` returns a tinted button for every slot on a real
+  OEM theme, and that the three-slot layout puts the buttons where `Alerts` says
+  it does;
 - everything about how the dialogs actually look and behave: whether the custom
   header lines up with the rows on an OEM theme, whether the wheels sit correctly
   in a medium detent below iOS 15, whether the two-step `datetime` reads as one
@@ -218,12 +251,17 @@ Carry the caveat the way `@amritk/lynx-location` carries its own: state it, do
 not let a green suite imply more than it proves, and narrow it only when
 something has actually checked.
 
-## If you add an alert
+## Adding a fourth dialog
 
-`presentAlert` is the obvious next method — same slot, same session, same
-presenter, `UIAlertControllerStyleAlert` and an `AlertDialog` with buttons
-instead of a list. It was left out because it was not asked for, not because it
-does not fit. Adding it means the fake, the Kotlin, the Objective-C and
-`methodLookup` in the same commit.
+The three here share everything that is hard: the slot, the session, the thread
+hop, the Activity and key-window search, and the one-answer guarantee. A new one
+is a `present*` method on the module plus a file that builds the platform dialog
+and calls `session.finish` — `Alerts.kt` and `presentAlert:callback:` are the
+smallest example of the shape.
+
+What is not optional is doing it in **one commit across four places**: the fake,
+the facade, the Kotlin and the Objective-C, including `methodLookup`. The parity
+suite will catch a method missing from one of them, and it cannot catch one that
+is present everywhere and means something different in each.
 
 Add a changeset for every change (`bunx changeset`).

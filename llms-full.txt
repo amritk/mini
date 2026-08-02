@@ -471,8 +471,8 @@ For an LLM consuming this package. Editing the repo instead? See
 ## Mental model
 
 A native module on each platform, plus a promise-shaped facade that reaches it.
-`UIDatePicker` in a sheet and `UIAlertController` on iOS; `DatePickerDialog`,
-`TimePickerDialog` and `AlertDialog` on Android.
+`UIDatePicker` in a sheet and `UIAlertController` (sheet and alert styles) on
+iOS; `DatePickerDialog`, `TimePickerDialog` and `AlertDialog` on Android.
 
 Everything is a promise, because `NativeModules` lives in Lynx's background
 context and a `@amritk/mini-lynx` tree renders on the main thread. There is no
@@ -498,11 +498,13 @@ import {
   areDialogsAvailable,
   dismissActiveDialog,
   presentActionSheet,
+  presentAlert,
   presentDatePicker,
 } from '@amritk/lynx-dialogs'
 
 presentDatePicker(options?: DatePickerOptions): Promise<DatePickerResult>
 presentActionSheet(options: ActionSheetOptions): Promise<ActionSheetResult>
+presentAlert(options: AlertOptions): Promise<AlertResult>
 dismissActiveDialog(): Promise<void>     // closes whatever is up; settles it as 'dismissed'
 areDialogsAvailable(): Promise<boolean>  // whether the module is linked at all
 
@@ -530,10 +532,32 @@ type DatePickerResult =
   | { ok: true; value: number }
   | { ok: false; reason: 'dismissed' | 'busy' | 'unavailable'; message: string }
 
+type AlertOptions = {
+  title?: string
+  message?: string
+  // A 1-, 2- or 3-tuple. NOT an array — three is Android's hard cap.
+  buttons: readonly [AlertButton] | readonly [AlertButton, AlertButton]
+         | readonly [AlertButton, AlertButton, AlertButton]
+}
+
+type AlertButton = { label: string; style?: 'default' | 'cancel' | 'destructive' }
+
 type ActionSheetResult =
   | { ok: true; index: number }
   | { ok: false; reason: 'dismissed' | 'busy' | 'unavailable'; message: string }
+
+type AlertResult =
+  | { ok: true; index: number }
+  | { ok: false; reason: 'dismissed' | 'busy' | 'unavailable'; message: string }
 ```
+
+## Alert or action sheet?
+
+An alert interrupts — centred, about what the user just did, a question with a
+small number of answers. An action sheet offers — from the edge, about what the
+user is pointing at, a list of what can be done to it. If you need more than
+three choices it has to be a sheet: `AlertButtons` is a tuple and the compiler
+will stop you.
 
 ## The things most likely to trip you up
 
@@ -568,6 +592,19 @@ type ActionSheetResult =
 8. **Dismiss on navigation.** The dialog outlives the component that opened it:
    `onCleanup(() => void dismissActiveDialog())`.
 
+9. **An alert takes one to three buttons, and the type enforces it.** Do not
+   build the array dynamically and cast — Android has exactly three button slots
+   and there is no fourth. Use an action sheet instead.
+
+10. **At most one button may be `style: 'cancel'`.** `UIAlertController` raises
+    on a second one. The native side demotes extras to `default` rather than
+    crashing, but the layout you get will not be the one you meant.
+
+11. **An alert cannot be dismissed on iOS.** No tap outside, no swipe — only its
+    buttons. Android's back gesture *does* cancel it, so handle
+    `{ ok: false, reason: 'dismissed' }` on an alert too; treating it as "no" is
+    almost always right.
+
 ## What the result carries for each mode
 
 The picker modifies the `value` you gave it rather than building a fresh
@@ -593,13 +630,18 @@ installNativeBridge({ peer, emitter, modules: { [MODULE]: dialogs.module } })
 
 const pending = presentActionSheet({ actions: [{ label: 'Delete', destructive: true }] })
 dialogs.chooseAction(0)          // or dialogs.cancel()
+
+// alerts answer through chooseButton
+const asked = presentAlert({ buttons: [{ label: 'Cancel', style: 'cancel' }, { label: 'OK' }] })
+dialogs.chooseButton(1)
 ```
 
-`presented()` shows what is on screen; `setPresentable(false)` models a device
-with nowhere to present. The fake **throws** if a test tries to choose a disabled
-row or confirm a date outside the picker's bounds — a device would never have
-offered either, so a test that could drive them would be pinning behaviour the
-app can never reach.
+`presented()` shows what is on screen — `{ kind: 'datePicker' | 'actionSheet' |
+'alert', options }` — and `setPresentable(false)` models a device with nowhere to
+present. The fake **throws** if a test tries to choose a disabled row, confirm a
+date outside the picker's bounds, or answer one kind of dialog with another
+kind's handle: a device would never have offered any of those, so a test that
+could drive them would be pinning behaviour the app can never reach.
 
 ## Do not reach for signals
 

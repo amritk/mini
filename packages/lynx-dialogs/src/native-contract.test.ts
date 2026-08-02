@@ -90,7 +90,12 @@ const fakeSurface = (): Surface => {
 }
 
 /** The facade files that reach the native module. Listed so a new one cannot be silently missed. */
-const FACADE_FILES = ['dismiss-active-dialog.ts', 'present-action-sheet.ts', 'present-date-picker.ts']
+const FACADE_FILES = [
+  'dismiss-active-dialog.ts',
+  'present-action-sheet.ts',
+  'present-alert.ts',
+  'present-date-picker.ts',
+]
 
 /**
  * Every native method the facade calls, and how many arguments it hands over.
@@ -121,9 +126,9 @@ describe('native-contract', () => {
   it('finds a method surface in each implementation', () => {
     // A regex that silently matched nothing would make every comparison below
     // pass by agreeing that all three surfaces are empty.
-    expect(kotlinSurface().size).toBeGreaterThanOrEqual(3)
-    expect(objcSurface().size).toBeGreaterThanOrEqual(3)
-    expect(fakeSurface().size).toBeGreaterThanOrEqual(3)
+    expect(kotlinSurface().size).toBeGreaterThanOrEqual(4)
+    expect(objcSurface().size).toBeGreaterThanOrEqual(4)
+    expect(fakeSurface().size).toBeGreaterThanOrEqual(4)
   })
 
   it('exposes the same method names from Kotlin, Objective-C and the fake', () => {
@@ -179,7 +184,7 @@ describe('native-contract', () => {
     const implemented = new Set([...OBJC.matchAll(/^-\s*\([^)]*\)\s*(\w+)/gm)].map(([, name]) => name as string))
 
     const selectors = [...OBJC.matchAll(/NSStringFromSelector\(@selector\((\w+)/g)].map(([, name]) => name as string)
-    expect(selectors.length).toBeGreaterThanOrEqual(3)
+    expect(selectors.length).toBeGreaterThanOrEqual(4)
 
     for (const selector of selectors) {
       expect(implemented.has(selector), `no method implements the selector "${selector}"`).toBe(true)

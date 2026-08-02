@@ -60,6 +60,7 @@ static double MiniLynxMillisFor(NSDate *date, UIDatePickerMode mode) {
   return @{
     @"presentDatePicker" : NSStringFromSelector(@selector(presentDatePicker:callback:)),
     @"presentActionSheet" : NSStringFromSelector(@selector(presentActionSheet:callback:)),
+    @"presentAlert" : NSStringFromSelector(@selector(presentAlert:callback:)),
     @"dismissActiveDialog" : NSStringFromSelector(@selector(dismissActiveDialog)),
   };
 }
@@ -205,6 +206,85 @@ static double MiniLynxMillisFor(NSDate *date, UIDatePickerMode mode) {
     // iPad and UIKit raises if it has nothing to grow from.
     [presenter configurePopover:sheet.popoverPresentationController from:from anchor:options[@"anchor"]];
     [presenter present:sheet from:from];
+  });
+}
+
+#pragma mark - Alert
+
+- (void)presentAlert:(NSDictionary *)options callback:(void (^)(id))callback {
+  MiniLynxDialogsPresenter *presenter = MiniLynxDialogsPresenter.shared;
+  if (![presenter beginWithCompletion:^(NSDictionary *result) {
+        callback(result);
+      }]) {
+    callback([MiniLynxDialogsPresenter failure:MiniLynxDialogReasonBusy
+                                       message:@"another dialog is already presented"]);
+    return;
+  }
+
+  dispatch_async(dispatch_get_main_queue(), ^{
+    UIViewController *from = [presenter topViewController];
+    if (from == nil) {
+      [presenter finish:[MiniLynxDialogsPresenter failure:MiniLynxDialogReasonUnavailable
+                                                  message:@"there is no key window to present a dialog from"]];
+      return;
+    }
+
+    NSArray *buttons = [options[@"buttons"] isKindOfClass:NSArray.class] ? options[@"buttons"] : @[];
+    // Refused rather than presented, and this is the one guard here that is not
+    // defensive politeness. An alert has no dismissal gesture on iOS — no tap
+    // outside, no swipe — so an alert with no buttons is a modal the user can
+    // never leave, and the app is finished. The tuple type on the JavaScript
+    // side makes it unreachable; this is what happens when somebody casts.
+    if (buttons.count == 0) {
+      [presenter finish:[MiniLynxDialogsPresenter failure:MiniLynxDialogReasonUnavailable
+                                                  message:@"an alert needs at least one button"]];
+      return;
+    }
+
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:MiniLynxStringOrNil(options[@"title"])
+                                                                  message:MiniLynxStringOrNil(options[@"message"])
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+
+    // `UIAlertController` raises on a *second* cancel-styled action, so only the
+    // first one asking for it gets it and any others fall back to the default
+    // style. Trusting the caller here would be a crash reachable from an options
+    // bag — `AlertButtonStyle` says at most one, and this is what enforces it.
+    BOOL cancelTaken = NO;
+
+    // Capped to match Android's three button slots. iOS would stack more, and an
+    // alert that reads differently on the two platforms is worse than one that
+    // never offered the fourth choice.
+    NSUInteger count = MIN(buttons.count, (NSUInteger)3);
+    for (NSUInteger index = 0; index < count; index++) {
+      NSDictionary *entry = [buttons[index] isKindOfClass:NSDictionary.class] ? buttons[index] : @{};
+      NSString *style = MiniLynxStringOrNil(entry[@"style"]) ?: @"default";
+
+      UIAlertActionStyle actionStyle = UIAlertActionStyleDefault;
+      if ([style isEqualToString:@"destructive"]) {
+        actionStyle = UIAlertActionStyleDestructive;
+      } else if ([style isEqualToString:@"cancel"] && !cancelTaken) {
+        actionStyle = UIAlertActionStyleCancel;
+        cancelTaken = YES;
+      }
+
+      [alert addAction:[UIAlertAction actionWithTitle:(MiniLynxStringOrNil(entry[@"label"]) ?: @"")
+                                                style:actionStyle
+                                              handler:^(UIAlertAction *chosen) {
+                                                // `index` is captured by value, so
+                                                // each button answers with its own
+                                                // position in the caller's array —
+                                                // which is what `AlertResult.index`
+                                                // promises. UIKit may reorder the
+                                                // buttons on screen; it cannot
+                                                // reorder these.
+                                                [presenter finish:[MiniLynxDialogsPresenter
+                                                                      actionResult:(NSInteger)index]];
+                                              }]];
+    }
+
+    // No popover to configure: that is an action sheet's problem on iPad, and an
+    // alert is centred on every device.
+    [presenter present:alert from:from];
   });
 }
 

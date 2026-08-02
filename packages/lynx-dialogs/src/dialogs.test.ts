@@ -7,8 +7,10 @@ import { areDialogsAvailable } from './are-dialogs-available'
 import { dismissActiveDialog } from './dismiss-active-dialog'
 import { MODULE } from './native-module'
 import { presentActionSheet } from './present-action-sheet'
+import { presentAlert } from './present-alert'
 import { presentDatePicker } from './present-date-picker'
 import { createFakeDialogs, type FakeDialogs } from './testing/create-fake-dialogs'
+import type { AlertButtons } from './types'
 
 /**
  * These cases drive the real facade over the real bridge against the fake
@@ -187,6 +189,61 @@ describe('dialogs', () => {
     dialogs.chooseAction(0)
 
     await expect(second).resolves.toEqual({ ok: true, index: 0 })
+  })
+
+  it('resolves with the index of the alert button the user pressed', async () => {
+    const dialogs = setup()
+
+    const pending = presentAlert({
+      title: 'Delete this photo?',
+      buttons: [
+        { label: 'Cancel', style: 'cancel' },
+        { label: 'Delete', style: 'destructive' },
+      ],
+    })
+    await settle()
+    dialogs.chooseButton(1)
+
+    await expect(pending).resolves.toEqual({ ok: true, index: 1 })
+  })
+
+  it('reports an alert with no buttons as unavailable rather than presenting it', async () => {
+    const dialogs = setup()
+
+    // Only reachable by casting past `AlertButtons`, and worth a case anyway:
+    // an iOS alert has no dismissal gesture, so one with no buttons is a modal
+    // the user can never leave. Both native halves refuse it the same way.
+    const result = await presentAlert({ buttons: [] as unknown as AlertButtons })
+
+    expect(result).toEqual({ ok: false, reason: 'unavailable', message: expect.any(String) })
+    expect(dialogs.presented()).toBeNull()
+  })
+
+  it('treats an alert dismissal as a cancellation, which is Android only', async () => {
+    const dialogs = setup()
+
+    const pending = presentAlert({ buttons: [{ label: 'OK' }] })
+    await settle()
+    // The back gesture or a tap outside. iOS cannot produce this and Android
+    // can, so a screen has to handle it either way — `AlertResult` says so.
+    dialogs.cancel()
+
+    const result = await pending
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('dismissed')
+  })
+
+  it('holds the one slot across every kind of dialog', async () => {
+    const dialogs = setup()
+
+    leaveOpen(presentAlert({ buttons: [{ label: 'OK' }] }))
+    await settle()
+
+    // The slot is one per process, not one per kind — two dialogs of different
+    // kinds on screen at once is exactly the stacking this rule exists to stop.
+    const second = await presentDatePicker({ mode: 'date' })
+    expect(second).toEqual({ ok: false, reason: 'busy', message: expect.any(String) })
+    expect(dialogs.presented()?.kind).toBe('alert')
   })
 
   it('settles the pending presentation when the app dismisses it', async () => {

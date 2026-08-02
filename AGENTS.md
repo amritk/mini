@@ -37,7 +37,7 @@ sources of their own:
 [`packages/lynx-location`](./packages/lynx-location) —
 `@amritk/lynx-location`, device location — and
 [`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
-the platform's own date picker and action sheet. Those compile in CI —
+the platform's own date picker, action sheet and alert. Those compile in CI —
 `bun run check:android` for the Kotlin, `pod lib lint` on a macOS runner for the
 Objective-C — and a parity suite pins their method surfaces against the
 TypeScript. **None of it has run on a device.** See each package's `AGENTS.md`

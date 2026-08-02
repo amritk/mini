@@ -34,7 +34,14 @@ internal object DialogResults {
     return result
   }
 
-  /** The row the user chose, as a position in the array JavaScript passed. */
+  /**
+   * The row or button the user chose, as a position in the array JavaScript
+   * passed.
+   *
+   * Shared by the action sheet and the alert, which is not a shortcut: both are
+   * `UIAlertAction`s on iOS and both answer "which one of the things I listed",
+   * so `ActionSheetResult` and `AlertResult` are the same shape on purpose.
+   */
   fun action(index: Int): JavaOnlyMap {
     val result = JavaOnlyMap()
     result.putBoolean("ok", true)

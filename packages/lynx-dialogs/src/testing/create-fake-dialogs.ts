@@ -1,6 +1,9 @@
 import type {
   ActionSheetOptions,
   ActionSheetResult,
+  AlertButton,
+  AlertOptions,
+  AlertResult,
   DatePickerOptions,
   DatePickerResult,
   DialogDismissReason,
@@ -10,6 +13,7 @@ import type {
 export type FakePresentation =
   | { readonly kind: 'datePicker'; readonly options: DatePickerOptions }
   | { readonly kind: 'actionSheet'; readonly options: ActionSheetOptions }
+  | { readonly kind: 'alert'; readonly options: AlertOptions }
 
 /** The fake module, plus the handles a test needs to play the user's part. */
 export type FakeDialogs = {
@@ -28,7 +32,20 @@ export type FakeDialogs = {
    * is up, or when the row is one the platform would not let the user reach.
    */
   chooseAction(index: number): void
-  /** Cancels whatever is up, as a back press, an outside tap or a swipe down would. */
+  /**
+   * Presses a button on the alert. Throws when nothing is up, or when the index
+   * names no button.
+   */
+  chooseButton(index: number): void
+  /**
+   * Cancels whatever is up, as a back press, an outside tap or a swipe down
+   * would.
+   *
+   * Worth remembering when the presentation is an alert: on iOS this cannot
+   * happen, because an alert has no route out except its own buttons. The fake
+   * allows it because Android does, and because `dismissActiveDialog` produces
+   * it on both.
+   */
   cancel(): void
   /**
    * Whether the host can present at all. True by default; false is a device
@@ -88,7 +105,7 @@ export const createFakeDialogs = (): FakeDialogs => {
 
   /** The one presentation slot, and the callback waiting on it. */
   let current: FakePresentation | null = null
-  let answer: ((result: DatePickerResult | ActionSheetResult) => void) | null = null
+  let answer: ((result: DatePickerResult | ActionSheetResult | AlertResult) => void) | null = null
 
   const failure = (reason: DialogDismissReason, message: string) => ({ ok: false, reason, message }) as const
 
@@ -100,14 +117,14 @@ export const createFakeDialogs = (): FakeDialogs => {
    * finished dialog would refuse that one as `busy` — a bug that only shows up
    * in the back-to-back case, which is exactly how these get used.
    */
-  const settle = (result: DatePickerResult | ActionSheetResult): void => {
+  const settle = (result: DatePickerResult | ActionSheetResult | AlertResult): void => {
     const done = answer
     current = null
     answer = null
     done?.(result)
   }
 
-  /** The guard both `present*` methods share. Returns false when it has already answered. */
+  /** The guard every `present*` method shares. Returns false when it has already answered. */
   const canPresent = (done: (result: never) => void): boolean => {
     if (!presentable) {
       done(failure('unavailable', 'there is no window to present from') as never)
@@ -127,13 +144,29 @@ export const createFakeDialogs = (): FakeDialogs => {
     presentDatePicker: (options: DatePickerOptions, done: (result: DatePickerResult) => void) => {
       if (!canPresent(done as (result: never) => void)) return
       current = { kind: 'datePicker', options }
-      answer = done as (result: DatePickerResult | ActionSheetResult) => void
+      answer = done as (result: DatePickerResult | ActionSheetResult | AlertResult) => void
     },
 
     presentActionSheet: (options: ActionSheetOptions, done: (result: ActionSheetResult) => void) => {
       if (!canPresent(done as (result: never) => void)) return
       current = { kind: 'actionSheet', options }
-      answer = done as (result: DatePickerResult | ActionSheetResult) => void
+      answer = done as (result: DatePickerResult | ActionSheetResult | AlertResult) => void
+    },
+
+    presentAlert: (options: AlertOptions, done: (result: AlertResult) => void) => {
+      if (!canPresent(done as (result: never) => void)) return
+      // Refused before the slot is claimed, because an iOS alert with no buttons
+      // has no way out at all — the user would be stuck on it. Read through a
+      // widened view because `AlertButtons` is a one-to-three tuple, and
+      // TypeScript is right that a typed caller cannot get here: the check is
+      // for the one who cast, and it is here because being wrong ends the
+      // session.
+      if ((options.buttons as readonly AlertButton[]).length === 0) {
+        done(failure('unavailable', 'an alert needs at least one button') as never)
+        return
+      }
+      current = { kind: 'alert', options }
+      answer = done as (result: DatePickerResult | ActionSheetResult | AlertResult) => void
     },
 
     dismissActiveDialog: () => {
@@ -175,6 +208,15 @@ export const createFakeDialogs = (): FakeDialogs => {
         throw new Error(`the sheet has ${options.actions.length} actions, so index ${index} could not be chosen`)
       }
       if (action.disabled) throw new Error(`"${action.label}" is disabled, so it could not be chosen`)
+      settle({ ok: true, index })
+    },
+
+    chooseButton: (index) => {
+      const { options } = expect('alert')
+      const button = options.buttons[index]
+      if (button === undefined) {
+        throw new Error(`the alert has ${options.buttons.length} buttons, so index ${index} could not be pressed`)
+      }
       settle({ ok: true, index })
     },
 

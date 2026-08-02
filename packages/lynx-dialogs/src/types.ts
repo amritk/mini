@@ -149,6 +149,70 @@ export type ActionSheetOptions = {
   readonly anchor?: ActionSheetAnchor
 }
 
+/** How a button reads, and where the platform puts it. */
+export type AlertButtonStyle =
+  /** An ordinary choice. */
+  | 'default'
+  /**
+   * The way out. Bold on iOS, and the one iOS moves to the left of a two-button
+   * alert no matter what order you added it in.
+   *
+   * **At most one button may have it.** `UIAlertController` raises on a second
+   * cancel action — a real crash — so the native side demotes any extra to
+   * `default` rather than passing it on. Set it on the button that means "do
+   * nothing", and on no other.
+   */
+  | 'cancel'
+  /** Red on both platforms. For the button that deletes something. */
+  | 'destructive'
+
+/** One button on an alert. */
+export type AlertButton = {
+  /** The button's text. */
+  readonly label: string
+  /** Defaults to `default`. */
+  readonly style?: AlertButtonStyle
+}
+
+/**
+ * One, two or three buttons — and three is a platform limit, not a house style.
+ *
+ * Android's `AlertDialog` has exactly three button slots (positive, negative,
+ * neutral) and there is no fourth. iOS would stack more happily, but an alert
+ * that reads one way on a phone and loses a button on the other is worse than
+ * one that never offered it, so the cap is the same on both and the type is
+ * where you find out.
+ *
+ * If you need more choices than this, you want `presentActionSheet` — a list is
+ * what both platforms offer for exactly that.
+ *
+ * The array's order is the order the buttons are read left to right on Android.
+ * iOS reserves the right to move the `cancel` one, and does.
+ */
+export type AlertButtons =
+  | readonly [AlertButton]
+  | readonly [AlertButton, AlertButton]
+  | readonly [AlertButton, AlertButton, AlertButton]
+
+/** What to show in the alert. */
+export type AlertOptions = {
+  /** The question, in a few words. Shown in bold at the top. */
+  readonly title?: string
+  /** The detail under it. Where the consequence of the destructive button goes. */
+  readonly message?: string
+  /**
+   * The buttons, in order. At least one — see `AlertButtons` for why at most
+   * three.
+   *
+   * At least one matters more than it looks: an iOS alert has **no** way out
+   * except its own buttons. It cannot be tapped away, swiped away, or dismissed
+   * with a gesture, so an alert with no buttons is an app the user cannot use
+   * again. The native halves refuse to present one rather than trusting the
+   * type, and answer `{ ok: false, reason: 'unavailable' }` instead.
+   */
+  readonly buttons: AlertButtons
+}
+
 /**
  * Why a dialog produced no choice.
  *
@@ -202,5 +266,31 @@ export type DatePickerResult =
  * ```
  */
 export type ActionSheetResult =
+  | { readonly ok: true; readonly index: number }
+  | { readonly ok: false; readonly reason: DialogDismissReason; readonly message: string }
+
+/**
+ * The outcome of an alert.
+ *
+ * `index` is a position in the `buttons` array you passed.
+ *
+ * The `dismissed` case is **Android-only in practice**. An `AlertDialog` can be
+ * cancelled with the back gesture or a tap outside, and this package leaves that
+ * alone because taking it away is the kind of thing Android users notice. An
+ * iOS alert has no such route, so a screen that only ever runs on a phone will
+ * still see `dismissed` from an Android device and from `dismissActiveDialog`.
+ * Handle it.
+ *
+ * @example
+ * ```ts
+ * const result = await presentAlert({
+ *   title: 'Delete this photo?',
+ *   message: 'This cannot be undone.',
+ *   buttons: [{ label: 'Cancel', style: 'cancel' }, { label: 'Delete', style: 'destructive' }],
+ * })
+ * if (result.ok && result.index === 1) remove()
+ * ```
+ */
+export type AlertResult =
   | { readonly ok: true; readonly index: number }
   | { readonly ok: false; readonly reason: DialogDismissReason; readonly message: string }

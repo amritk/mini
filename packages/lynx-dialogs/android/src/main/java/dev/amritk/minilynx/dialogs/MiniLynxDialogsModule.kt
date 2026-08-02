@@ -66,6 +66,11 @@ class MiniLynxDialogsModule(context: LynxContext) : LynxContextModule(context) {
     present(Options.read(options), callback, ActionSheets::present)
   }
 
+  @LynxMethod
+  fun presentAlert(options: ReadableMap?, callback: Callback) {
+    present(Options.read(options), callback, Alerts::present)
+  }
+
   /**
    * Closes whatever is on screen, and settles its promise as a dismissal.
    *

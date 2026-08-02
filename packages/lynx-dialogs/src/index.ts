@@ -22,13 +22,19 @@
  *
  * ```tsx
  * // 2. anywhere on the main thread — the app itself
- * import { presentActionSheet, presentDatePicker } from '@amritk/lynx-dialogs'
+ * import { presentActionSheet, presentAlert, presentDatePicker } from '@amritk/lynx-dialogs'
  *
  * const date = await presentDatePicker({ mode: 'date', maximum: Date.now() })
  * if (date.ok) console.log(new Date(date.value))
  *
  * const choice = await presentActionSheet({ actions: [{ label: 'Copy' }, { label: 'Delete', destructive: true }] })
  * if (choice.ok) run(choice.index)
+ *
+ * const confirm = await presentAlert({
+ *   title: 'Delete this photo?',
+ *   buttons: [{ label: 'Cancel', style: 'cancel' }, { label: 'Delete', style: 'destructive' }],
+ * })
+ * if (confirm.ok && confirm.index === 1) remove()
  * ```
  *
  * The native side links itself: `lynx.lib.json` declares the Android and iOS
@@ -69,12 +75,18 @@ export { areDialogsAvailable } from './are-dialogs-available'
 export { dismissActiveDialog } from './dismiss-active-dialog'
 export { MODULE } from './native-module'
 export { presentActionSheet } from './present-action-sheet'
+export { presentAlert } from './present-alert'
 export { presentDatePicker } from './present-date-picker'
 export type {
   ActionSheetAnchor,
   ActionSheetItem,
   ActionSheetOptions,
   ActionSheetResult,
+  AlertButton,
+  AlertButtonStyle,
+  AlertButtons,
+  AlertOptions,
+  AlertResult,
   DatePickerMode,
   DatePickerOptions,
   DatePickerResult,
