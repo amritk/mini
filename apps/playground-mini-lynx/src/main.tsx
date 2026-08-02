@@ -1,7 +1,9 @@
 import { mount, setEngine } from '@amritk/mini-lynx'
+import { trackKeyboard } from '@amritk/mini-lynx/keyboard'
 
 import { App } from './app'
 import { createDomPapi } from './lib/dom-papi'
+import { createVisualViewportEmitter } from './lib/visual-viewport-keyboard'
 import './styles.css'
 
 /**
@@ -31,6 +33,12 @@ if (!root) throw new Error('#app is missing from index.html')
 
 const engine = createDomPapi({ root })
 setEngine(engine)
+
+// On a device this is `trackKeyboard()` with no argument — the engine's own
+// `GlobalEventEmitter` is the default source. Lynx does not emit
+// `keyboardstatuschanged` on the web, so the browser reports the keyboard from
+// `visualViewport` instead and everything above the height is the same code.
+trackKeyboard({ emitter: createVisualViewportEmitter() })
 
 const page = engine.__GetPageElement?.()
 if (!page) throw new Error('The DOM engine did not hand back a page element')

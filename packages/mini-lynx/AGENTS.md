@@ -79,6 +79,7 @@ src/
   query/                  createQuery over @tanstack/query-core
   elements/               querySelector/querySelectorAll and invoke — the engine's UI methods
   gestures/               setGestureDetector — recogniser composition, the part events cannot express
+  keyboard/               The soft keyboard as a signal, and the layouts that move out of its way
   recycle/                recycle — <list>'s cell recycler, the one inverted-ownership path here
   bridge/                 The fallback event transport: string handlers, with the app owning the wire
 examples/

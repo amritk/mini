@@ -300,6 +300,38 @@ export const createDomPapi = ({
     },
 
     /**
+     * The engine's UI methods — the actions that are not state.
+     *
+     * Only the ones a browser can answer honestly are implemented, and
+     * everything else reports the engine's own "this element does not implement
+     * that" rather than a plausible zero. A preview that invented a rect would
+     * be worse than one that admits it cannot measure: keyboard avoidance is
+     * arithmetic over rects, and it would silently move things by the wrong
+     * amount here while looking fine.
+     *
+     * `boundingClientRect` is the interesting one, and it is genuinely the same
+     * question in both places — the browser's own answer, in CSS pixels, in the
+     * viewport's coordinate space, which is the space Lynx reports it in too.
+     */
+    __InvokeUIMethod: (element, method, _params, callback) => {
+      const target = fromLynx(element)
+
+      if (method === 'boundingClientRect') {
+        const rect = target.getBoundingClientRect()
+        callback({ code: 0, data: rect.toJSON() as Record<string, number> })
+        return
+      }
+
+      if (method === 'scrollIntoView') {
+        target.scrollIntoView({ block: 'nearest' })
+        callback({ code: 0, data: {} })
+        return
+      }
+
+      callback({ code: -1, data: `the preview engine does not implement "${method}"` })
+    },
+
+    /**
      * Nothing to commit: the DOM is eager, so every mutation above already
      * reached the screen.
      *

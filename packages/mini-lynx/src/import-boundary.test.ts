@@ -38,6 +38,7 @@ const SUBPATH_DIRS = [
   'testing',
   'elements',
   'gestures',
+  'keyboard',
   'recycle',
   'bridge',
 ]
@@ -162,6 +163,22 @@ describe('import-boundary', () => {
       ),
     ).toEqual([])
     expect([...flow.externals].sort()).toEqual(['@lynx-js/types', 'alien-signals'])
+  })
+
+  it('keeps the keyboard subpath to the core and one UI method', () => {
+    // `/keyboard` is the one subpath that reaches sideways into another, and it
+    // is one file: measuring a rect is a UI method, and `elements/invoke.ts` is
+    // where the engine's callback convention is already turned into a promise.
+    // Pinned as an exact list so the edge stays deliberate — a second one should
+    // fail here and be argued for, not appear.
+    const keyboard = walk(resolve(SRC, 'keyboard', 'index.ts'))
+    expect(
+      leaksFrom(
+        keyboard.files,
+        SUBPATH_DIRS.filter((dir) => dir !== 'keyboard'),
+      ),
+    ).toEqual(['elements/invoke.ts'])
+    expect([...keyboard.externals].sort()).toEqual(['alien-signals'])
   })
 
   it('keeps the peer-backed subpaths off the core budget', () => {

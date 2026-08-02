@@ -376,6 +376,7 @@ Mutations are committed once per tick: a hundred signal writes cost one
 | `@amritk/mini-lynx/forms` | `createForm` / `Field` / `bindField` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
 | `@amritk/mini-lynx/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s. Mind the main-thread note above |
 | `@amritk/mini-lynx/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods, which are actions rather than attributes |
+| `@amritk/mini-lynx/keyboard` | `trackKeyboard` (one line at startup), `keyboardHeight`, `keyboardLift`, `avoidKeyboard` (a `ref` for a control), `KeyboardAvoiding`. Lynx does **not** avoid the keyboard for you, and the engine event behind this does not exist on the web |
 | `@amritk/mini-lynx/gestures` | `setGestureDetector`, `GestureType` — recogniser *arbitration*, the part ordinary events cannot express |
 | `@amritk/mini-lynx/recycle` | `recycle` — `<list>`'s cell recycler. A cell receives **getters**, because it outlives the row it was built for |
 | `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport. Only if the worklet round trip fails on a device |

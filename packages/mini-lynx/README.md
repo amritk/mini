@@ -187,6 +187,7 @@ Each is its own module graph, so importing one pulls in none of the others.
 | `/query` | `createQuery` over `@tanstack/query-core` |
 | `/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods |
 | `/gestures` | `setGestureDetector`, `GestureType` — recogniser composition |
+| `/keyboard` | `trackKeyboard`, `keyboardHeight`, `avoidKeyboard`, `KeyboardAvoiding` — keeping the soft keyboard off the focused field |
 | `/recycle` | `recycle` — `<list>`'s cell recycler |
 | `/testing` | `createFakeEngine`, `serializeTree` |
 
@@ -227,6 +228,17 @@ has no media queries, so no `prefers-reduced-motion` either. It reaches your
 host app natively and you pass it in with `setReducedMotion` — usually from
 `globalProps()`, which is where the platform's other pushed values already live.
 Everything downstream of that is free.
+
+**Keyboard avoidance needs one line, and does not reach the web.** `<input>`
+does not avoid the keyboard on any Lynx target — the engine reports the keyboard
+through a single global event and the layout is the app's — so `/keyboard` turns
+that event into a signal and the signal into a container that moves. Call
+`trackKeyboard()` once at startup, because nothing feeds the height until you
+do. The event itself is Android, iOS, Harmony and Clay only: Lynx's own
+compatibility data lists `keyboardstatuschanged` as unsupported on the web, so a
+web build has to report the keyboard itself and pass an emitter in.
+`apps/playground-mini-lynx` does exactly that from `visualViewport`, in about
+fifteen lines.
 
 **A worklet-transport failure is recoverable, not fatal.** Event delivery rests
 on one inference read from the engine's source rather than confirmed on
