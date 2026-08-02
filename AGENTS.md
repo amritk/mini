@@ -30,14 +30,19 @@ Two more sit alongside them, for the part of a Lynx app that is not rendering:
 [`packages/mini-lynx-native`](./packages/mini-lynx-native) —
 `@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
 contexts, because `NativeModules` lives only in the latter and the runtime lives
-only in the former — and
+only in the former — and two native modules built on it, with Android and iOS
+sources of their own:
 [`packages/lynx-notifications`](./packages/lynx-notifications) —
-`@amritk/lynx-notifications`, the first native module built on it, with
-Android and iOS sources of its own. Those compile in CI — `bun run check:android`
-for the Kotlin, `pod lib lint` on a macOS runner for the Objective-C — and a
-parity suite pins their method surfaces against the TypeScript. **None of it has
-run on a device.** See that package's `AGENTS.md` for what that does and does not
-cover.
+`@amritk/lynx-notifications`, local and remote push — and
+[`packages/lynx-location`](./packages/lynx-location) —
+`@amritk/lynx-location`, device location. Those compile in CI —
+`bun run check:android` for the Kotlin, `pod lib lint` on a macOS runner for the
+Objective-C — and a parity suite pins their method surfaces against the
+TypeScript. **None of it has run on a device.** See each package's `AGENTS.md`
+for what that does and does not cover.
+
+The two are deliberately alike: the second was built from the first's shape, so
+a structural change to one is usually owed to the other.
 
 Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
 `@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*

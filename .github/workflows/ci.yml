@@ -53,12 +53,13 @@ jobs:
       - name: Smoke and e2e test built artifacts
         run: bun run test:dist
 
-  # The two jobs below are the only things anywhere that compile
-  # `@amritk/lynx-notifications`' native halves. Everything in `Check`
-  # above runs in JavaScript and would pass just as happily against Kotlin and
-  # Objective-C that do not build — `src/native-contract.test.ts` narrows that
-  # gap by comparing the two native method surfaces against the TypeScript one,
-  # but comparing signatures is not compiling.
+  # The two jobs below are the only things anywhere that compile the native
+  # halves of `@amritk/lynx-notifications` and `@amritk/lynx-location`.
+  # Everything in `Check` above runs in JavaScript and would pass just as
+  # happily against Kotlin and Objective-C that do not build —
+  # `src/native-contract.test.ts` narrows that gap by comparing the two native
+  # method surfaces against the TypeScript one, but comparing signatures is not
+  # compiling.
   #
   # They are separate jobs rather than steps because they need toolchains the
   # main job has no use for, and a macOS runner costs several times an Ubuntu
@@ -92,7 +93,7 @@ jobs:
       # `--require-sdk` turns the "no Android SDK, skipping" path into a
       # failure: skipping is right for a contributor's laptop and would be a
       # silently green CI job.
-      - name: Compile the Android library
+      - name: Compile the Android libraries
         run: bun run check:android --require-sdk
 
   ios:
@@ -109,6 +110,12 @@ jobs:
       # `--allow-warnings` because CocoaPods warns about things a library
       # published from a monorepo subdirectory cannot avoid; it does NOT
       # suppress compiler errors, which is the point of running this.
-      - name: Lint and compile the iOS pod
+      - name: Lint and compile the notifications pod
         working-directory: packages/lynx-notifications/ios
         run: pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios
+
+      # A separate step rather than a second podspec in the same command, so a
+      # failure names which pod broke without reading the log.
+      - name: Lint and compile the location pod
+        working-directory: packages/lynx-location/ios
+        run: pod lib lint MiniLynxLocation.podspec --allow-warnings --platforms=ios

@@ -66,6 +66,7 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * relative to `@amritk/lynx-notifications`.
  */
 const PUBLISHED = [
+  '@amritk/lynx-location',
   '@amritk/lynx-notifications',
   '@amritk/mini',
   '@amritk/mini-helpers',
@@ -217,9 +218,9 @@ describe('consumer-e2e', () => {
         const shared = await readManifest(join(bareDir, 'node_modules/@amritk/mini-helpers/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-helpers'], `${name} @amritk/mini-helpers`).toBe(shared.version)
       }
-      // Same rule one level up: the notifications package's `workspace:*` edge
+      // Same rule one level up: a native-module package's `workspace:*` edge
       // onto the bridge has to resolve to a concrete version too.
-      if (name === '@amritk/lynx-notifications') {
+      if (name === '@amritk/lynx-notifications' || name === '@amritk/lynx-location') {
         const bridge = await readManifest(join(bareDir, 'node_modules/@amritk/mini-lynx-native/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-lynx-native'], `${name} @amritk/mini-lynx-native`).toBe(bridge.version)
       }

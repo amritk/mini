@@ -34,7 +34,8 @@ mini/
 │   ├── mini-lynx/           # @amritk/mini-lynx — the same runtime on Lynx's Element PAPI
 │   ├── mini-helpers/          # @amritk/mini-helpers — the pure helpers both of them share
 │   ├── mini-lynx-native/      # @amritk/mini-lynx-native — the main-thread ⇄ background wire
-│   └── lynx-notifications/     # @amritk/lynx-notifications — the first native module
+│   ├── lynx-notifications/     # @amritk/lynx-notifications — the first native module
+│   └── lynx-location/          # @amritk/lynx-location — the second, built from its shape
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -245,6 +246,57 @@ processor registers the module without the generated Spec its own template
 extends. That caveat is carried in the package's `README.md`, `AI.md` and
 `AGENTS.md`, the same way `mini-lynx` carries its worklet round-trip caveat, and
 it should be narrowed only by something that actually checked.
+
+### `@amritk/lynx-location` (`packages/lynx-location`)
+
+The second native module, built deliberately from the first's shape: device
+location, `CLLocationManager` on iOS and `LocationManager` on Android, behind
+the same promise-shaped facade over `@amritk/mini-lynx-native`.
+
+It exists because nothing else provides it. Lynx ships no location module;
+Sparkling's built-ins stop at navigation, storage and media; and the one
+published community package, `@sigx/lynx-location`, calls `NativeModules`
+directly from its JavaScript half — which is background-thread only, so a
+main-thread `mini-lynx` component importing it gets `undefined` with no error to
+read. Adopting it would have meant replacing all of its JavaScript and keeping
+only ~200 lines of Kotlin and Swift, plus an edge onto a second signal engine
+through `@sigx/lynx-core`.
+
+- **Failures are values, not rejections.** `getCurrentPosition` resolves
+  `{ ok: true, position }` or `{ ok: false, error, message }`, and a watch
+  delivers the same two shapes. Lynx has no error convention for bridge
+  callbacks — `callNativeAsync` rejects only when the call could not be *made* —
+  so a failure has to travel as a value regardless; making it a `throw` would
+  also put every call site in a `try`/`catch` for something that happens on a
+  perfectly normal first launch.
+- **`watchPosition` is the only stateful thing in either native-module package,
+  and the only one holding a real resource.** Its subscription is live before
+  the native side has answered with the watch's id, so events arriving in that
+  window are held — with the id they were published for, because a concurrent
+  watch shares the event name — and delivered once the id lands. Dropping them
+  would lose the first fix of every watch on a device that already had one.
+- **`LocationManager`, not the fused provider.** `FusedLocationProviderClient`
+  is better at this and lives in `play-services-location`; taking it would push
+  Play Services into every host app that autolinks the library and exclude
+  non-GMS devices. A library that cannot see what it is installed into does not
+  get to make that choice for its host.
+- **Foreground only, deliberately.** No `ACCESS_BACKGROUND_LOCATION`, no
+  `Always` authorisation, no foreground service — each is a second prompt, a
+  Play Store declaration or an App Review conversation, and a library should not
+  quietly enrol its host in any of them.
+- **Depends on:** `@amritk/mini-lynx-native`, and nothing else. No
+  `alien-signals`, for the reason the bridge and `mini-helpers` are kept off it.
+- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline.
+
+Its `src/native-contract.test.ts` carries one check the notifications suite does
+not: that every selector in the Objective-C `methodLookup` names a method that
+exists. A dangling selector is not a build error on iOS — `pod lib lint` passes
+— and fails only when Lynx tries to dispatch through it, on a device.
+
+**None of that is a device either.** The permission dialogs, which provider
+actually answers, what a fix contains outdoors, and whether a watch survives a
+backgrounding are all unverified, and the caveat is carried in the package's
+`README.md`, `AI.md` and `AGENTS.md` exactly as its sibling carries its own.
 
 ## The playgrounds (`apps/`)
 
