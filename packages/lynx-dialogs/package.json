@@ -1,0 +1,76 @@
+{
+  "name": "@amritk/lynx-dialogs",
+  "version": "0.1.0",
+  "description": "Native date pickers and action sheets for Lynx: an Android and iOS native module, and a promise-shaped facade that reaches it from the main thread.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
+  "keywords": [
+    "lynx",
+    "date-picker",
+    "action-sheet",
+    "dialog",
+    "native-module",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/lynx-dialogs"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/lynx-dialogs#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "android",
+    "!android/build",
+    "!android/.gradle",
+    "ios",
+    "lynx.lib.json",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/lynx-dialogs/"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./lynx.lib.json": "./lynx.lib.json",
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "dependencies": {
+    "@amritk/mini-lynx-native": "workspace:*"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

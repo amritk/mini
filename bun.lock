@@ -46,6 +46,22 @@
         "wrangler": "^4",
       },
     },
+    "packages/lynx-dialogs": {
+      "name": "@amritk/lynx-dialogs",
+      "version": "0.1.0",
+      "dependencies": {
+        "@amritk/mini-lynx-native": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+      "optionalPeers": [
+        "typescript",
+      ],
+    },
     "packages/lynx-location": {
       "name": "@amritk/lynx-location",
       "version": "0.1.0",
@@ -167,6 +183,8 @@
     "alien-signals": "3.2.1",
   },
   "packages": {
+    "@amritk/lynx-dialogs": ["@amritk/lynx-dialogs@workspace:packages/lynx-dialogs"],
+
     "@amritk/lynx-location": ["@amritk/lynx-location@workspace:packages/lynx-location"],
 
     "@amritk/lynx-notifications": ["@amritk/lynx-notifications@workspace:packages/lynx-notifications"],

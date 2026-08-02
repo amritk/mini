@@ -66,6 +66,7 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * relative to `@amritk/lynx-notifications`.
  */
 const PUBLISHED = [
+  '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
   '@amritk/lynx-notifications',
   '@amritk/mini',
@@ -89,6 +90,9 @@ const REACTIVE = ['@amritk/mini', '@amritk/mini-lynx'] as const
 
 /** The packages that depend on `@amritk/mini-helpers` at runtime. */
 const SHARES_HELPERS = ['@amritk/mini', '@amritk/mini-lynx'] as const
+
+/** The native-module packages, each of which reaches its platform half through the bridge. */
+const USES_BRIDGE = ['@amritk/lynx-dialogs', '@amritk/lynx-location', '@amritk/lynx-notifications'] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')
 
@@ -220,7 +224,7 @@ describe('consumer-e2e', () => {
       }
       // Same rule one level up: a native-module package's `workspace:*` edge
       // onto the bridge has to resolve to a concrete version too.
-      if (name === '@amritk/lynx-notifications' || name === '@amritk/lynx-location') {
+      if ((USES_BRIDGE as readonly string[]).includes(name)) {
         const bridge = await readManifest(join(bareDir, 'node_modules/@amritk/mini-lynx-native/package.json'))
         expect(pkg.dependencies?.['@amritk/mini-lynx-native'], `${name} @amritk/mini-lynx-native`).toBe(bridge.version)
       }

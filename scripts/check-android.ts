@@ -33,6 +33,7 @@ import { ROOT, runCommand } from './e2e-helpers'
 const CHECKS = [
   { name: '@amritk/lynx-notifications', dir: 'packages/lynx-notifications', project: 'notifications' },
   { name: '@amritk/lynx-location', dir: 'packages/lynx-location', project: 'location' },
+  { name: '@amritk/lynx-dialogs', dir: 'packages/lynx-dialogs', project: 'dialogs' },
 ] as const
 
 /** The two spellings the Android tooling accepts, in the order it prefers them. */
