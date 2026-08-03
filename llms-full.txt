@@ -859,6 +859,7 @@ import {
   isLocationAvailable,
   isLocationEnabled,
   requestPermission,
+  reverseGeocode,
   watchPosition,
 } from '@amritk/lynx-location'
 
@@ -872,6 +873,10 @@ isLocationEnabled(): Promise<boolean>    // the device-wide switch
 isLocationAvailable(): Promise<boolean>  // whether the module is linked at all
 
 watchPosition(listener: (update: WatchUpdate) => void, options?: WatchOptions): () => void
+
+// Needs NO permission: it geocodes the coordinates you hand it and never reads
+// the device's own location.
+reverseGeocode(coordinates: Coordinates, options?: ReverseGeocodeOptions): Promise<GeocodeResult>
 
 type PositionOptions = { accuracy?: 'high' | 'balanced' | 'low'; timeout?: number; maximumAge?: number }
 type WatchOptions = { accuracy?: 'high' | 'balanced' | 'low'; distanceFilter?: number; interval?: number }
@@ -892,6 +897,38 @@ type LocationResult =
   | { ok: false; error: 'permissionDenied' | 'locationDisabled' | 'timeout' | 'unavailable'; message: string }
 
 type WatchUpdate = LocationResult  // same two shapes
+
+type Coordinates = { latitude: number; longitude: number }  // a LocationFix satisfies this
+type ReverseGeocodeOptions = { locale?: string; maxResults?: number }
+
+// Every field is nullable, and most are usually null.
+type GeocodeAddress = {
+  formattedAddress: string | null  // built by the OS — the field to show a user
+  name: string | null
+  streetNumber: string | null
+  street: string | null
+  district: string | null
+  city: string | null
+  subregion: string | null
+  region: string | null
+  postalCode: string | null
+  country: string | null           // display string, changes with locale
+  isoCountryCode: string | null    // stable across locales — the one to store
+}
+
+type GeocodeResult =
+  | { ok: true; addresses: GeocodeAddress[] }  // never empty
+  | { ok: false; error: 'invalidCoordinates' | 'notFound' | 'network' | 'unavailable'; message: string }
+```
+
+Pair it with a fix, no mapping step needed:
+
+```ts
+const position = await getCurrentPosition()
+if (position.ok) {
+  const where = await reverseGeocode(position.position, { locale: 'en-CA' })
+  if (where.ok) label(where.addresses[0]?.city ?? '')
+}
 ```
 
 ## Results are unions, not rejections
@@ -942,6 +979,15 @@ onCleanup(watchPosition((u) => { if (u.ok) position(u.position) }, { distanceFil
   equivalent. Pace with `distanceFilter`.
 - **Assuming `accuracy` is filled in.** It is `number | null`; treat null as
   "do not trust this fix".
+- **Requesting permission before a `reverseGeocode`.** It does not need one and
+  will not prompt. Asking first spends the one-shot dialog on nothing.
+- **Geocoding in a list render.** Apple rate-limits `CLGeocoder` per app and
+  answers with a `network` error once you pass it. One request per user action,
+  and cache what comes back.
+- **Building an address string from the parts.** Use `formattedAddress` — the OS
+  already knows where that country puts the postcode.
+- **Storing `country`.** It is a display string that changes with the device's
+  language. `isoCountryCode` is the stable one.
 
 ## Testing your own screens
 
