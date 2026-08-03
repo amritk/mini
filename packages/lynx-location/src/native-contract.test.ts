@@ -99,6 +99,7 @@ const FACADE_FILES = [
   'get-permission-status.ts',
   'is-location-enabled.ts',
   'request-permission.ts',
+  'reverse-geocode.ts',
   'watch-position.ts',
 ]
 
@@ -207,8 +208,21 @@ describe('native-contract', () => {
   it('agrees on the error codes both native sides can report', () => {
     // A code that only one platform can produce is a branch an app writes and
     // never sees fire, and a code the facade does not model arrives as a string
-    // no `LocationErrorCode` covers.
-    const codes = ['permissionDenied', 'locationDisabled', 'timeout', 'unavailable']
+    // no `LocationErrorCode` or `GeocodeErrorCode` covers.
+    //
+    // Both unions are checked in one pass because both are declared in the same
+    // two native files. `unavailable` is deliberately shared between them: it
+    // means the same thing on both sides of the package — this device cannot do
+    // that — and a second spelling of it would be two branches for one outcome.
+    const codes = [
+      'permissionDenied',
+      'locationDisabled',
+      'timeout',
+      'unavailable',
+      'invalidCoordinates',
+      'notFound',
+      'network',
+    ]
     for (const code of codes) {
       expect(`${KOTLIN}${KOTLIN_EVENTS}`, `Kotlin never reports "${code}"`).toContain(`"${code}"`)
       expect(`${OBJC}${OBJC_CENTER}`, `Objective-C never reports "${code}"`).toContain(`@"${code}"`)

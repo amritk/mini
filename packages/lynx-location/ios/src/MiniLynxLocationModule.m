@@ -31,6 +31,7 @@
     @"getLastKnownPosition" : NSStringFromSelector(@selector(getLastKnownPosition:)),
     @"startWatching" : NSStringFromSelector(@selector(startWatching:callback:)),
     @"stopWatching" : NSStringFromSelector(@selector(stopWatching:)),
+    @"reverseGeocode" : NSStringFromSelector(@selector(reverseGeocode:callback:)),
   };
 }
 
@@ -104,6 +105,47 @@
 
 - (void)stopWatching:(NSString *)watchId {
   [MiniLynxLocationCenter.shared stopWatching:watchId];
+}
+
+#pragma mark - Reverse geocoding
+
+/**
+ * Coordinates in, addresses out.
+ *
+ * **No permission check, deliberately.** This never reads the device's own
+ * location, so an app that has been refused location outright can still label a
+ * saved venue. A check here to make this look like the methods above would push
+ * consumers into requesting a permission they have no use for.
+ */
+- (void)reverseGeocode:(NSDictionary *)request callback:(void (^)(id))callback {
+  // The coordinates arrive in the same bag as the options — one map on the
+  // wire, so a new option later is a key rather than a signature change in
+  // three languages. A missing key reads as 0 through `doubleValue`, which is a
+  // real coordinate in the Gulf of Guinea, so their presence is checked rather
+  // than assumed.
+  id latitude = request[@"latitude"];
+  id longitude = request[@"longitude"];
+  if (![latitude isKindOfClass:NSNumber.class] || ![longitude isKindOfClass:NSNumber.class]) {
+    callback(@{
+      @"ok" : @NO,
+      @"error" : MiniLynxLocationErrorInvalidCoordinates,
+      @"message" : @"latitude and longitude are required",
+    });
+    return;
+  }
+
+  NSString *locale = [request[@"locale"] isKindOfClass:NSString.class] ? request[@"locale"] : nil;
+  // Floored at one so that an explicit zero cannot ask for an answer that could
+  // only be read as `notFound`. Matches the Kotlin half.
+  NSUInteger maxResults = MAX([request[@"maxResults"] unsignedIntegerValue], (NSUInteger)1);
+
+  [MiniLynxLocationCenter.shared reverseGeocodeLatitude:[latitude doubleValue]
+                                              longitude:[longitude doubleValue]
+                                                 locale:locale
+                                             maxResults:maxResults
+                                             completion:^(NSDictionary *result) {
+                                               callback(result);
+                                             }];
 }
 
 @end

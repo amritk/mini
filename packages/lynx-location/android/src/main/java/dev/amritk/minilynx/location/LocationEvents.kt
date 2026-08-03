@@ -32,11 +32,20 @@ internal object LocationEvents {
   // switches on, and a typo in one is a branch that silently never runs. One
   // file holds every string that crosses, exactly as `native-module.ts` does on
   // the other side. `src/native-contract.test.ts` reads this file to check that
-  // both languages know all four.
+  // both languages know every one of them.
   const val PERMISSION_DENIED = "permissionDenied"
   const val LOCATION_DISABLED = "locationDisabled"
   const val TIMEOUT = "timeout"
   const val UNAVAILABLE = "unavailable"
+
+  // `GeocodeErrorCode`'s three additions, kept beside the four above because
+  // they are the same kind of string and splitting them would mean two places
+  // to check when one drifts. `UNAVAILABLE` is shared between the two unions
+  // deliberately: on both halves of this package it means "this device cannot
+  // do that", and a second spelling would be two branches for one outcome.
+  const val INVALID_COORDINATES = "invalidCoordinates"
+  const val NOT_FOUND = "notFound"
+  const val NETWORK = "network"
 
   private val contexts = mutableListOf<WeakReference<LynxContext>>()
 

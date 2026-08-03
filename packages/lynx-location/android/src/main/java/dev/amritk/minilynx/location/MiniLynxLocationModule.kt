@@ -198,6 +198,50 @@ class MiniLynxLocationModule(context: LynxContext) : LynxContextModule(context) 
     runCatching { manager.removeUpdates(listener) }
   }
 
+  /**
+   * Coordinates in, addresses out.
+   *
+   * **No permission check, deliberately.** This never reads the device's own
+   * location — it geocodes whatever it is handed — so an app that has been
+   * refused location outright can still label a saved venue. A check here to
+   * make this look like every other method on this class would push consumers
+   * into requesting a permission they have no use for.
+   */
+  @LynxMethod
+  fun reverseGeocode(request: ReadableMap?, callback: Callback) {
+    val bag = Options.read(request)
+
+    if (!Geocoding.isPresent()) {
+      // False for the life of a device built without Google's services, so this
+      // is worth failing gracefully over rather than retrying.
+      callback.invoke(GeocodeResults.failure(LocationEvents.UNAVAILABLE, "no geocoder on this device"))
+      return
+    }
+
+    val latitude = Options.doubleOrNull(bag, "latitude")
+    val longitude = Options.doubleOrNull(bag, "longitude")
+    if (!Geocoding.isValid(latitude, longitude)) {
+      callback.invoke(
+        GeocodeResults.failure(LocationEvents.INVALID_COORDINATES, "$latitude, $longitude is not a coordinate"),
+      )
+      return
+    }
+
+    Geocoding.reverseGeocode(
+      mLynxContext.applicationContext,
+      // Both non-null: `isValid` above rejects null before this point.
+      latitude!!,
+      longitude!!,
+      Options.stringOrNull(bag, "locale"),
+      // Floored at one, because `getFromLocation` reads zero as "give me
+      // nothing" and answers with an empty list a caller could only read as
+      // `notFound`.
+      Options.int(bag, "maxResults", 1).coerceAtLeast(1),
+    ) { result ->
+      callback.invoke(result)
+    }
+  }
+
   private fun locationManager(): LocationManager? =
     mLynxContext.applicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 

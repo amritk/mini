@@ -10,8 +10,9 @@ import { isLocationAvailable } from './is-location-available'
 import { isLocationEnabled } from './is-location-enabled'
 import { MODULE } from './native-module'
 import { requestPermission } from './request-permission'
+import { reverseGeocode } from './reverse-geocode'
 import { createFakeLocation, type FakeLocation } from './testing/create-fake-location'
-import type { LocationFix, WatchUpdate } from './types'
+import type { GeocodeAddress, LocationFix, WatchUpdate } from './types'
 import { watchPosition } from './watch-position'
 
 /**
@@ -320,5 +321,117 @@ describe('location', () => {
     location.emitPosition(fix({ latitude: 8 }), watch?.id)
 
     expect(updates).toEqual([])
+  })
+})
+
+describe('reverseGeocode', () => {
+  const address = (overrides: Partial<GeocodeAddress> = {}): GeocodeAddress => ({
+    formattedAddress: '1000 Rue Saint-Denis, Montreal, QC H2X 3J2, Canada',
+    name: null,
+    streetNumber: '1000',
+    street: 'Rue Saint-Denis',
+    district: null,
+    city: 'Montreal',
+    subregion: null,
+    region: 'Quebec',
+    postalCode: 'H2X 3J2',
+    country: 'Canada',
+    isoCountryCode: 'CA',
+    ...overrides,
+  })
+
+  /** Montreal, and somewhere in the North Atlantic. */
+  const MONTREAL = { latitude: 45.5017, longitude: -73.5673 }
+
+  it('returns the addresses the geocoder found', async () => {
+    const location = setup()
+    location.setNextAddresses([address()])
+
+    const result = await reverseGeocode(MONTREAL)
+
+    expect(result).toEqual({ ok: true, addresses: [address()] })
+  })
+
+  it('does not need location permission', async () => {
+    // The behaviour most likely to be broken by someone "tidying up" the native
+    // halves to look like every other method here. Reverse geocoding never
+    // reads the device's own location, so gating it would make an app request a
+    // permission it has no use for.
+    const location = setup()
+    location.setPermissionStatus('denied')
+    location.setNextAddresses([address()])
+
+    const result = await reverseGeocode(MONTREAL)
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('reports notFound where there is no address', async () => {
+    const location = setup()
+    location.setNextAddresses([])
+
+    const result = await reverseGeocode({ latitude: 45.5, longitude: -40 })
+
+    expect(result).toEqual({ ok: false, error: 'notFound', message: expect.any(String) })
+  })
+
+  it('reports invalidCoordinates rather than asking the geocoder', async () => {
+    const location = setup()
+    location.setNextAddresses([address()])
+
+    const result = await reverseGeocode({ latitude: 91, longitude: 0 })
+
+    expect(result).toEqual({ ok: false, error: 'invalidCoordinates', message: expect.any(String) })
+  })
+
+  it('reports network when the service cannot be reached', async () => {
+    const location = setup()
+    location.setNextAddresses([address()])
+    location.setNetworkAvailable(false)
+
+    const result = await reverseGeocode(MONTREAL)
+
+    expect(result).toEqual({ ok: false, error: 'network', message: expect.any(String) })
+  })
+
+  it('reports unavailable on a device with no geocoder', async () => {
+    const location = setup()
+    location.setNextAddresses([address()])
+    location.setGeocoderPresent(false)
+
+    const result = await reverseGeocode(MONTREAL)
+
+    expect(result).toEqual({ ok: false, error: 'unavailable', message: expect.any(String) })
+  })
+
+  it('sends the coordinates and the options across as one bag', async () => {
+    const location = setup()
+    location.setNextAddresses([address()])
+
+    await reverseGeocode(MONTREAL, { locale: 'fr-CA', maxResults: 3 })
+
+    expect(location.geocodes()).toEqual([{ ...MONTREAL, locale: 'fr-CA', maxResults: 3 }])
+  })
+
+  it('asks for one address when no maxResults is given', async () => {
+    const location = setup()
+    location.setNextAddresses([address({ city: 'Montreal' }), address({ city: 'Laval' })])
+
+    const result = await reverseGeocode(MONTREAL)
+
+    expect(result.ok && result.addresses).toHaveLength(1)
+  })
+
+  it('accepts a LocationFix as coordinates', async () => {
+    // `LocationFix` structurally satisfies `Coordinates`, which is the whole
+    // reason the two are separate types — pairing the calls should not need a
+    // mapping step.
+    const location = setup()
+    location.setNextAddresses([address()])
+
+    const result = await reverseGeocode(fix({ latitude: 45.5017, longitude: -73.5673 }))
+
+    expect(result.ok).toBe(true)
+    expect(location.geocodes()).toEqual([{ ...MONTREAL, locale: undefined, maxResults: undefined }])
   })
 })

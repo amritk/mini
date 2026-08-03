@@ -15,5 +15,9 @@ Pod::Spec.new do |s|
   # The CocoaPods release lags Maven's — 4.0.0 is the newest pod, 4.0.1 the
   # newest AAR — so this is a range rather than a version the two could share.
   s.dependency 'Lynx', '~> 4.0'
-  s.frameworks = 'CoreLocation'
+  # Contacts is here only for `CNPostalAddressFormatter`, which turns a
+  # `CLPlacemark`'s postal address into the string that country would write. It
+  # reaches no contact store and needs no permission — the formatter is pure
+  # formatting — but it does live in that framework.
+  s.frameworks = 'CoreLocation', 'Contacts'
 end

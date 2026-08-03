@@ -47,4 +47,21 @@ internal object Options {
 
   fun float(options: Map<String, Any?>, key: String, fallback: Float): Float =
     (options[key] as? Number)?.toFloat() ?: fallback
+
+  fun int(options: Map<String, Any?>, key: String, fallback: Int): Int =
+    (options[key] as? Number)?.toInt() ?: fallback
+
+  /**
+   * A double, with no fallback.
+   *
+   * Null rather than a default because the callers that want this are
+   * coordinates, and a latitude that quietly defaults to zero is a lookup off
+   * the coast of Ghana rather than a failure anybody can see. What a missing
+   * coordinate means is the caller's decision.
+   */
+  fun doubleOrNull(options: Map<String, Any?>, key: String): Double? =
+    (options[key] as? Number)?.toDouble()
+
+  /** A string, or null when the key is absent — for options with no sensible default. */
+  fun stringOrNull(options: Map<String, Any?>, key: String): String? = options[key] as? String
 }

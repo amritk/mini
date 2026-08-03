@@ -11,13 +11,24 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * Constants rather than literals at the call sites because a typo in one is a
  * branch on the other side that silently never runs, and no compiler on either
- * side can see it. `src/native-contract.test.ts` reads this file to check that
- * Kotlin and Objective-C know the same four.
+ * side can see it. `src/native-contract.test.ts` reads the implementation file
+ * to check that Kotlin and Objective-C know every one of them.
  */
 extern NSString *const MiniLynxLocationErrorPermissionDenied;
 extern NSString *const MiniLynxLocationErrorLocationDisabled;
 extern NSString *const MiniLynxLocationErrorTimeout;
 extern NSString *const MiniLynxLocationErrorUnavailable;
+
+/**
+ * The codes a reverse geocode can end in, as `GeocodeErrorCode` spells them.
+ *
+ * `MiniLynxLocationErrorUnavailable` above is shared between the two unions
+ * deliberately: on both halves of this package it means "this device cannot do
+ * that", and a second spelling would be two branches for one outcome.
+ */
+extern NSString *const MiniLynxLocationErrorInvalidCoordinates;
+extern NSString *const MiniLynxLocationErrorNotFound;
+extern NSString *const MiniLynxLocationErrorNetwork;
 
 /**
  * The process-wide half of the iOS implementation: every `CLLocationManager`,
@@ -60,6 +71,21 @@ extern NSString *const MiniLynxLocationErrorUnavailable;
 
 /** Stops a watch. Unknown ids are ignored. */
 - (void)stopWatching:(NSString *)watchId;
+
+/**
+ * One reverse geocode, and then done.
+ *
+ * Takes no permission of any kind: this reads no device location, only the
+ * coordinates it is handed.
+ *
+ * `maxResults` is a ceiling applied here rather than passed on — CoreLocation
+ * has no equivalent parameter and returns as many placemarks as it found.
+ */
+- (void)reverseGeocodeLatitude:(CLLocationDegrees)latitude
+                     longitude:(CLLocationDegrees)longitude
+                        locale:(nullable NSString *)locale
+                    maxResults:(NSUInteger)maxResults
+                    completion:(void (^)(NSDictionary *result))completion;
 
 @end
 
