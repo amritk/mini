@@ -122,10 +122,18 @@ export const applyVisible = (element: LynxElement, visible: boolean): void => {
   applyStyle(element, state.style)
 }
 
-/** Stringifies a style bag into CSS declarations, dropping the entries that mean "unset". */
+/**
+ * Stringifies a style bag into CSS declarations, dropping the entries that mean
+ * "unset".
+ *
+ * `for…in` rather than `Object.entries`, which would allocate an array and a
+ * pair per declaration every time a reactive style re-runs — which is once a
+ * frame for anything animated, on the main thread.
+ */
 const toDeclarations = (value: StyleValue): Record<string, string> => {
   const declarations: Record<string, string> = {}
-  for (const [key, entry] of Object.entries(value)) {
+  for (const key in value) {
+    const entry = value[key]
     if (entry === null || entry === undefined || entry === false) continue
     declarations[toCssName(key)] = toStyleText(key, entry)
   }

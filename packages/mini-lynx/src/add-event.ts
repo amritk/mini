@@ -37,6 +37,17 @@ import type { Dispose } from './types'
  * choose to share a dispatcher, so one throwing must not cost the others their
  * event. Each runs guarded, and a throw is reported rather than propagated;
  * `setErrorHandler` is where those reports go.
+ *
+ * ## One handler is the case worth not allocating for
+ *
+ * Fan-out is the case this module EXISTS for, but a single handler is the case
+ * it spends its time in: nearly every listener an app binds is the only one on
+ * its pair. Two things follow, and both are about garbage rather than about
+ * work. The set is built EMPTY and added to, because `new Set([handler])` walks
+ * an iterable this call site had to allocate to hand over. And dispatch does not
+ * copy a set of one — see {@link dispatch}. The second matters more than it
+ * looks: the dispatcher runs on every frame of a scroll, on the main thread,
+ * where the garbage it makes competes with the layout it is scrolling.
  */
 export const addEvent = (
   element: LynxElement,
@@ -47,19 +58,18 @@ export const addEvent = (
   const engine = requireEngine()
   const key = `${type}:${name}`
 
-  const byElement = registrations.get(element) ?? new Map<string, Registration>()
-  registrations.set(element, byElement)
+  const known = registrations.get(element)
+  const byElement = known ?? new Map<string, Registration>()
+  // Only on the way in. Re-setting a `WeakMap` entry that is already there is a
+  // hash of the element for nothing, once per listener per element.
+  if (known === undefined) registrations.set(element, byElement)
 
   const existing = byElement.get(key)
   if (existing) {
     existing.handlers.add(handler)
   } else {
-    const handlers = new Set([handler])
-    const bound = eventTransport()((event) => {
-      // Iterate a copy so a handler that detaches itself — or another — cannot
-      // disturb the walk it is being called from.
-      for (const listener of [...handlers]) guard('event', () => listener(event))
-    })
+    const handlers = new Set<Handler>().add(handler)
+    const bound = eventTransport()((event) => dispatch(handlers, event))
     byElement.set(key, { handlers, bound })
     engine.__AddEvent(element, type, name, bound.listener)
   }
@@ -76,9 +86,35 @@ export const addEvent = (
   }
 }
 
+/** One handler on one `(type, name)` pair. */
+type Handler = (event: unknown) => void
+
+/**
+ * Runs every handler on a pair, guarded, for one delivered event.
+ *
+ * Several handlers are walked as a COPY, so one that binds or detaches another
+ * mid-delivery cannot change the walk it is being called from — a handler added
+ * during an event belongs to the next one, not to this one. A set of one gets
+ * that same guarantee for free by reading its handler out first, which is worth
+ * a branch: it is the shape almost every dispatch takes, and it turns a
+ * per-event array allocation into none.
+ */
+const dispatch = (handlers: Set<Handler>, event: unknown): void => {
+  if (handlers.size > 1) {
+    for (const listener of [...handlers]) guard('event', () => listener(event))
+    return
+  }
+  // Read out, THEN call. Iterating the live set instead would cost nothing and
+  // be wrong: a `Set` iterator visits entries added while it is running, so a
+  // lone handler that binds another would have it run inside the very dispatch
+  // that bound it.
+  const [only] = handlers
+  if (only !== undefined) guard('event', () => only(event))
+}
+
 /** What this module holds per element and `(type, name)` pair. */
 type Registration = {
-  readonly handlers: Set<(event: unknown) => void>
+  readonly handlers: Set<Handler>
   /** What the engine is holding, so it can be released when the last handler goes. */
   readonly bound: BoundListener
 }

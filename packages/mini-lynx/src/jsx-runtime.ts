@@ -83,7 +83,13 @@ export const jsx = (tag: string | Component<never>, props: ElementPropBag, key?:
   const element = createElement(tag)
   let ref: ((element: LynxElement) => void) | undefined
 
-  for (const [name, value] of Object.entries(props)) {
+  // `for…in` rather than `Object.entries`, which allocates an array plus a
+  // two-element array per prop — per element, on the main thread, where a
+  // thousand-row list turns that into tens of thousands of short-lived arrays
+  // for a walk that needs none. The props bag is the object literal the JSX
+  // transform emitted, so it has no inherited enumerable keys to skip.
+  for (const name in props) {
+    const value = props[name]
     if (name === 'children') {
       appendChildren(element, value as MiniChildren)
     } else if (name === 'key') {

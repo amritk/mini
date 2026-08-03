@@ -118,8 +118,40 @@ const PREFIXES: readonly (readonly [prefix: string, type: string])[] = [
   ['bind', 'bindEvent'],
 ]
 
+/**
+ * One prop's parse, or `null` for a prop that is not an event.
+ *
+ * Shared between every element that spells the prop the same way, since it is
+ * cached by name — so treat it as read-only. Nothing here has a reason to write
+ * to one, and a caller that did would change the parse for every other element.
+ */
+type EventProp = { readonly type: string; readonly name: string } | null
+
+/**
+ * Every prop name this runtime has parsed, and what it parsed to.
+ *
+ * The answer depends on nothing but the string, and an app writes props from a
+ * small fixed vocabulary — `class`, `bindtap`, `data-testid` — that every one of
+ * its elements repeats. Without the cache each of those pays six `startsWith`
+ * scans on the way to `__SetAttribute`, on the main thread, once per element
+ * built; with it, each distinct spelling is scanned exactly once for the life of
+ * the app. The table is bounded by the number of prop names in the source, so
+ * there is nothing here to evict.
+ */
+const parsed = new Map<string, EventProp>()
+
 /** Splits an event prop into the engine's `(type, name)` pair, or `null` if it is not one. */
-const eventOf = (prop: string): { type: string; name: string } | null => {
+const eventOf = (prop: string): EventProp => {
+  const cached = parsed.get(prop)
+  // `undefined` is the miss; a parsed non-event is stored as `null` and is a hit.
+  if (cached !== undefined) return cached
+  const result = parseEvent(prop)
+  parsed.set(prop, result)
+  return result
+}
+
+/** The actual scan, run once per distinct prop name. {@link eventOf} is what call sites use. */
+const parseEvent = (prop: string): EventProp => {
   // A `main-thread:` prefix is accepted and dropped. This runtime already runs
   // on the main thread — driving the Element PAPI is what puts it there — so
   // `main-thread:bindtap` and `bindtap` are the same listener here. Accepting

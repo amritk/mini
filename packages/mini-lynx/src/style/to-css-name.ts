@@ -15,6 +15,14 @@
  * CSS. The rule is about how the value is CONSUMED, not about which package it
  * came from.
  *
+ * The answers are cached, because a style key's CSS spelling depends on nothing
+ * but the key and an app writes its styles from a small fixed vocabulary. The
+ * conversion is a regex with a callback per capital, and a reactive style bag
+ * re-runs it for every key on every change — so without the cache an animated
+ * `width` pays to rediscover that `backgroundColor` is `background-color` on
+ * every frame, on the main thread. The table is bounded by the number of
+ * distinct style keys an app writes, so there is nothing here to evict.
+ *
  * @example
  * ```ts
  * toCssName('backgroundColor')  // 'background-color'
@@ -22,5 +30,12 @@
  * toCssName('--brand')          // '--brand'
  * ```
  */
-export const toCssName = (key: string): string =>
-  key.startsWith('--') ? key : key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+export const toCssName = (key: string): string => {
+  const cached = names.get(key)
+  if (cached !== undefined) return cached
+  const name = key.startsWith('--') ? key : key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
+  names.set(key, name)
+  return name
+}
+
+const names = new Map<string, string>()

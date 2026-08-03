@@ -39,8 +39,27 @@ export const toStyleText = (key: string, value: string | number): string => {
   // one would be presumptuous — pass the number through and let the declaration
   // that consumes it decide.
   if (key.startsWith('--')) return String(value)
-  return UNITLESS.has(normalise(key)) ? String(value) : `${value}px`
+  return isUnitless(key) ? String(value) : `${value}px`
 }
+
+/**
+ * Whether a key's numbers stay unitless, remembered per key.
+ *
+ * The lookup itself is a regex and a `toLowerCase` before the `Set` is even
+ * consulted, and it runs once per numeric entry per style write — so a reactive
+ * bag re-derives the same answer for the same key on every change. Caching the
+ * verdict rather than the normalised spelling keeps one map instead of two and
+ * skips the `Set` on the way out. Bounded by the app's distinct style keys.
+ */
+const isUnitless = (key: string): boolean => {
+  const cached = unitless.get(key)
+  if (cached !== undefined) return cached
+  const verdict = UNITLESS.has(normalise(key))
+  unitless.set(key, verdict)
+  return verdict
+}
+
+const unitless = new Map<string, boolean>()
 
 /**
  * The properties whose numbers are ratios, counts, or multipliers rather than
