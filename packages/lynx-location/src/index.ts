@@ -40,6 +40,14 @@
  * conversation, and none of those are things a library should quietly enrol an
  * app in. Geofencing and background tracking want their own native module.
  *
+ * ## Reverse geocoding needs no permission
+ *
+ * `reverseGeocode` turns coordinates into a postal address and is the one
+ * function here that never touches the device's own location, so it neither
+ * needs permission nor prompts for it. An app can label a saved venue or a map
+ * centre without asking the user for anything; only the call that reads where
+ * the device actually is needs a grant.
+ *
  * ## Why there are no signals here
  *
  * Because a second edge onto the signal engine is how a consumer ends up with
@@ -64,7 +72,12 @@ export { isLocationAvailable } from './is-location-available'
 export { isLocationEnabled } from './is-location-enabled'
 export { EVENTS, MODULE } from './native-module'
 export { requestPermission } from './request-permission'
+export { reverseGeocode } from './reverse-geocode'
 export type {
+  Coordinates,
+  GeocodeAddress,
+  GeocodeErrorCode,
+  GeocodeResult,
   LocationAccuracy,
   LocationErrorCode,
   LocationFix,
@@ -72,6 +85,7 @@ export type {
   LocationPermissionStatus,
   LocationResult,
   PositionOptions,
+  ReverseGeocodeOptions,
   WatchOptions,
   WatchUpdate,
 } from './types'

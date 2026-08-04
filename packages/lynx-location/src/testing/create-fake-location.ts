@@ -2,6 +2,9 @@ import type { FakeEmitter } from '@amritk/mini-lynx-native/testing'
 
 import { EVENTS } from '../native-module'
 import type {
+  GeocodeAddress,
+  GeocodeErrorCode,
+  GeocodeResult,
   LocationErrorCode,
   LocationFix,
   LocationPermissionStatus,
@@ -9,6 +12,22 @@ import type {
   PositionOptions,
   WatchOptions,
 } from '../types'
+
+/**
+ * The bag `reverseGeocode` flattens its two arguments into on the way across.
+ *
+ * Declared here rather than in `types.ts` because it is the wire shape rather
+ * than part of the package's surface: the facade builds it, both native halves
+ * read it, and nothing a consumer writes should ever name it. The coordinates
+ * are `unknown` because this is the boundary that has to cope with a caller who
+ * ignored the types.
+ */
+type ReverseGeocodeRequest = {
+  readonly latitude?: unknown
+  readonly longitude?: unknown
+  readonly locale?: string
+  readonly maxResults?: number
+}
 
 /** A watch the fake module currently has running. */
 export type FakeWatch = {
@@ -39,6 +58,32 @@ export type FakeLocation = {
   emitError(error: LocationErrorCode, message: string, watchId?: string): void
   /** The watches currently running, in the order they were started. */
   watches(): readonly FakeWatch[]
+  /**
+   * The addresses the geocoder would return, best first. An empty list is what
+   * `reverseGeocode` reports as `notFound`. Empty by default, because a fake
+   * that invented an address for every coordinate would let a caller skip the
+   * one branch that fires over open water.
+   */
+  setNextAddresses(addresses: readonly GeocodeAddress[]): void
+  /**
+   * Whether this device has a geocoding backend at all. Present by default.
+   *
+   * Set it false to model an Android device built without Google's services,
+   * where `Geocoder.isPresent` is false for the life of the device.
+   */
+  setGeocoderPresent(present: boolean): void
+  /** Whether the geocoding service can be reached. Reachable by default. */
+  setNetworkAvailable(available: boolean): void
+  /** Every reverse geocode the fake has been asked for, in order. */
+  geocodes(): readonly FakeGeocode[]
+}
+
+/** A reverse geocode the fake was asked for, as it arrived over the wire. */
+export type FakeGeocode = {
+  readonly latitude: unknown
+  readonly longitude: unknown
+  readonly locale: string | undefined
+  readonly maxResults: number | undefined
 }
 
 /**
@@ -70,6 +115,12 @@ export type FakeLocation = {
  * `LocationManager`, and a fake that invented its own version would be
  * asserting against itself.
  *
+ * Reverse geocoding is modelled the same way round: the failure paths are real
+ * — no geocoder on the device, coordinates out of range, no network, no address
+ * there — and the addresses themselves are whatever `setNextAddresses` was
+ * handed. `locale` is recorded rather than honoured, because inventing
+ * translations here would be the fake asserting against itself again.
+ *
  * @example
  * ```ts
  * const emitter = createFakeEmitter()
@@ -84,13 +135,37 @@ export const createFakeLocation = (emitter: FakeEmitter): FakeLocation => {
   let nextFix: LocationFix | null = null
   let lastKnown: LocationFix | null = null
   let nextWatch = 1
+  let addresses: readonly GeocodeAddress[] = []
+  let geocoderPresent = true
+  let networkAvailable = true
 
   const watches: FakeWatch[] = []
+  const geocodes: FakeGeocode[] = []
+
+  /**
+   * The range check both native halves run before asking their geocoder.
+   *
+   * It lives on this side too because it is part of the contract rather than an
+   * implementation detail: Android's `Geocoder` throws on out-of-range input and
+   * CoreLocation quietly answers with nothing, so neither platform can be left
+   * to report this for itself.
+   */
+  const validCoordinates = (latitude: unknown, longitude: unknown): boolean =>
+    typeof latitude === 'number' &&
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    typeof longitude === 'number' &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
 
   /** The id an `emit*` helper targets when a test does not name one. */
   const currentWatch = (): string | undefined => watches[watches.length - 1]?.id
 
   const failure = (error: LocationErrorCode, message: string): LocationResult => ({ ok: false, error, message })
+
+  const geocodeFailure = (error: GeocodeErrorCode, message: string): GeocodeResult => ({ ok: false, error, message })
 
   const module = {
     getPermissionStatus: (done: (value: LocationPermissionStatus) => void) => done(status),
@@ -148,6 +223,39 @@ export const createFakeLocation = (emitter: FakeEmitter): FakeLocation => {
       const index = watches.findIndex((watch) => watch.id === id)
       if (index >= 0) watches.splice(index, 1)
     },
+
+    reverseGeocode: (request: ReverseGeocodeRequest, done: (value: GeocodeResult) => void) => {
+      const { latitude, longitude, locale, maxResults } = request
+      geocodes.push({ latitude, longitude, locale, maxResults })
+
+      // Deliberately no permission check, on either platform or here. Reverse
+      // geocoding never reads the device's own location, so it is available to
+      // an app that has been refused location outright — and a fake that gated
+      // it would push consumers into requesting a permission they do not need.
+      if (!geocoderPresent) {
+        done(geocodeFailure('unavailable', 'no geocoder on this device'))
+        return
+      }
+      // Checked before the network, because it is the one failure that is the
+      // caller's own doing and no amount of retrying fixes it.
+      if (!validCoordinates(latitude, longitude)) {
+        done(geocodeFailure('invalidCoordinates', `${String(latitude)}, ${String(longitude)} is not a coordinate`))
+        return
+      }
+      if (!networkAvailable) {
+        done(geocodeFailure('network', 'could not reach the geocoding service'))
+        return
+      }
+      // Nothing there is `notFound` rather than an empty success: open water
+      // genuinely has no address, and `GeocodeResult` has exactly one spelling
+      // for that so a call site cannot handle half of it.
+      if (addresses.length === 0) {
+        done(geocodeFailure('notFound', 'no address at these coordinates'))
+        return
+      }
+
+      done({ ok: true, addresses: addresses.slice(0, Math.max(1, maxResults ?? 1)) })
+    },
   } satisfies Record<string, unknown>
 
   /** Publishing to a watch that is not running is a no-op, as it is natively. */
@@ -177,5 +285,15 @@ export const createFakeLocation = (emitter: FakeEmitter): FakeLocation => {
     emitPosition: (position, watchId) => publish(EVENTS.position, watchId, { position }),
     emitError: (error, message, watchId) => publish(EVENTS.error, watchId, { error, message }),
     watches: () => [...watches],
+    setNextAddresses: (next) => {
+      addresses = next
+    },
+    setGeocoderPresent: (present) => {
+      geocoderPresent = present
+    },
+    setNetworkAvailable: (available) => {
+      networkAvailable = available
+    },
+    geocodes: () => [...geocodes],
   }
 }

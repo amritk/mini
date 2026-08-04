@@ -41,6 +41,7 @@ src/
   get-current-position.ts / get-last-known-position.ts
   is-location-enabled.ts / is-location-available.ts
   watch-position.ts     The only subscription, and the only stateful facade
+  reverse-geocode.ts    Coordinates to addresses. The only permission-free call
   native-contract.test.ts   Parses both native surfaces, compares to this one
   location.test.ts          The facade over the real bridge, against the fake
   testing/
@@ -53,6 +54,8 @@ android/
     LocationEvents.kt                sendGlobalEvent fan-out; every crossing string
     LocationFixes.kt                 Provider choice and Location → JavaOnlyMap
     LocationResults.kt               The LocationResult envelope
+    Geocoding.kt                     Geocoder, both API forms, Address → JavaOnlyMap
+    GeocodeResults.kt                The GeocodeResult envelope
     SingleFixListener.kt             One fix, one answer, then torn down
     WatchListener.kt                 A running watch, publishing events
     LocationPermissionActivity.kt / LocationPermissionState.kt
@@ -123,6 +126,29 @@ lynx.lib.json           The autolink manifest
   `course` are negative when unknown rather than absent. Passing -1 through
   would give JavaScript a heading of minus one degree, which looks plausible and
   is wrong. `payloadFor:` is the one place this conversion happens.
+- **`reverseGeocode` checks no permission, on any of the three sides.** It never
+  reads the device's own location, so an app refused location outright can still
+  label a saved venue. Adding a check to make it look like every other method on
+  those classes would push consumers into requesting a permission they have no
+  use for. A test pins this; it is the kind of thing a tidy-up removes.
+- **Coordinates are range-checked before either geocoder is asked.** Android's
+  `Geocoder` throws `IllegalArgumentException` on out-of-range input and
+  CoreLocation quietly answers with nothing, so neither platform can be left to
+  report this for itself. The check is in three places — the fake, `Geocoding.isValid`
+  and `CLLocationCoordinate2DIsValid` — and they have to stay the same check.
+- **`notFound` is the only spelling of "no address there".** An empty
+  `addresses` array is never a success. Two spellings of one outcome means a
+  call site can handle half of it and look correct.
+- **Throttling is `network`, not a code of its own.** Apple rate-limits
+  `CLGeocoder` and reports it as a network error; Android reports nothing of the
+  kind. A code only one platform can produce is a branch an app writes and never
+  sees fire — the same rule that keeps `restricted` off the Android half.
+- **Every `GeocodeAddress` field is written explicitly, blank-as-null.** Same
+  bargain `LocationFixes.toPayload` makes: an absent key arrives as `undefined`
+  and the type says `null`. Android additionally reports unknown components as
+  empty strings about as often as null, and the iOS half already collapses the
+  two — `Geocoding.putStringOrNull` is where that happens, and dropping it would
+  give one platform a `city` of `""`.
 - **`LocationListener`'s four methods are all implemented.** Three became
   default methods in API 30, but on every device below that they are still
   abstract — a class implementing only `onLocationChanged` throws
@@ -169,6 +195,22 @@ first:
   precise/approximate choice, which provider actually answers, what a fix
   contains outdoors versus indoors, timeout behaviour with a cold radio, and
   whether a watch survives a backgrounding.
+
+Reverse geocoding adds four of its own, all of which want a device and a real
+backend before anyone trusts them:
+
+- that `CNPostalAddressFormatter` and Android's `getAddressLine(0)` produce
+  comparable strings for the same place. They are both the platform's own
+  formatting, which is the whole argument for using them, and nothing here has
+  put the two side by side;
+- which fields each backend actually fills in, and how often. The types say
+  every one is nullable; how much of that is theoretical is a question for a
+  handful of real coordinates in a few countries;
+- that `Geocoder`'s API 33 callback form and the blocking form below it fail the
+  same way in practice, rather than only in the way their documentation implies;
+- what Apple's unpublished rate limit actually is, and whether exceeding it
+  really does arrive as `kCLErrorNetwork` rather than as something the error
+  mapping sends to the wrong code.
 
 This is the same shape of caveat `@amritk/mini-lynx` carries for its worklet
 round-trip. Carry it the same way: state it, do not let a green suite imply more

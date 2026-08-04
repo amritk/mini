@@ -1,11 +1,15 @@
 #import "MiniLynxLocationCenter.h"
 
+#import <Contacts/Contacts.h>
 #import <Lynx/LynxContext.h>
 
 NSString *const MiniLynxLocationErrorPermissionDenied = @"permissionDenied";
 NSString *const MiniLynxLocationErrorLocationDisabled = @"locationDisabled";
 NSString *const MiniLynxLocationErrorTimeout = @"timeout";
 NSString *const MiniLynxLocationErrorUnavailable = @"unavailable";
+NSString *const MiniLynxLocationErrorInvalidCoordinates = @"invalidCoordinates";
+NSString *const MiniLynxLocationErrorNotFound = @"notFound";
+NSString *const MiniLynxLocationErrorNetwork = @"network";
 
 static NSString *const kEventPosition = @"mini-lynx:location:position";
 static NSString *const kEventError = @"mini-lynx:location:error";
@@ -40,6 +44,17 @@ static const NSTimeInterval kDefaultTimeout = 15.0;
 @property(nonatomic, strong, nullable) CLLocationManager *permissionManager;
 @property(nonatomic, copy, nullable) void (^permissionCompletion)(NSString *);
 @property(nonatomic, assign) NSUInteger nextWatch;
+/**
+ * Reverse geocodes still in flight.
+ *
+ * A `CLGeocoder` has the same problem a `CLLocationManager` does — it answers
+ * through a block and a geocoder released at the end of the method that made it
+ * is an answer that never arrives — so each one is held here until its
+ * completion has run. One geocoder per request rather than a shared instance,
+ * because `CLGeocoder` serves a single request at a time and starting a second
+ * on a busy one cancels the first.
+ */
+@property(nonatomic, strong) NSMutableSet<CLGeocoder *> *geocoders;
 @end
 
 @implementation MiniLynxLocationCenter
@@ -65,6 +80,7 @@ static const NSTimeInterval kDefaultTimeout = 15.0;
                                           valueOptions:NSPointerFunctionsStrongMemory];
     _watches = [NSMutableDictionary dictionary];
     _nextWatch = 0;
+    _geocoders = [NSMutableSet set];
   }
   return self;
 }
@@ -372,6 +388,111 @@ static const NSTimeInterval kDefaultTimeout = 15.0;
 
 - (void)emitError:(NSString *)watchId code:(NSString *)code message:(NSString *)message {
   [self emit:kEventError payload:@{@"watchId" : watchId, @"error" : code, @"message" : message}];
+}
+
+#pragma mark - Reverse geocoding
+
+/** A string, or `NSNull` — `GeocodeAddress` types every field as nullable. */
+static id MiniLynxOrNull(NSString *_Nullable value) {
+  return value.length > 0 ? (id)value : (id)NSNull.null;
+}
+
+- (NSDictionary *)payloadForPlacemark:(CLPlacemark *)placemark {
+  NSString *formatted = nil;
+  CNPostalAddress *postal = placemark.postalAddress;
+  if (postal != nil) {
+    // The OS's own formatting for that country, which is the whole reason
+    // `formattedAddress` exists rather than being assembled by hand. The
+    // mailing style is multi-line, and the newlines are flattened because the
+    // Android half answers with `getAddressLine(0)` — one line — and a field
+    // whose shape depends on the platform is worse than either shape.
+    formatted = [[CNPostalAddressFormatter stringFromPostalAddress:postal
+                                                            style:CNPostalAddressFormatterStyleMailingAddress]
+        stringByReplacingOccurrencesOfString:@"\n"
+                                  withString:@", "];
+  }
+
+  return @{
+    @"formattedAddress" : MiniLynxOrNull(formatted),
+    @"name" : MiniLynxOrNull(placemark.name),
+    @"streetNumber" : MiniLynxOrNull(placemark.subThoroughfare),
+    @"street" : MiniLynxOrNull(placemark.thoroughfare),
+    @"district" : MiniLynxOrNull(placemark.subLocality),
+    @"city" : MiniLynxOrNull(placemark.locality),
+    @"subregion" : MiniLynxOrNull(placemark.subAdministrativeArea),
+    @"region" : MiniLynxOrNull(placemark.administrativeArea),
+    @"postalCode" : MiniLynxOrNull(placemark.postalCode),
+    @"country" : MiniLynxOrNull(placemark.country),
+    @"isoCountryCode" : MiniLynxOrNull(placemark.ISOcountryCode),
+  };
+}
+
+- (void)reverseGeocodeLatitude:(CLLocationDegrees)latitude
+                     longitude:(CLLocationDegrees)longitude
+                        locale:(nullable NSString *)locale
+                    maxResults:(NSUInteger)maxResults
+                    completion:(void (^)(NSDictionary *))completion {
+  // Checked here rather than left to CoreLocation, which answers an
+  // out-of-range coordinate with an empty result — indistinguishable from open
+  // water, and the caller's own bug rather than a fact about the world. The
+  // Kotlin half and the fake run the same check.
+  if (!CLLocationCoordinate2DIsValid(CLLocationCoordinate2DMake(latitude, longitude))) {
+    completion([self failure:MiniLynxLocationErrorInvalidCoordinates
+                     message:[NSString stringWithFormat:@"%g, %g is not a coordinate", latitude, longitude]]);
+    return;
+  }
+
+  CLGeocoder *geocoder = [[CLGeocoder alloc] init];
+  @synchronized(self.geocoders) {
+    [self.geocoders addObject:geocoder];
+  }
+
+  // Every path out of the handler goes through this, so the geocoder is
+  // released exactly once and only after its answer has been delivered.
+  void (^finish)(NSDictionary *) = ^(NSDictionary *result) {
+    @synchronized(self.geocoders) {
+      [self.geocoders removeObject:geocoder];
+    }
+    completion(result);
+  };
+
+  CLLocation *location = [[CLLocation alloc] initWithLatitude:latitude longitude:longitude];
+  NSLocale *preferred = locale.length > 0 ? [NSLocale localeWithLocaleIdentifier:locale] : nil;
+
+  [geocoder reverseGeocodeLocation:location
+                   preferredLocale:preferred
+                 completionHandler:^(NSArray<CLPlacemark *> *placemarks, NSError *error) {
+                   if (error != nil) {
+                     // `kCLErrorGeocodeFoundNoResult` is the only one of these
+                     // that is a fact about the coordinates. Everything else —
+                     // an unreachable service, a cancelled request, and being
+                     // throttled, which Apple also reports as a network error
+                     // — is the lookup failing rather than the place not
+                     // existing, so they share one code. See `GeocodeErrorCode`.
+                     BOOL empty = error.code == kCLErrorGeocodeFoundNoResult;
+                     finish([self failure:empty ? MiniLynxLocationErrorNotFound : MiniLynxLocationErrorNetwork
+                                  message:error.localizedDescription
+                                              ?: @"could not reach the geocoding service"]);
+                     return;
+                   }
+
+                   if (placemarks.count == 0) {
+                     finish([self failure:MiniLynxLocationErrorNotFound
+                                  message:@"no address at these coordinates"]);
+                     return;
+                   }
+
+                   // CoreLocation has no `maxResults` of its own, so the
+                   // ceiling is applied here to keep both platforms answering
+                   // with the same number of addresses for the same request.
+                   NSUInteger count = MIN(placemarks.count, MAX(maxResults, (NSUInteger)1));
+                   NSMutableArray<NSDictionary *> *addresses = [NSMutableArray arrayWithCapacity:count];
+                   for (NSUInteger index = 0; index < count; index++) {
+                     [addresses addObject:[self payloadForPlacemark:placemarks[index]]];
+                   }
+
+                   finish(@{@"ok" : @YES, @"addresses" : addresses});
+                 }];
 }
 
 #pragma mark - CLLocationManagerDelegate

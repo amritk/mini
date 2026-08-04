@@ -140,13 +140,42 @@ isLocationEnabled(): Promise<boolean>    // device-wide switch, NOT permission
 isLocationAvailable(): Promise<boolean>  // is the native module linked at all
 
 watchPosition(listener: (update: WatchUpdate) => void, options?: WatchOptions): () => void
+
+reverseGeocode(coordinates: Coordinates, options?: ReverseGeocodeOptions): Promise<GeocodeResult>
 ```
 
-`LocationResult` and `WatchUpdate` are discriminated unions —
-`{ ok: true, position }` or `{ ok: false, error, message }` — rather than
-rejections. Lynx has no error convention for bridge callbacks, so a failure has
-to travel as a value anyway, and "the user has not granted location" is an
-ordinary branch in a UI rather than an exceptional condition.
+`LocationResult`, `WatchUpdate` and `GeocodeResult` are discriminated unions —
+`{ ok: true, … }` or `{ ok: false, error, message }` — rather than rejections.
+Lynx has no error convention for bridge callbacks, so a failure has to travel as
+a value anyway, and "the user has not granted location" is an ordinary branch in
+a UI rather than an exceptional condition.
+
+### Reverse geocoding
+
+`reverseGeocode` turns coordinates into a postal address. It is the one function
+here that **never reads the device's own location**, so it needs no permission
+and will never prompt — an app can label a saved venue or a map centre without
+asking the user for anything.
+
+```ts
+const result = await reverseGeocode({ latitude: 45.5017, longitude: -73.5673 })
+if (result.ok) console.log(result.addresses[0]?.formattedAddress)
+```
+
+A `LocationFix` satisfies `Coordinates`, so the two calls compose without a
+mapping step:
+
+```ts
+const position = await getCurrentPosition()
+if (position.ok) await reverseGeocode(position.position)
+```
+
+Every field of a `GeocodeAddress` is nullable and most are usually null — a
+geocoder answers from whatever its map data holds. `formattedAddress` is built
+by the OS (`getAddressLine` on Android, `CNPostalAddressFormatter` on iOS), so it
+puts each country's postcode where that country puts it; a string assembled from
+the other fields by hand will not. `isoCountryCode` is the only field stable
+across locales, which makes it the only one worth storing or branching on.
 
 ## The things that actually bite
 
@@ -175,6 +204,15 @@ ordinary branch in a UI rather than an exceptional condition.
   That is the platform working as designed, not a gap to work around.
 - **`WatchOptions.interval` is Android-only.** CoreLocation has no equivalent
   and decides its own cadence. Pace with `distanceFilter`, which both honour.
+- **Apple rate-limits reverse geocoding, and does not publish the limit.** Their
+  guidance is at most one request per user action. An app that geocodes every
+  row of a list as it scrolls starts getting `network` errors for reasons that
+  have nothing to do with the network. Geocode on demand, cache the answer, and
+  key the cache on rounded coordinates rather than on the address.
+- **`Geocoder.isPresent()` is false on plenty of Android devices.** Anything
+  built without Google's services has no geocoding backend, for the life of the
+  device. That is `unavailable`, and retrying will never help — fall back to
+  showing the coordinates.
 
 ## Testing
 

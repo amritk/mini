@@ -203,3 +203,149 @@ export type LocationResult =
 export type WatchUpdate =
   | { readonly ok: true; readonly position: LocationFix }
   | { readonly ok: false; readonly error: LocationErrorCode; readonly message: string }
+
+/**
+ * A point on the globe, in the same degrees `LocationFix` reports.
+ *
+ * Kept separate from `LocationFix` because reverse geocoding takes coordinates
+ * from anywhere — a map centre, a saved venue, a row out of a database — and
+ * demanding a whole fix would force a caller to invent an accuracy and a
+ * timestamp for a point that never came off a device. Every `LocationFix`
+ * satisfies this shape, so handing one straight to `reverseGeocode` works.
+ */
+export type Coordinates = {
+  /** Degrees, WGS-84. Must be between -90 and 90. */
+  readonly latitude: number
+  /** Degrees, WGS-84. Must be between -180 and 180. */
+  readonly longitude: number
+}
+
+/** Options for a reverse geocode. */
+export type ReverseGeocodeOptions = {
+  /**
+   * The language the address should come back in, as a BCP-47 tag such as
+   * `en-CA` or `fr-CA`. Defaults to the device's own locale.
+   *
+   * Worth setting when the address is going to be stored or compared rather
+   * than shown. A venue geocoded on a French-locale phone and the same venue
+   * geocoded on an English one produce different strings for the same place,
+   * and a cache keyed on either of them will miss.
+   */
+  readonly locale?: string
+  /**
+   * How many addresses to accept. Defaults to 1.
+   *
+   * More than one is unusual. Both geocoders return their best guess first and
+   * the rest are progressively less specific, so a caller that wanted a city
+   * name is better served by reading `city` off the first result than by asking
+   * for several and picking.
+   */
+  readonly maxResults?: number
+}
+
+/**
+ * A postal address as the platform's geocoder described it.
+ *
+ * Every field is nullable and most of them are usually null, which is the
+ * honest shape rather than a defensive one. A geocoder answers from whatever
+ * its map data has: a downtown street corner comes back with a house number and
+ * a postcode, a field outside a village comes back with a country and perhaps a
+ * region, and neither is an error. Code reading these should treat any single
+ * field as optional and fall back down the hierarchy.
+ *
+ * The names are platform-neutral rather than either vendor's. Both geocoders
+ * describe the same hierarchy under different spellings — Android's
+ * `subAdminArea` is CoreLocation's `subAdministrativeArea`, Android's
+ * `featureName` is CoreLocation's `name` — so one set of names is picked here
+ * and both native halves map onto it.
+ */
+export type GeocodeAddress = {
+  /**
+   * The whole address as one string, formatted the way that country formats
+   * addresses.
+   *
+   * This is the field to show a user. It is built by the OS — `getAddressLine`
+   * on Android, `CNPostalAddressFormatter` on iOS — which means it puts the
+   * postcode where that country puts the postcode, and a string assembled from
+   * the fields below by hand will not.
+   */
+  readonly formattedAddress: string | null
+  /** The place's own name, when it has one: a building, a landmark, a business. */
+  readonly name: string | null
+  /** House or building number. */
+  readonly streetNumber: string | null
+  /** Street name. */
+  readonly street: string | null
+  /** Neighbourhood or borough — a subdivision of the city. */
+  readonly district: string | null
+  /** City, town or village. */
+  readonly city: string | null
+  /** County, or the equivalent tier between city and region. */
+  readonly subregion: string | null
+  /** State, province, or the largest subdivision below the country. */
+  readonly region: string | null
+  /** Postal or ZIP code. */
+  readonly postalCode: string | null
+  /** Country name, in whichever language `ReverseGeocodeOptions.locale` asked for. */
+  readonly country: string | null
+  /**
+   * ISO 3166-1 alpha-2 country code, such as `CA`.
+   *
+   * The one field here that is stable across locales, which makes it the only
+   * one worth storing or branching on. `country` is a display string and
+   * changes with the device's language.
+   */
+  readonly isoCountryCode: string | null
+}
+
+/**
+ * Why a reverse geocode failed.
+ *
+ * - `invalidCoordinates` — the latitude or longitude was not a finite number in
+ *   range. Checked on both native sides before either geocoder is asked,
+ *   because Android's `Geocoder` throws on out-of-range input and CoreLocation
+ *   quietly answers with nothing.
+ * - `notFound` — the geocoder answered, and there is no address there. Open
+ *   ocean and most of Antarctica genuinely have none, so this is a normal
+ *   result rather than a fault.
+ * - `network` — the lookup could not reach the geocoding service. **This also
+ *   covers being throttled**, which is not a separate code because only one of
+ *   the two platforms can report it: Apple rate-limits `CLGeocoder` per app and
+ *   returns a network error once you exceed it, and Android reports nothing of
+ *   the kind. A code only one platform can produce is a branch an app writes
+ *   and never sees fire.
+ * - `unavailable` — this device has no geocoder at all, or the native module is
+ *   not linked into the host app. Android devices built without Google's
+ *   services frequently have no backend for `Geocoder`, and `Geocoder.isPresent`
+ *   is false there for the life of the device — worth failing gracefully over
+ *   rather than retrying.
+ */
+export type GeocodeErrorCode = 'invalidCoordinates' | 'notFound' | 'network' | 'unavailable'
+
+/**
+ * The outcome of a reverse geocode.
+ *
+ * A discriminated union for the same reason `LocationResult` is one: Lynx has
+ * no error convention for bridge callbacks, and "there is no address at these
+ * coordinates" is an ordinary branch rather than an exceptional condition.
+ *
+ * `addresses` is never empty on the success side — a geocoder that found
+ * nothing is `notFound`, not an empty list. Modelling it the other way would
+ * give every call site two spellings of the same outcome to handle, and one of
+ * them would eventually get missed.
+ *
+ * @example
+ * ```ts
+ * const result = await reverseGeocode({ latitude: 45.5017, longitude: -73.5673 })
+ * if (result.ok) label(result.addresses[0]?.formattedAddress ?? 'Unknown')
+ * else if (result.error === 'network') label('No connection')
+ * ```
+ */
+export type GeocodeResult =
+  | { readonly ok: true; readonly addresses: readonly GeocodeAddress[] }
+  | {
+      readonly ok: false
+      readonly error: GeocodeErrorCode
+      /** A native-side description. For logs, not for showing to a user. */
+      readonly message: string
+    }
