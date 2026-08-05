@@ -211,9 +211,9 @@ background-thread code.
 ## What is verified, and what is not
 
 The facade and the fake run here. `bun run check:android` compiles the Kotlin
-against the real Lynx AAR, `pod lib lint` compiles the Objective-C against the
-real iOS SDK, and `src/native-contract.test.ts` pins the method surfaces against
-each other.
+against the real Lynx AAR and `src/native-contract.test.ts` pins the method
+surfaces against each other. `pod lib lint` compiles the Objective-C against the
+real iOS SDK, but it is no longer part of CI — run it by hand on a Mac.
 
 **None of that is a device.** See [`AGENTS.md`](./AGENTS.md) for exactly what
 each check does and does not cover.

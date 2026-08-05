@@ -210,7 +210,7 @@ notifications.deliver({ title: 'Order shipped' })
 | TypeScript facade | `bun run test` | everywhere |
 | JS ⇄ native contract (names, arities, event names) | `src/native-contract.test.ts` | everywhere |
 | Kotlin compiles and packages to an AAR | `bun run check:android` | needs an Android SDK; CI |
-| Objective-C compiles against the iOS SDK | `pod lib lint` | macOS only; CI |
+| Objective-C compiles against the iOS SDK | `pod lib lint` | macOS only; not in CI, run by hand |
 | Any of it working on a device | — | **nothing** |
 
 The last row is the one to keep in mind. Both native halves compile against the
