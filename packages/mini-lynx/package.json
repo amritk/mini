@@ -38,6 +38,7 @@
   },
   "scripts": {
     "build": "tsgo -p tsconfig.build.json && tsgo -p tsconfig.dom.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "prepublishOnly": "node ../../scripts/check-publishable.mjs",
     "types:check": "tsgo -p . --noEmit && tsgo -p tsconfig.dom.json --noEmit",
     "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx/"
   },
