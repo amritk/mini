@@ -1,6 +1,6 @@
 {
   "name": "@amritk/lynx-dialogs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Native date pickers and action sheets for Lynx: an Android and iOS native module, and a promise-shaped facade that reaches it from the main thread.",
   "type": "module",
   "license": "MIT",

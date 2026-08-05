@@ -1,5 +1,12 @@
 # @amritk/lynx-dialogs
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [40cbdb5]
+  - @amritk/mini-lynx-native@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

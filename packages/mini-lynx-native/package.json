@@ -1,6 +1,6 @@
 {
   "name": "@amritk/mini-lynx-native",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The thread hop between a main-thread mini-lynx tree and Lynx's background-thread NativeModules, as a typed request/reply channel.",
   "type": "module",
   "license": "MIT",
