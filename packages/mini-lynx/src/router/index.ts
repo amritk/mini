@@ -12,21 +12,37 @@
  * is the default — a complete implementation rather than a test double, because
  * a stack of screens the app holds is genuinely what navigation is here. The
  * seam stays because an app that is one screen of a larger native shell needs
- * to hand its own in.
+ * to hand its own in, and because the web is a real second target:
+ * {@link createBrowserHistory}, on `@amritk/mini-lynx/router/browser`, drives
+ * the same route table from the address bar.
  *
  * ```tsx
- * import { createMemoryHistory, createRouter, RouteView } from '@amritk/mini-lynx/router'
+ * import { createMemoryHistory, createRouter, route, RouteView } from '@amritk/mini-lynx/router'
  *
  * const router = createRouter({
  *   history: createMemoryHistory(),
  *   routes: [
- *     { path: '/', view: () => <Home /> },
- *     { path: '/users/:id', view: (params) => <User id={() => params()['id']} /> },
+ *     route('/', () => <Home />),
+ *     route('/users/:id', (params) => <User id={() => params().id} />),
  *   ],
  * })
  *
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
+ *
+ * ## Typed from the pattern
+ *
+ * {@link route} is what makes `params().id` above type-check and `params().di`
+ * not: it keeps the pattern's literal type alive so {@link PathParams} can read
+ * the captures out of it. A plain object literal still works and still gives a
+ * view the flat {@link RouteParams} — nothing here requires the helper — and
+ * {@link buildPath} is the same statement in reverse, turning a pattern and its
+ * params back into a path to navigate to.
+ *
+ * `navigate` itself takes a plain string, deliberately. A router navigates to
+ * CONCRETE paths, and a path that matches nothing is a legitimate thing to ask
+ * for — that is what a fallback screen is — so the check worth having sits one
+ * step earlier, where the string is assembled.
  *
  * ## Two ways to render, and the difference matters
  *
@@ -45,9 +61,11 @@
  *
  * ## What is deliberately not here
  *
- * **A browser history.** There is no web target here, so there is nothing for
- * one to drive. An earlier version of this package shipped `createBrowserHistory`
- * on its own entry point; it went with the DOM host.
+ * **The browser history, on this entry.** It knows what a `window` is, and this
+ * entry compiles against a target that has none. It sits on
+ * `@amritk/mini-lynx/router/browser` with a compiler pass of its own, so the
+ * device build cannot reach it by accident and the platform-free rule the rest
+ * of the package keeps stays something the compiler checks.
  *
  * **Guards and lazy routes.** Both are expressible today — a guard is a
  * `replace` in a `watch` on `route()`, and a lazy route is a `view` that
@@ -55,10 +73,11 @@
  * before a real app has asked for one twice.
  */
 
-export { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+export { buildPath, matchRoute, type PathParams, parseQuery, type RouteParams } from '@amritk/mini-helpers'
 
 export { createMemoryHistory } from './create-memory-history'
 export {
+  type AnyRoute,
   createRouter,
   type NavigateOptions,
   type Route,
@@ -67,6 +86,7 @@ export {
   type RouteState,
 } from './create-router'
 export type { RouterHistory, RouterLocation } from './history'
+export { route } from './route'
 export { RouteLink, type RouteLinkProps } from './route-link'
 export { RouteStack, type RouteStackProps } from './route-stack'
 export { RouteView, type RouteViewProps } from './route-view'

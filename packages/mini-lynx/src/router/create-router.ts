@@ -1,4 +1,4 @@
-import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+import { matchRoute, type PathParams, parseQuery, type RouteParams } from '@amritk/mini-helpers'
 
 import { onCleanup } from '../on-cleanup'
 import { batch, type ReadonlySignal, signal } from '../signals'
@@ -12,20 +12,47 @@ import type { RouterHistory, RouterLocation } from './history'
  * `view` receives the params as a GETTER rather than as a value, which is the
  * same shape `Show` hands its narrowed value over in, and for the same reason:
  * a component runs exactly once, so a plain object would be the params as they
- * were when the screen was built. Reading `params()['id']` inside a binding keeps
+ * were when the screen was built. Reading `params().id` inside a binding keeps
  * it live, which is what makes `/users/1` → `/users/2` update in place.
+ *
+ * The params are typed FROM the pattern when the pattern is a literal, so a
+ * `'/users/:id'` route hands its view a `() => { id: string }` and a typo in
+ * the name is a compile error rather than an `undefined` at runtime. Writing
+ * the table through {@link route} is what keeps those literals alive; a table
+ * annotated `Route[]` widens `P` to `string` and lands back on
+ * {@link RouteParams}, which is the shape this always had.
  *
  * Every other key is opaque to the router and carried through on the match, so
  * per-route metadata — a title, a required role, a transition — rides along
  * without the router needing to know about it.
  */
-export type Route = {
+export type Route<P extends string = string> = {
+  path: P
+  view: (params: () => PathParams<P>) => LynxElement
+} & Record<string, unknown>
+
+/**
+ * A route whatever its pattern — the constraint every generic here is written
+ * against.
+ *
+ * `Route<'/users/:id'>` is deliberately NOT assignable to `Route<string>`: its
+ * `view` demands a getter of `{ id: string }`, and the router can only offer
+ * the flat record, which TypeScript will not narrow for it. That is the right
+ * answer at the definition site and the wrong one at the table, where the whole
+ * point is to hold routes with different patterns side by side.
+ *
+ * So the constraint asks for a `view` it could never call — `() => never` is
+ * assignable to every params getter, being the bottom of the lattice — and
+ * {@link renderRoute} owns the one cast that calls it for real. One deliberate
+ * hole, in a named place, instead of `any` spreading through six signatures.
+ */
+export type AnyRoute = {
   path: string
-  view: (params: () => RouteParams) => LynxElement
+  view: (params: () => never) => LynxElement
 } & Record<string, unknown>
 
 /** The current location, matched against the route table. */
-export type RouteState<R extends Route> = {
+export type RouteState<R extends AnyRoute> = {
   /** The active path, with no query and no base prefix. */
   path: string
   /** The query string including its leading `?`, or `''`. */
@@ -45,7 +72,7 @@ export type NavigateOptions = {
 }
 
 /** Options for {@link createRouter}. */
-export type RouterOptions<R extends Route> = {
+export type RouterOptions<R extends AnyRoute> = {
   /** The route table, tried top to bottom; the first pattern that matches wins. */
   routes: readonly R[]
   /**
@@ -57,7 +84,7 @@ export type RouterOptions<R extends Route> = {
 }
 
 /** A live router. */
-export type Router<R extends Route> = {
+export type Router<R extends AnyRoute> = {
   /** The reactive current location. Read it in a binding to react to navigation. */
   route: ReadonlySignal<RouteState<R>>
   /** Go somewhere. Pass `{ replace: true }` for a redirect. */
@@ -100,13 +127,13 @@ export type Router<R extends Route> = {
  * const router = createRouter({
  *   history: createMemoryHistory(),
  *   routes: [
- *     { path: '/', view: () => <Home /> },
- *     { path: '/users/:id', view: (params) => <User id={() => params()['id']} /> },
+ *     route('/', () => <Home />),
+ *     route('/users/:id', (params) => <User id={() => params().id} />),
  *   ],
  * })
  * ```
  */
-export const createRouter = <R extends Route>(options: RouterOptions<R>): Router<R> => {
+export const createRouter = <R extends AnyRoute>(options: RouterOptions<R>): Router<R> => {
   const history = options.history
 
   const read = (): RouteState<R> => resolve(options.routes, history.location())
@@ -172,7 +199,7 @@ export const createRouter = <R extends Route>(options: RouterOptions<R>): Router
  * `query` are derived from the first two by pure functions, so two states that
  * agree on these agree on everything.
  */
-const settled = <R extends Route>(current: RouteState<R>, next: RouteState<R>): boolean =>
+const settled = <R extends AnyRoute>(current: RouteState<R>, next: RouteState<R>): boolean =>
   current.path === next.path && current.search === next.search && current.route === next.route
 
 /** Splits a `to` string into its path and query halves. */
@@ -182,7 +209,7 @@ const splitLocation = (to: string): RouterLocation => {
 }
 
 /** Matches a location against the route table, returning the assembled state. */
-const resolve = <R extends Route>(routes: readonly R[], location: RouterLocation): RouteState<R> => {
+const resolve = <R extends AnyRoute>(routes: readonly R[], location: RouterLocation): RouteState<R> => {
   const query = parseQuery(location.search)
   for (const route of routes) {
     const params = matchRoute(route.path, location.path)

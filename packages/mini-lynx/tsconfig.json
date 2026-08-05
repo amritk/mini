@@ -9,9 +9,11 @@
     // check here rather than at runtime on a device. Node's ambient types are
     // absent for the same reason.
     //
-    // This used to carry a second pass (`tsconfig.dom.json`) for the DOM host.
-    // The DOM host is gone, and with it the only file in the package that was
-    // allowed to know what a browser is.
+    // The one exemption is `src/router/browser/`, excluded below and checked by
+    // `tsconfig.dom.json` instead. It is a `RouterHistory` for an app rendering
+    // on the web, it is one module wide, and it is on its own export subpath —
+    // so the exemption is a directory the compiler enforces rather than a
+    // convention. Nothing else in the package may name `window`.
     "lib": ["ESNext"],
     "types": [],
     "jsx": "react-jsx",
@@ -32,5 +34,5 @@
     "customConditions": ["development"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "examples/**/*.ts", "examples/**/*.tsx"],
-  "exclude": ["dist", "node_modules", "examples/js-framework-benchmark/bootstrap.ts"]
+  "exclude": ["dist", "node_modules", "src/router/browser", "examples/js-framework-benchmark/bootstrap.ts"]
 }

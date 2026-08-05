@@ -56,7 +56,7 @@ The root `bun run build`, `types:check` and `test` all include this app.
 | `/forms` | `createForm`, `Field`, JSON Schema validation, `<input>` and `<textarea>` |
 | `/data` | `createQuery` over `@tanstack/query-core` |
 | `/engine` | A second tree rendered through the in-memory Element PAPI, with the call log — what the runtime actually does to the engine |
-| `/routing` | `createRouter`, `RouteView`, `RouteLink`, `createMemoryHistory`, params |
+| `/routing` | `createRouter`, `route`, `RouteView`, `RouteStack`, `RouteLink`, `createBrowserHistory`, `createMemoryHistory`, `buildPath`, typed params |
 
 ## Keeping up with the engine
 
@@ -121,7 +121,16 @@ token can see more than one account).
 `.github/workflows/deploy-playgrounds.yml` does the same on a push to `main`,
 and skips itself when the secret is absent.
 
-Note that the router runs on `createMemoryHistory`, so unlike the previous
-version there are no shareable per-screen URLs. That is not a regression to fix:
-a Lynx app has no URL bar, and a preview should not have affordances the real
-target does not.
+The router runs on `createBrowserHistory` from
+`@amritk/mini-lynx/router/browser`, so every screen is a real URL you can
+reload, bookmark and share, and the browser's back button drives the router
+through `popstate`. That is the whole reason the Worker sets
+`not_found_handling: "single-page-application"` — a hard reload on `/forms`
+has to reach `index.html`.
+
+It is worth being precise about what that does and does not demonstrate. A
+device build swaps one argument, `createMemoryHistory()`, and changes nothing
+else: the route table, the screens, `RouteStack` and the matching are all
+target-free, because moving between locations is the only half of routing with
+a per-target answer. The address bar is a browser affordance the real target
+does not have, and the preview shows it here rather than pretending otherwise.

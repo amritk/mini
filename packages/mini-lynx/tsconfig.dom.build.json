@@ -1,0 +1,21 @@
+{
+  "extends": ["./tsconfig.dom.json", "../../tsconfig.build.json"],
+  "compilerOptions": {
+    // `rootDir` stays the package's `src` rather than the browser directory, so
+    // this pass emits to `dist/router/browser/` and lands beside everything the
+    // main build produced instead of overwriting `dist/index.js` with it.
+    "rootDir": "src",
+    "outDir": "dist",
+    // Re-asserted because the shared `../../tsconfig.build.json` is applied last
+    // in `extends` and resets both to the Node-only defaults — the same reason
+    // `tsconfig.build.json` re-asserts its own.
+    "lib": ["ESNext", "DOM"],
+    "types": [],
+    // Dropped for the emit pass, exactly as `tsconfig.build.json` drops it: a
+    // source-resolved `@amritk/mini-helpers` would put another package's `src`
+    // inside this one's `rootDir`.
+    "customConditions": []
+  },
+  "include": ["src/router/browser/**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
+}

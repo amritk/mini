@@ -37,8 +37,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
-    "types:check": "tsgo -p . --noEmit",
+    "build": "tsgo -p tsconfig.build.json && tsgo -p tsconfig.dom.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "types:check": "tsgo -p . --noEmit && tsgo -p tsconfig.dom.json --noEmit",
     "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx/"
   },
   "dependencies": {
@@ -118,6 +118,12 @@
       "types": "./dist/router/index.d.ts",
       "import": "./dist/router/index.js",
       "default": "./dist/router/index.js"
+    },
+    "./router/browser": {
+      "development": "./src/router/browser/index.ts",
+      "types": "./dist/router/browser/index.d.ts",
+      "import": "./dist/router/browser/index.js",
+      "default": "./dist/router/browser/index.js"
     },
     "./forms": {
       "development": "./src/forms/index.ts",

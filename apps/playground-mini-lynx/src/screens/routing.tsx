@@ -1,6 +1,7 @@
 import { computed, type LynxElement, signal, watch } from '@amritk/mini-lynx'
 import { For, Index, Show } from '@amritk/mini-lynx/flow'
 import {
+  buildPath,
   createMemoryHistory,
   createRouter,
   fadeTransition,
@@ -8,6 +9,7 @@ import {
   parseQuery,
   RouteLink,
   RouteStack,
+  route,
 } from '@amritk/mini-lynx/router'
 
 import { Action, Chip, Panel, Prose, Readout, Row, TextLine } from '../components'
@@ -31,8 +33,14 @@ export type RoutingScreenProps = {
    * The matched route's params, as a GETTER — the shape `RouteView` hands every
    * screen's `view`. A plain object would be the params as they were when the
    * screen was built, which is exactly the state this screen exists to disprove.
+   *
+   * `owner` is optional because this screen is mounted under two patterns and
+   * only one of them captures it. That is the honest type for a screen in this
+   * position, and it is what the two `route()` calls in `routes.tsx` check
+   * against: `/routing` hands over a `() => {}` and `/routing/:owner` a
+   * `() => { owner: string }`, and both satisfy this.
    */
-  params: () => Record<string, string>
+  params: () => { readonly owner?: string }
 }
 
 /**
@@ -53,9 +61,10 @@ export const RoutingScreen = (props: RoutingScreenProps): LynxElement => {
       <Navigation />
       <Query />
       <Matching />
+      <Building />
       <Stack />
       <SecondRouter />
-      <NoBrowserHistory />
+      <BrowserHistory />
     </view>
   )
 }
@@ -96,7 +105,10 @@ const LiveState = (): LynxElement => (
 
 /** Params, and the screen that is deliberately not rebuilt when they change. */
 const Params = (props: RoutingScreenProps & { build: number }): LynxElement => {
-  const owner = computed(() => props.params()['owner'])
+  // `.owner` rather than `['owner']`, because the params are typed from the
+  // pattern now — a colon capture is a real property, and `params().onwer`
+  // stops compiling instead of quietly being `undefined` forever.
+  const owner = computed(() => props.params().owner)
   const builtAt = new Date().toLocaleTimeString()
 
   return (
@@ -242,6 +254,50 @@ const Matching = (): LynxElement => {
   )
 }
 
+/** `buildPath` — the same grammar read backwards, and the typed way to navigate. */
+const Building = (): LynxElement => {
+  const owner = signal('amritk')
+
+  return (
+    <Panel
+      title="buildPath, and what is typed"
+      blurb="navigate takes a plain string, because a router navigates to concrete paths and a path that matches nothing is a legitimate thing to ask for — that is what a fallback screen is. So the check worth having sits one step earlier, where the string is assembled."
+    >
+      <Row gap="xs">
+        <For each={['amritk', 'acme', 'a name/with slashes']}>
+          {(value) => (
+            <Action onTap={() => owner(value)} disabled={() => owner() === value}>
+              {value}
+            </Action>
+          )}
+        </For>
+      </Row>
+      <Lines>
+        {() => [
+          `buildPath('/routing/:owner', { owner })`,
+          `  → ${buildPath('/routing/:owner', { owner: owner() })}`,
+          `buildPath('/files/*', { rest: 'docs/a b.txt' })`,
+          `  → ${buildPath('/files/*', { rest: 'docs/a b.txt' })}`,
+        ]}
+      </Lines>
+      <Action onTap={() => router.navigate(buildPath('/routing/:owner', { owner: owner() }))}>
+        navigate to the built path
+      </Action>
+      <Prose>
+        It cannot spell the pattern wrong, cannot forget a param, and cannot be left behind when a route is renamed —
+        the params argument is typed from the pattern, so a misspelt owner does not compile. Values are encoded on the
+        way out and decoded by matchRoute on the way back, which is why an owner with a slash in it survives the round
+        trip as one segment.
+      </Prose>
+      <Prose>
+        A wildcard is the exception, and deliberately: rest IS a path, so its separators are structure and only the
+        segments around them are encoded. That is the same reading matchRoute takes when it joins the tail back
+        together.
+      </Prose>
+    </Panel>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // A second router, with nothing under it
 // ---------------------------------------------------------------------------
@@ -251,13 +307,12 @@ const SecondRouter = (): LynxElement => {
   const local = createRouter({
     history: createMemoryHistory({ path: '/', search: '' }),
     routes: [
-      { path: '/', label: 'home', view: () => <Readout>home</Readout> },
-      { path: '/settings', label: 'settings', view: () => <Readout>settings</Readout> },
-      {
-        path: '/users/:id',
-        label: 'a user',
-        view: (params: () => Record<string, string>) => <Readout>{() => `user ${params()['id']}`}</Readout>,
-      },
+      route('/', () => <Readout>home</Readout>, { label: 'home' }),
+      route('/settings', () => <Readout>settings</Readout>, { label: 'settings' }),
+      // No annotation on this table, so the patterns keep their literal types
+      // all the way through: `params().id` below is checked against `:id`, and
+      // `local.route().route?.label` is still a string rather than unknown.
+      route('/users/:id', (params) => <Readout>{() => `user ${params().id}`}</Readout>, { label: 'a user' }),
     ],
   })
 
@@ -292,35 +347,42 @@ const SecondRouter = (): LynxElement => {
   )
 }
 
-/** Why the browser history is gone, which is a design statement rather than a gap. */
-const NoBrowserHistory = (): LynxElement => (
+/** The other implementation of the same seam — the one driving this page's address bar. */
+const BrowserHistory = (): LynxElement => (
   <Panel
-    title="There is no browser history"
-    blurb="An earlier version of this package shipped createBrowserHistory on its own entry point. It went with the DOM host, and it is not coming back."
+    title="createBrowserHistory"
+    blurb="This app is running on one right now. Look at the address bar as you move between tabs, then reload — the deep path survives, because a Worker with a single-page-app fallback serves index.html for it."
   >
+    <Lines>
+      {() => [
+        `location  ${router.route().path}${router.route().search}`,
+        `depth     ${router.depth()}`,
+        `canGoBack ${router.canGoBack()}`,
+      ]}
+    </Lines>
     <Prose>
-      This package targets Lynx. A Lynx app has no URL bar, so there is no address to keep continuously correct, nothing
-      for a user to type into, and no shared session history that other pages also push onto. Navigation state lives in
-      memory, in a stack the app owns, and that is not a reduced version of the web model — it is what navigation
-      actually is on a phone.
+      It lives on its own entry point, @amritk/mini-lynx/router/browser, with a compiler pass of its own that adds the
+      DOM library. Everything else in the package compiles against a standard library with no platform in it at all,
+      because Lynx's main-thread context is not a browser and a stray document is a bug on the target that ships. One
+      directory is exempt, and the exemption is something the compiler checks rather than a convention.
     </Prose>
     <Prose>
-      Deep links arrive as DATA rather than as a location. The platform hands the app a path, the app calls navigate,
-      and the router matches it exactly as it would any other navigation. A hardware back gesture is wired the same way:
-      call back on the history, and the route signal updates like any other change.
+      Depth is stamped into history.state rather than read from history.length, and that is the one subtle part.
+      history.length counts the whole TAB — every page visited before this app loaded — so it is both too large and,
+      once you have gone back, wrong in the other direction. An entry carrying its own depth is the only reading that
+      survives a reload mid-stack and a forward button, neither of which a memory stack ever faces.
     </Prose>
     <Prose>
-      The visible cost is right here in this preview: the address bar does not move, and reloading the page returns you
-      to the first screen. That is the honest trade rather than a bug. A preview that grew an affordance the real target
-      does not have would be teaching the wrong thing, which is the same argument that removed the DOM host in the first
-      place.
+      Nothing above this layer knows which one it got. The route table, the screens, RouteStack and the matching are all
+      target-free — moving between locations is the only half with a per-target answer — so a device build changes one
+      argument and keeps everything else.
     </Prose>
     <Prose>
-      Two things are also deliberately missing above this layer. A rendered navigation STACK — a second screen sliding
-      over the first with both alive at once — needs an animation seam that does not exist yet; RouteView is the
-      single-slot version, which is what a tab's root wants. And guards and lazy routes are both expressible today, a
-      guard as a replace inside a watch on route() and a lazy route as a view that renders a placeholder until its
-      import lands, so neither has earned an API before a real app has asked twice.
+      Two things are still deliberately missing. Hash mode, because the host is the app's own choice and configuring it
+      for an SPA fallback is one line, where a second URL grammar would be one the device build can never use. And
+      guards and lazy routes, both expressible today — a guard as a replace inside a watch on route(), a lazy route as a
+      view that renders a placeholder until its import lands — so neither has earned an API before a real app has asked
+      twice.
     </Prose>
   </Panel>
 )
@@ -344,9 +406,9 @@ const NoBrowserHistory = (): LynxElement => (
  * replaced. Nothing in `route()` tells those apart. The depth does.
  */
 const STACK_ROUTES = [
-  { path: '/', view: () => <StackScreen title="Root" tint="var(--surface-alt)" /> },
-  { path: '/one', view: () => <StackScreen title="One" tint="var(--surface)" /> },
-  { path: '/two', view: () => <StackScreen title="Two" tint="var(--surface-alt)" /> },
+  route('/', () => <StackScreen title="Root" tint="var(--surface-alt)" />),
+  route('/one', () => <StackScreen title="One" tint="var(--surface)" />),
+  route('/two', () => <StackScreen title="Two" tint="var(--surface-alt)" />),
 ]
 
 const Stack = (): LynxElement => {

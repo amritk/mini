@@ -13,11 +13,12 @@ import { applyStyle, applyVisible } from '../style/apply-style'
 import { createElement, insert, remove } from '../tree'
 import type { ClassValue, Dispose, MaybeReactive, StyleValue } from '../types'
 import { untrack } from '../untrack'
-import type { Route, Router, RouteState } from './create-router'
+import type { AnyRoute, Router, RouteState } from './create-router'
+import { renderRoute } from './render-route'
 import type { StackChange, StackTransition } from './stack-transition'
 
 /** Props for {@link RouteStack}. */
-export type RouteStackProps<R extends Route> = {
+export type RouteStackProps<R extends AnyRoute> = {
   router: Router<R>
   /** Rendered for a screen whose location matched nothing. Nothing renders when it is omitted. */
   fallback?: () => LynxElement
@@ -36,7 +37,7 @@ export type RouteStackProps<R extends Route> = {
 }
 
 /** One live screen: the card it was built into, and what it was built FROM. */
-type StackEntry<R extends Route> = {
+type StackEntry<R extends AnyRoute> = {
   /** The history depth this screen sits at, which is what makes it poppable. */
   depth: number
   /** The element the stack owns and positions. The screen is its only child. */
@@ -116,7 +117,7 @@ type StackEntry<R extends Route> = {
  * The transition defaults to none. Motion is the app's decision, and it is the
  * app that can read whether the user asked for less of it.
  */
-export const RouteStack = <R extends Route>(props: RouteStackProps<R>): LynxElement => {
+export const RouteStack = <R extends AnyRoute>(props: RouteStackProps<R>): LynxElement => {
   const container = createElement('view')
   applyProp(container, 'style', mergeStyle(CONTAINER, props.style))
   if (props.class !== undefined) applyProp(container, 'class', props.class)
@@ -152,7 +153,7 @@ export const RouteStack = <R extends Route>(props: RouteStackProps<R>): LynxElem
     // working. See `run-detached.ts`.
     const dispose = runDetached(() =>
       effectScope(() => {
-        node = withFrame(frame, () => (matched === null ? (props.fallback?.() ?? null) : matched.view(params)))
+        node = withFrame(frame, () => (matched === null ? (props.fallback?.() ?? null) : renderRoute(matched, params)))
       }),
     )
     if (node !== null) insert(card, node, null)

@@ -182,7 +182,8 @@ Each is its own module graph, so importing one pulls in none of the others.
 | `/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport |
 | `/flow` | `Show`, `Switch`/`Match`, `Dynamic`, `For`, `Index` |
 | `/composition` | `createContext`, `Portal`, `ErrorBoundary` |
-| `/router` | `createRouter`, `createMemoryHistory`, `RouteView`, `RouteLink`, `matchRoute` |
+| `/router` | `createRouter`, `route`, `createMemoryHistory`, `RouteView`, `RouteStack`, `RouteLink`, `matchRoute`, `buildPath` |
+| `/router/browser` | `createBrowserHistory` — the same route table driven by the address bar, for a web build |
 | `/forms` | `createForm`, `Field`, `bindField`, `schemaToValidator` |
 | `/query` | `createQuery` over `@tanstack/query-core` |
 | `/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods |

@@ -14,18 +14,26 @@ is allowed in** is worth stating.
 
 | Entry | Exports | Depends on |
 |---|---|---|
-| `@amritk/mini-helpers` | `matchRoute`, `RouteParams`, `parseQuery` | nothing at all |
+| `@amritk/mini-helpers` | `matchRoute`, `buildPath`, `PathParams`, `RouteParams`, `parseQuery`, `stripBase` | nothing at all |
 | `@amritk/mini-helpers/schema` | `schemaToValidator`, `FormErrors` | `@amritk/runtime-validators` (optional peer) |
 
 ```ts
-import { matchRoute, parseQuery } from '@amritk/mini-helpers'
+import { buildPath, matchRoute, parseQuery } from '@amritk/mini-helpers'
 
 matchRoute('/users/:id', '/users/42')        // { id: '42' }
 matchRoute('/docs/*', '/docs/guide/routing') // { rest: 'guide/routing' }
 matchRoute('/users/:id', '/users')           // null
 
+buildPath('/users/:id', { id: '42' })        // '/users/42'
+
 parseQuery('?tab=posts&page=2')              // { tab: 'posts', page: '2' }
 ```
+
+The pattern is read at the type level too. `PathParams<'/users/:id'>` is
+`{ id: string }`, so `matchRoute` hands back exactly the keys the pattern names
+and `buildPath` demands exactly the ones it needs — while a pattern known only
+as `string` widens back to `RouteParams`, which is what a table built at runtime
+gets and what every existing table already got.
 
 ## The bar for adding something
 
