@@ -37,7 +37,7 @@
     "bench:reconciler": "bun run scripts/bench-reconciler.ts",
     "generate-llms": "bun run scripts/generate-llms.ts",
     "release:version": "changeset version && bun install --no-frozen-lockfile",
-    "release:publish": "bun run scripts/resolve-workspace-protocol.ts && bun run scripts/strip-development-exports.ts && bun run scripts/copy-license.ts && changeset publish"
+    "release:publish": "bun run scripts/resolve-workspace-protocol.ts && bun run scripts/copy-license.ts && changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",

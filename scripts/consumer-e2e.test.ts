@@ -5,14 +5,12 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { ROOT, runCommand, runNode } from './e2e-helpers'
-import { stripDevelopment } from './strip-development-exports'
 import { type PackageJson, resolveProtocols } from './workspace-protocol'
 
 /**
  * The npm consumer's path, end to end: pack both packages exactly the way
- * `release:publish` does — `catalog:`/`workspace:` specifiers resolved, the
- * `development` condition stripped — install the tarballs into scratch
- * projects, and drive them under plain Node.
+ * `release:publish` does — `catalog:`/`workspace:` specifiers resolved —
+ * install the tarballs into scratch projects, and drive them under plain Node.
  *
  * Nothing else in the pipeline sees this. The unit tests alias both packages
  * to their `src/`, and dist-smoke loads `dist/` by absolute path — so a broken
@@ -176,7 +174,6 @@ describe('consumer-e2e', () => {
       const copyDir = join(workDir, 'pack-src', pkg.name.replace('/', '__'))
       await cp(dir, copyDir, { recursive: true, filter: (source) => !source.includes('node_modules') })
       resolveProtocols(pkg, versions, rootPkg)
-      stripDevelopment(pkg.exports)
       await writeFile(join(copyDir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf-8')
 
       const { stdout } = await runCommand('npm', ['pack', '--pack-destination', packDir], { cwd: copyDir })
@@ -256,9 +253,12 @@ describe('consumer-e2e', () => {
     for (const name of PUBLISHED) {
       const packageDir = join(bareDir, 'node_modules', name)
       // Every package ships its sources for source maps and go-to-definition,
-      // which is precisely why the condition must be gone: it points at real
-      // files in the tarball, so a bundler honouring `development` would hand a
-      // consumer raw TypeScript instead of the built JS.
+      // and that is exactly why no exports map may name a `development`
+      // condition: it would point at real files in the tarball, so a bundler
+      // honouring it hands a consumer raw TypeScript instead of the built JS.
+      // The condition is no longer in any manifest and nothing strips it at
+      // publish time any more, so this is the guard against it coming back —
+      // `@amritk/mini-lynx-native@0.2.0` shipped with one and resolved to src.
       expect(existsSync(join(packageDir, 'src/index.ts')), `${name} ships src`).toBe(true)
       const pkg = await readManifest(join(packageDir, 'package.json'))
       expect(JSON.stringify(pkg.exports), `${name} exports`).not.toContain('development')

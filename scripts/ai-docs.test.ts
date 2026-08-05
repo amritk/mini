@@ -1,14 +1,21 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { type AiDocFinding, auditAiDocs, auditPackage, type PackageManifest, publicValueExports } from './ai-docs'
+import {
+  type AiDocFinding,
+  auditAiDocs,
+  auditPackage,
+  type PackageManifest,
+  publicValueExports,
+  sourceForTarget,
+} from './ai-docs'
 
 const MANIFEST: PackageManifest = {
   name: '@amritk/thing',
   files: ['dist', 'AI.md'],
   exports: {
     './package.json': './package.json',
-    '.': { development: './src/index.ts' },
+    '.': { types: './dist/index.d.ts', import: './dist/index.js', default: './dist/index.js' },
   },
 }
 
@@ -57,7 +64,7 @@ describe('ai-docs', () => {
   it('flags a published subpath the AI.md never names', () => {
     const manifest = {
       ...MANIFEST,
-      exports: { ...MANIFEST.exports, './testing': { development: './src/testing/index.ts' } },
+      exports: { ...MANIFEST.exports, './testing': { import: './dist/testing/index.js' } },
     }
     const findings = auditPackage(manifest, reader({ 'AI.md': DOC, './src/index.ts': '' }))
     expect(problems(findings)).toEqual(['never mentions the published subpath "@amritk/thing/testing"'])
@@ -68,7 +75,7 @@ describe('ai-docs', () => {
   it('does not ask for the JSX transform subpaths to be documented', () => {
     const manifest = {
       ...MANIFEST,
-      exports: { ...MANIFEST.exports, './jsx-runtime': { development: './src/jsx-runtime.ts' } },
+      exports: { ...MANIFEST.exports, './jsx-runtime': { import: './dist/jsx-runtime.js' } },
     }
     const findings = auditPackage(manifest, reader({ 'AI.md': DOC, './src/index.ts': '' }))
     expect(findings).toEqual([])
@@ -89,6 +96,20 @@ describe('ai-docs', () => {
       'export type Local = string',
     ].join('\n')
     expect(publicValueExports(source).sort()).toEqual(['doThing', 'made', 'renamed'])
+  })
+
+  // This mapping replaced the `development` condition, which named the source
+  // outright. It is the audit's only route from a manifest to a file now, so a
+  // silent null here would take every export check down with it.
+  it('maps a built export target back to the source it came from', () => {
+    expect(sourceForTarget({ import: './dist/index.js' })).toBe('./src/index.ts')
+    expect(sourceForTarget({ import: './dist/router/browser/index.js' })).toBe('./src/router/browser/index.ts')
+    expect(sourceForTarget({ default: './dist/jsx-runtime.js' })).toBe('./src/jsx-runtime.ts')
+  })
+
+  it('has no source to offer for an entry that names no built module', () => {
+    expect(sourceForTarget('./package.json')).toBeNull()
+    expect(sourceForTarget({ import: './lynx.lib.json' })).toBeNull()
   })
 
   // The gate itself: the checked-in packages have to satisfy their own contract.

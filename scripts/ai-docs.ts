@@ -18,10 +18,28 @@ import { join } from 'node:path'
 
 /**
  * One `exports` entry. A bare string for `./package.json`-style passthroughs,
- * otherwise the condition map — of which only `development` matters here,
- * because it is the one condition pointing at source this can read.
+ * otherwise the condition map, whose `import`/`default` name the built module.
  */
-export type ExportTarget = string | { development?: string }
+export type ExportTarget = string | { import?: string; default?: string }
+
+/**
+ * The source file a `./dist/` export target was built from.
+ *
+ * The exports maps used to carry a `development` condition naming the source
+ * outright, and this read it. That condition is gone — it pointed at `./src/*.ts`
+ * inside a tarball that ships `src`, so anything honouring it got raw TypeScript
+ * — and the mapping replaces it. It holds because every package builds with
+ * `rootDir: "src"` and `outDir: "dist"`, which is what makes `dist/x/index.js`
+ * and `src/x/index.ts` the same module by construction.
+ *
+ * Returns null for an entry with no dist target, so the caller can tell "not a
+ * module I can audit" from "a module whose source I failed to find".
+ */
+export const sourceForTarget = (target: ExportTarget): string | null => {
+  const built = typeof target === 'object' ? (target.import ?? target.default) : undefined
+  if (built === undefined || !built.startsWith('./dist/') || !built.endsWith('.js')) return null
+  return `./src/${built.slice('./dist/'.length, -'.js'.length)}.ts`
+}
 
 export type PackageManifest = {
   name?: string
@@ -117,8 +135,8 @@ const subpathsOf = (manifest: PackageManifest): string[] =>
   Object.entries(manifest.exports ?? {})
     .filter(([subpath, target]) => {
       if (subpath.endsWith('.json') || TRANSFORM_SUBPATHS.includes(subpath)) return false
-      // Only entries with a `development` condition point at source we can read.
-      return typeof target === 'object' && typeof target.development === 'string'
+      // Only entries naming a built module have source behind them to read.
+      return sourceForTarget(target) !== null
     })
     .map(([subpath]) => subpath)
 
@@ -171,8 +189,8 @@ export const auditPackage = (
       continue
     }
     const target = manifest.exports?.[subpath]
-    const entry = typeof target === 'object' ? target.development : undefined
-    const source = entry ? read(entry) : null
+    const entry = target === undefined ? null : sourceForTarget(target)
+    const source = entry === null ? null : read(entry)
     if (source === null) continue
 
     const allowed = new Set(INTERNAL_EXPORTS[specifier] ?? [])

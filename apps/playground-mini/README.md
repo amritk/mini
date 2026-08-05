@@ -55,17 +55,22 @@ that must not scroll the demo out from under you.
 
 ## How it resolves the package
 
-`vite.config.ts` and `tsconfig.json` both pin the `development` condition, so
-`@amritk/mini` and every subpath resolve to `packages/mini/src` rather than to
-`dist/`. That means the playground runs in a fresh clone with no prior build,
-always exercises the code in this checkout, and needs no `paths` table kept in
-sync with the exports map.
+`@amritk/mini` and every subpath resolve through the package's `exports` map to
+`packages/mini/dist`, exactly as they would for anyone installing from npm. So
+the playground needs `bun run build` at the workspace root before it will start.
 
-The one thing that cannot resolve that way is `@amritk/mini/vite` — Vite loads
-its own config with plain Node resolution — so `vite.config.ts` imports the two
-plugins by relative path. Both are on: `catchCalledSignals` fails the build on
-`attr={signal()}`, and `acceptHotUpdates` makes `src/main.tsx` the hot-update
-boundary.
+It used to pin a `development` condition in both `vite.config.ts` and
+`tsconfig.json` and resolve to `src` instead, which meant no build was needed.
+That condition lived in the packages' own `exports` maps, which is what made it
+reachable from a published tarball — and `@amritk/mini-lynx-native@0.2.0`
+shipped one, resolving consumers to raw TypeScript. Needing a build first is the
+price of the condition not existing at all.
+
+`@amritk/mini/vite` is the exception, and it is a bootstrapping one: a config
+file has to load before Vite can do anything, including before the first build
+exists, so `vite.config.ts` imports the two plugins by relative path instead.
+Both are on: `catchCalledSignals` fails the build on `attr={signal()}`, and
+`acceptHotUpdates` makes `src/main.tsx` the hot-update boundary.
 
 Packaging is deliberately *not* what this app checks. `scripts/consumer-e2e.test.ts`
 packs and installs real tarballs for that, which is the honest test of it.
