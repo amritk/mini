@@ -141,7 +141,11 @@ onCleanup(onDeepLink(({ url }) => link(url)))
 ## Testing your own screens
 
 ```ts
+import { MODULE } from '@amritk/lynx-deep-linking'
 import { createFakeDeepLinking } from '@amritk/lynx-deep-linking/testing'
+
+const links = createFakeDeepLinking()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: links.module } })
 ```
 
 It is the executable statement of the JavaScript-to-native contract, and it
@@ -150,11 +154,17 @@ as `noHandler`, a URL with no scheme as `invalidURL`, and a held link is
 replayed exactly once. Handles: `setInitialURL`, `deliver`, `hold`,
 `setHandledSchemes`, `opened()`, `settingsOpened()`.
 
+`MODULE` is the key `NativeModules` exposes the native module under, and the
+one the fake registers against. `EVENTS` names the global events the native
+side publishes — there is exactly one, `EVENTS.link` — and you need it only to
+forward or assert on the emitter directly; `onDeepLink` is the way in.
+
 ## Status
 
-Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, the Objective-C
-compiles against the real Lynx pod, and a parity suite pins both method surfaces
-against the TypeScript — **but none of it has run on a device.** The cold-start
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** The cold-start
 capture on both platforms depends on load-order behaviour (a `ContentProvider`
 on Android, `+load` on iOS) that nothing here can exercise. Do not present it as
 proven.

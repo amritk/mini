@@ -26,6 +26,7 @@
     "lint:check": "bun run check",
     "check": "biome check .",
     "check:reactivity": "bun run scripts/catch-called-signals.ts",
+    "check:ai-docs": "bun run scripts/check-ai-docs.ts",
     "check:android": "bun run scripts/check-android.ts",
     "format": "biome check --write --formatter-enabled=true --linter-enabled=false .",
     "lint": "biome lint .",

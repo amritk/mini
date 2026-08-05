@@ -15,6 +15,15 @@ this repository**. For Claude Code the same rules live in
 > an **`AI.md`** next to its `README.md` with a mental model, a minimal example,
 > and the gotchas most likely to trip up an LLM. Start there.
 
+**Adding an export means adding a line to that package's `AI.md`.**
+`bun run check:ai-docs` reads what each package publishes and fails on anything
+its `AI.md` never mentions — a new subpath, a new function, a native package
+with no *Status* section. It is not a style check: these files are the only
+documentation a coding agent consuming the package will ever read, and a wrong
+one is worse than a missing one because nothing about it looks stale. An export
+no consumer ever writes goes in `INTERNAL_EXPORTS` in `scripts/ai-docs.ts`, with
+the reason.
+
 ## What this is
 
 `mini` is a **Bun monorepo** holding a deliberately tiny signals UI runtime in
@@ -86,6 +95,7 @@ bun install                 # install workspace deps
 bun run test                # run every package's tests (packages/* only)
 bun run check               # biome lint + format check
 bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
+bun run check:ai-docs       # every package's AI.md against what that package actually exports
 bun run check:android       # compile the notifications Kotlin (needs ANDROID_HOME; skips without)
 bun run types:check         # type-check both packages and both playgrounds
 bun run build               # build both packages and both playgrounds

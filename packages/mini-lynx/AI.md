@@ -1,4 +1,7 @@
-# @amritk/mini-lynx — notes for AI coding agents
+# AI.md — @amritk/mini-lynx
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
 
 A signals runtime for **Lynx**: real elements built once, mutated forever by
 signals, no virtual tree. This file is the fast path for an LLM; the full
@@ -204,6 +207,11 @@ selector and a `SelectorQuery` match on.
   waterfall, sticky headers and snap, none of which this package implements or
   needs to. `item-key` is required on a `list-item` and is the engine's identity,
   a different thing from JSX's `key`.
+- **`signal` / `computed` / `effect` / `effectScope`** — the same engine as
+  `@amritk/mini`, re-exported. A signal is read by calling it and written by
+  calling it with the next value; `computed` derives; `effect` re-runs
+  synchronously. `mount` opens the `effectScope` that owns them, so reach for
+  that one directly only outside a tree.
 - **`batch` / `watch` / `untrack`** — group writes, react to changes only, and
   read without subscribing. `watch` skips the initial run unless you pass
   `{ immediate: true }`, which is what makes "navigate when the route changes"
@@ -222,15 +230,15 @@ Mutations are committed once per tick: a hundred signal writes cost one
 | `@amritk/mini-lynx/engine` | `LynxElementApi` and `LynxElement`, plus `setEngine` / `requireEngine` / `scheduleFlush`. Import this when you are *supplying* an engine rather than rendering into one |
 | `@amritk/mini-lynx/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey`. For a long collection reach for the engine's `<list>` instead |
 | `@amritk/mini-lynx/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
-| `@amritk/mini-lynx/router` | `createRouter`, `route`, `createMemoryHistory`, `RouteView`, `RouteStack`, `RouteLink`, `matchRoute`, `buildPath`, `parseQuery`. Matching is pure arithmetic; history is a seam, and memory is the default because a stack of screens the app holds is genuinely what navigation is here. Define routes with `route(path, view, meta)` and the view is handed params typed from the pattern |
+| `@amritk/mini-lynx/router` | `createRouter`, `route`, `createMemoryHistory`, `RouteView`, `RouteStack`, `RouteLink`, `fadeTransition`, `matchRoute`, `buildPath`, `parseQuery`. Matching is pure arithmetic; history is a seam, and memory is the default because a stack of screens the app holds is genuinely what navigation is here. Define routes with `route(path, view, meta)` and the view is handed params typed from the pattern. `RouteStack` keeps every screen beneath the top one built — scroll position, half-filled forms and in-flight requests all survive a push — and animates with a `transition`, of which `fadeTransition()` is the one shipped; write your own against the same signature for anything else |
 | `@amritk/mini-lynx/router/browser` | `createBrowserHistory` — the same route table driven by the address bar. The **only** module in the package that touches `window`, which is why it is a separate entry with a compiler pass of its own. Import it in a web build; a device build never resolves it |
 | `@amritk/mini-lynx/forms` | `createForm` / `Field` / `bindField` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
 | `@amritk/mini-lynx/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s. Mind the main-thread note above |
 | `@amritk/mini-lynx/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods, which are actions rather than attributes |
-| `@amritk/mini-lynx/keyboard` | `trackKeyboard` (one line at startup), `keyboardHeight`, `keyboardLift`, `avoidKeyboard` (a `ref` for a control), `KeyboardAvoiding`. Lynx does **not** avoid the keyboard for you, and the engine event behind this does not exist on the web |
+| `@amritk/mini-lynx/keyboard` | `trackKeyboard` (one line at startup), `keyboardHeight`, `keyboardLift`, `avoidKeyboard` (a `ref` marking a control the keyboard must not cover), `focusedField`, `keepAboveKeyboard`, `KeyboardAvoiding`. Lynx does **not** avoid the keyboard for you, and the engine event behind this does not exist on the web. `<KeyboardAvoiding>` is the ordinary way in; under it `keepAboveKeyboard()` is the *measured* lift — exactly enough to clear `focusedField()` and never more — for when the movement is yours to make. Only `focus` is listened to, never `blur`: two adjacent taps fire the first field's blur and the second's focus in an order nothing here controls, and reacting to blur is what makes a screen flinch between them |
 | `@amritk/mini-lynx/gestures` | `setGestureDetector`, `GestureType` — recogniser *arbitration*, the part ordinary events cannot express |
 | `@amritk/mini-lynx/recycle` | `recycle` — `<list>`'s cell recycler. A cell receives **getters**, because it outlives the row it was built for |
-| `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport. Only if the worklet round trip fails on a device |
+| `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent`, `HANDLER_PREFIX` — the fallback event transport. Only if the worklet round trip fails on a device. Every name it mints starts with `HANDLER_PREFIX`, so a forwarder on a page running two frameworks can tell this runtime's events from the other's |
 | `@amritk/mini-lynx/testing` | `createFakeEngine`, `serializeTree` — a complete in-memory PAPI |
 
 There is no `/ui`, no `/platform`, no `/animate` and no host subpath. Components
