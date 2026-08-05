@@ -2,7 +2,7 @@
   "name": "@amritk/playground-mini-lynx",
   "version": "0.0.3",
   "private": true,
-  "description": "Kitchen-sink playground for @amritk/mini-lynx, previewed through a DOM implementation of Lynx's Element PAPI and deployed to Cloudflare Workers as a static SPA.",
+  "description": "Kitchen-sink playground for @amritk/mini-lynx and the native modules around it, previewed through a DOM implementation of Lynx's Element PAPI and deployed to Cloudflare Workers as a static SPA.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,12 @@
     "deploy:dry": "bun run build && wrangler deploy --dry-run"
   },
   "dependencies": {
+    "@amritk/lynx-deep-linking": "workspace:*",
+    "@amritk/lynx-dialogs": "workspace:*",
+    "@amritk/lynx-location": "workspace:*",
+    "@amritk/lynx-notifications": "workspace:*",
     "@amritk/mini-lynx": "workspace:*",
+    "@amritk/mini-lynx-native": "workspace:*",
     "@amritk/runtime-validators": "^0.9.0",
     "@tanstack/query-core": "^5.101.2"
   },

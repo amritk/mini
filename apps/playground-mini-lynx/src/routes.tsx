@@ -2,13 +2,18 @@ import { createMemoryHistory, createRouter, type Route, type Router } from '@amr
 
 import { ComposeScreen } from './screens/compose'
 import { DataScreen } from './screens/data'
+import { DialogsScreen } from './screens/dialogs'
 import { ElementsScreen } from './screens/elements'
 import { EngineScreen } from './screens/engine'
 import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
 import { FormsScreen } from './screens/forms'
 import { KeyboardScreen } from './screens/keyboard'
+import { LinksScreen } from './screens/links'
 import { ListScreen } from './screens/list'
+import { LocationScreen } from './screens/location'
+import { NativeScreen } from './screens/native'
+import { NotificationsScreen } from './screens/notifications'
 import { RoutingScreen } from './screens/routing'
 import { StylingScreen } from './screens/styling'
 import { TextScreen } from './screens/text'
@@ -48,6 +53,15 @@ const ROUTES: readonly AppRoute[] = [
     nav: false,
     view: (params) => <RoutingScreen params={params} />,
   },
+  // The packages either side of the runtime: the bridge to Lynx's background
+  // context, and the four native modules built on it. They come last because
+  // each one assumes the screen before this group — a call is a promise across
+  // a thread, and none of it is reactive until an app makes it so.
+  { path: '/native', label: 'Bridge', badge: '⇋', nav: true, view: () => <NativeScreen /> },
+  { path: '/notifications', label: 'Notify', badge: '✉', nav: true, view: () => <NotificationsScreen /> },
+  { path: '/location', label: 'Location', badge: '⌖', nav: true, view: () => <LocationScreen /> },
+  { path: '/dialogs', label: 'Dialogs', badge: '❐', nav: true, view: () => <DialogsScreen /> },
+  { path: '/links', label: 'Links', badge: '↗', nav: true, view: () => <LinksScreen /> },
 ]
 
 export type AppRouter = Router<AppRoute>

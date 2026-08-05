@@ -63,6 +63,28 @@ describe('channel', () => {
     await expect(callNativeAsync('StorageModule', 'loadValue', 'profile')).resolves.toBe('loaded:profile')
   })
 
+  // The two ways round to get the call form wrong, pinned because they fail
+  // differently and the difference is what a caller has to recognise. The
+  // symmetric-sounding summary — "one hangs, the other gives you undefined" —
+  // is only half right, and it is the half that sends people looking in the
+  // wrong place.
+  it('settles when callNative is used on a callback method, rather than hanging', async () => {
+    setup()
+    // This method reaches for the callback it was not handed, so the throw comes
+    // back as a rejection. One that merely stored it would resolve `undefined`.
+    // Either way the promise settles: the `return` form always replies.
+    await expect(callNative('StorageModule', 'loadValue', 'profile')).rejects.toThrow(/not a function/)
+  })
+
+  it('never settles when callNativeAsync is used on a returning method', async () => {
+    setup()
+    // The appended callback is an argument the method ignores, so nothing ever
+    // invokes it and no reply is ever sent. This is the silent one.
+    const unsettled = Symbol('unsettled')
+    const pending = callNativeAsync('StorageModule', 'getValue', 'token')
+    await expect(Promise.race([pending, Promise.resolve(unsettled)])).resolves.toBe(unsettled)
+  })
+
   it('rejects a call to a module the host app did not link', async () => {
     setup()
     await expect(callNative('CameraModule', 'open')).rejects.toThrow(/not linked/)
