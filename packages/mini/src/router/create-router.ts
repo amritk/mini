@@ -1,16 +1,20 @@
-import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+import { matchRoute, parseQuery, type RouteParams, stripBase } from '@amritk/mini-helpers'
 
 import { onCleanup } from '../on-cleanup'
 import type { ReadonlySignal } from '../signals'
 import { signal } from '../signals'
-import { stripBase } from './strip-base'
 
 /**
  * One route definition. `path` is a {@link matchRoute} pattern; every other key
  * is opaque to the router and carried through on the match — put the view
  * factory (or any per-route metadata) there and read it off `route().route`.
+ *
+ * The pattern parameter is there so a table that keeps its literals can be
+ * `Route<'/users/:id'>` and feed {@link buildPath}; the router itself never
+ * reads it, because a view here takes no params — `<RouterView>` calls a plain
+ * `() => HTMLElement` and the captures are read off `route().params`.
  */
-export type Route = { path: string } & Record<string, unknown>
+export type Route<P extends string = string> = { path: P } & Record<string, unknown>
 
 /**
  * How the router reads and writes the URL.

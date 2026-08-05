@@ -21,6 +21,9 @@ bun run --filter='@amritk/mini-helpers' build
 src/
   index.ts                The `.` entry — zero dependencies, by charter
   match-route.ts          matchRoute + RouteParams — the route pattern grammar
+  path-params.ts          PathParams — the same grammar, read at the type level
+  build-path.ts           buildPath — the same grammar, read backwards
+  strip-base.ts           stripBase — a mount-point prefix off a pathname
   parse-query.ts          parseQuery — a search string to a flat record
   purity.test.ts          The charter, enforced by walking the source graph
   schema/
@@ -51,6 +54,15 @@ src/
 `src/purity.test.ts` enforces all four by walking the source graph from both
 entries. It is not boilerplate; it is the only thing standing between this
 package and becoming a junk drawer.
+
+One more, specific to routing: **`matchRoute`, `buildPath` and `PathParams` are
+one grammar written three times** — as a runtime matcher, as its inverse, and as
+a type. A change to what a pattern means has to land in all three or they start
+disagreeing, and the disagreement typechecks. `path-params.test.ts` and
+`build-path.test.ts` exist to make that fail loudly; the round-trip case in the
+latter is the one that catches an encoding change, and the `/v:major` case in
+the former is the one that catches the type splitting on `:` where the matcher
+splits on `/`.
 
 ## What belongs here — and what does not
 

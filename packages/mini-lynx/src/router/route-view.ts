@@ -3,10 +3,11 @@ import type { RouteParams } from '@amritk/mini-helpers'
 import { type ChildFactory, renderChild } from '../render-child'
 import { createWrapper } from '../tree'
 import type { LynxElement } from '../types'
-import type { Route, Router } from './create-router'
+import type { AnyRoute, Router } from './create-router'
+import { renderRoute } from './render-route'
 
 /** Props for {@link RouteView}. */
-export type RouteViewProps<R extends Route> = {
+export type RouteViewProps<R extends AnyRoute> = {
   router: Router<R>
   /** Rendered when nothing matched. Nothing renders when it is omitted. */
   fallback?: () => LynxElement
@@ -38,7 +39,7 @@ export type RouteViewProps<R extends Route> = {
  * <RouteView router={router} fallback={() => <NotFound />} />
  * ```
  */
-export const RouteView = <R extends Route>(props: RouteViewProps<R>): LynxElement => {
+export const RouteView = <R extends AnyRoute>(props: RouteViewProps<R>): LynxElement => {
   const wrapper = createWrapper()
 
   // One stable factory per route, so a params-only change resolves to the same
@@ -56,7 +57,7 @@ export const RouteView = <R extends Route>(props: RouteViewProps<R>): LynxElemen
     const existing = factories.get(matched)
     if (existing) return existing
 
-    const factory: ChildFactory = () => matched.view(params)
+    const factory: ChildFactory = () => renderRoute(matched, params)
     factories.set(matched, factory)
     return factory
   })

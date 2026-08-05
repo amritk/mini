@@ -17,7 +17,7 @@ Both packages re-export everything here from the subpath it belongs to. Prefer
 those — they are the documented surface, and they are what the examples use:
 
 ```ts
-import { matchRoute, parseQuery } from '@amritk/mini/router'
+import { buildPath, matchRoute, parseQuery } from '@amritk/mini/router'
 import { schemaToValidator } from '@amritk/mini/forms'
 // …or the same two lines against '@amritk/mini-lynx/router' / '/forms'
 ```
@@ -28,12 +28,15 @@ a UI runtime — matching a route inside a service worker, say.
 ## The surface, in full
 
 ```ts
-import { matchRoute, parseQuery, type RouteParams } from '@amritk/mini-helpers'
+import { buildPath, matchRoute, parseQuery, stripBase, type PathParams, type RouteParams } from '@amritk/mini-helpers'
 import { schemaToValidator, type FormErrors } from '@amritk/mini-helpers/schema'
 
 type RouteParams = Record<string, string>
-matchRoute(pattern: string, path: string): RouteParams | null
+type PathParams<P extends string>   // '/users/:id' → { id: string }; string → RouteParams
+matchRoute<P extends string>(pattern: P, path: string): PathParams<P> | null
+buildPath<P extends string>(pattern: P, params: PathParams<P>): string
 parseQuery(search: string): RouteParams
+stripBase(pathname: string, base: string): string
 
 type FormErrors = Record<string, string>
 schemaToValidator(schema: object): (values: Record<string, unknown>) => FormErrors
@@ -44,6 +47,15 @@ schemaToValidator(schema: object): (values: Record<string, unknown>) => FormErro
 - **`matchRoute` returns `null`, not `{}`, when nothing matched.** An empty
   object is a *successful* match of a pattern with no params (`/about`), so
   `if (!params)` is the check and `if (!Object.keys(params).length)` is a bug.
+- **The params type follows the pattern only while the pattern is a literal.**
+  `matchRoute('/users/:id', p)` gives `{ id: string } | null`; assign the
+  pattern to a `string` variable first and you get `RouteParams | null`. That
+  fallback is deliberate, not a bug — it is what a table read from a manifest
+  gets — but it means an annotation in the wrong place silently widens the type.
+- **`buildPath` is the inverse and encodes what it fills in,** so it round-trips
+  through `matchRoute`. A `*` wildcard is the exception: `rest` is a *path*, so
+  its `/` separators stay structural and only the segments between them are
+  encoded.
 - **A trailing `*` captures into `params.rest`**, always under that name, as the
   raw remainder joined with `/`. It is the empty string when nothing follows.
 - **Without a wildcard, the match is exact.** `/users/:id` does not match

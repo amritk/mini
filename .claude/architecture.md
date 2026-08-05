@@ -72,7 +72,7 @@ reactivity is decided by value shape.
 - **Layered subpath exports** grow it into a framework for apps that are not
   bundle-constrained, each its own module graph so importing one pulls in none
   of the others: `@amritk/mini/router` (history/hash client router —
-  `createRouter`, `matchRoute`, `<Link>`), `@amritk/mini/flow` (`Show`, `For`,
+  `createRouter`, `matchRoute`, `buildPath`, `<Link>`), `@amritk/mini/flow` (`Show`, `For`,
   `Switch`/`Match`, `Dynamic`), `@amritk/mini/forms` (field state as signals +
   validation via a `(values) => errors` function **or** a JSON Schema through
   `@amritk/runtime-validators`), `@amritk/mini/query` (a thin
@@ -131,18 +131,32 @@ vocabulary had named.
   both need a transform. **That token round-trip is verified against the fake
   engine and not yet on a device** — the caveat is carried in `AGENTS.md`,
   `AI.md` and the design note.
-- **The core is platform-free, enforced by the compiler, with no exception left.**
-  `tsconfig.json` omits `lib.dom` and Node's ambient types, and now nothing is
-  excluded from that: Lynx's main-thread context is not a browser, so a stray
-  `document` is a bug on the only target there is. The second `tsconfig.dom.json`
-  pass went with the DOM host.
+- **The core is platform-free, enforced by the compiler, with exactly one named
+  exception.** `tsconfig.json` omits `lib.dom` and Node's ambient types: Lynx's
+  main-thread context is not a browser, so a stray `document` is a bug on the
+  target that ships. `src/router/browser/` is excluded from that pass and
+  compiled by `tsconfig.dom.json` instead, which adds `lib.dom` — one directory,
+  one module, on its own export subpath. The point of the split is that the
+  exemption is a *directory the compiler knows about* rather than a convention:
+  a `window` anywhere else still fails the check it always did.
 - **Subpaths, each its own module graph:** `/flow` (`Show`, `Switch`/`Match`,
   `Dynamic`, `For`, `Index`), `/composition` (`createContext`, `Portal`,
   `ErrorBoundary`), `/router` (pattern matching, which is pure, plus a pluggable
-  `RouterHistory`; `createMemoryHistory` is the only one that ships, because a
-  Lynx app has no URL bar), `/forms`, `/query`, `/engine` (the boundary on its
-  own) and `/testing`. There is no `/ui`, `/platform`, `/gestures` or `/animate`:
-  Lynx has elements, CSS, a gesture system and `@keyframes`.
+  `RouterHistory`; `createMemoryHistory` is the default because a Lynx app owns
+  its screen stack outright), `/router/browser` (`createBrowserHistory`, the web
+  implementation of that seam — the only DOM in the package), `/forms`,
+  `/query`, `/engine` (the boundary on its own) and `/testing`. There is no
+  `/ui`, `/platform`, `/gestures` or `/animate`: Lynx has elements, CSS, a
+  gesture system and `@keyframes`.
+- **Routes are typed from their patterns.** `route('/users/:id', view)` keeps the
+  pattern's literal type alive so `view` is handed a `() => { id: string }`,
+  through `PathParams` in `@amritk/mini-helpers`. The constraint the router's
+  generics are written against is `AnyRoute`, not `Route`, and that is
+  load-bearing: `Route<'/users/:id'>` is deliberately not assignable to
+  `Route<string>`, because its `view` demands the narrow getter and the widened
+  form can only promise the flat record. `render-route.ts` owns the single cast
+  that reconciles the two, in one named place instead of `any` through six
+  signatures.
 - **The vocabulary is derived, not written.** `vocabulary/intrinsic.ts` maps over
   `@lynx-js/types` — a **types-only optional peer** — so the tags and attributes
   track the engine version an app pins rather than this package's releases, and
@@ -160,8 +174,14 @@ The helpers the other two turned out to need *identically*, factored out so they
 cannot drift. It is small on purpose and the bar for adding to it is high: **no
 reactivity, no platform.**
 
-- **Two entries.** `.` is `matchRoute`/`RouteParams`/`parseQuery` — pure string
-  arithmetic with **zero dependencies**, which is the promise that entry makes.
+- **Two entries.** `.` is the route grammar in all three of its readings —
+  `matchRoute`, `buildPath` and the `PathParams` type — plus `RouteParams`,
+  `parseQuery` and `stripBase`. Pure string arithmetic with **zero
+  dependencies**, which is the promise that entry makes. That the grammar is
+  written three times is the standing risk here: a change to what a pattern
+  means has to land in all three or they disagree, and the disagreement
+  typechecks. `path-params.test.ts` and the round-trip case in
+  `build-path.test.ts` are what make it fail instead.
   `/schema` is `schemaToValidator`/`FormErrors`, on its own entry because it is
   the one thing here that reaches a dependency (`@amritk/runtime-validators`, an
   optional peer, exactly as it was in both `/forms` layers before).

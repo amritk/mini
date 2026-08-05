@@ -38,11 +38,16 @@
  * ## Entries
  *
  * This entry carries the helpers with **no dependencies at all** — route
- * pattern matching and query-string parsing, both pure string arithmetic.
- * `@amritk/mini-helpers/schema` is separate because it reaches an optional peer
- * (`@amritk/runtime-validators`), and a consumer who does not validate with
- * JSON Schema should not have to install one to import this.
+ * pattern matching in both directions (`matchRoute`, `buildPath`, and the
+ * `PathParams` type that ties them to the pattern), the base-prefix arithmetic
+ * both routers now need, and query-string parsing. All of it is string
+ * arithmetic. `@amritk/mini-helpers/schema` is separate because it reaches an
+ * optional peer (`@amritk/runtime-validators`), and a consumer who does not
+ * validate with JSON Schema should not have to install one to import this.
  */
+export { buildPath } from './build-path'
 export type { RouteParams } from './match-route'
 export { matchRoute } from './match-route'
 export { parseQuery } from './parse-query'
+export type { PathParams } from './path-params'
+export { stripBase } from './strip-base'

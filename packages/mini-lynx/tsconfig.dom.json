@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The one place in this package that may name `window`. `tsconfig.json`
+    // withholds `lib.dom` on purpose — Lynx's main-thread context is not a
+    // browser, so a stray `document` there is a bug on the only target that
+    // ships — and this pass exists so exactly one directory is exempt rather
+    // than the exemption being a convention nobody can check.
+    //
+    // The split is what keeps that honest: `src/router/browser/**` is EXCLUDED
+    // from the main pass and is the only thing included here, so a DOM
+    // reference anywhere else still fails the check it always did.
+    "lib": ["ESNext", "DOM"]
+  },
+  // `exclude` is restated rather than inherited: `tsconfig.json` excludes this
+  // very directory, and an inherited exclusion would leave this pass with no
+  // inputs at all.
+  "include": ["src/router/browser/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

@@ -118,10 +118,11 @@ A small client-side router for the dashboards, in history or hash mode.
 | Export | Purpose |
 |:---|:---|
 | `createRouter({ routes, mode?, base? })` | Matches the URL against a route table into a reactive `route` signal; returns `{ route, navigate, stop }`. Attaches its location listener immediately. The `route` state includes a parsed `query` record alongside the raw `search`. |
-| `matchRoute(pattern, path)` | Matches a `/users/:id` pattern (with an optional trailing `*` catch-all) against a pathname, returning captured params or `null`. |
+| `matchRoute(pattern, path)` | Matches a `/users/:id` pattern (with an optional trailing `*` catch-all) against a pathname, returning captured params or `null`. Typed from the pattern when it is a literal: `matchRoute('/users/:id', path)` gives `{ id: string } \| null`. |
+| `buildPath(pattern, params)` | The inverse — `buildPath('/users/:id', { id })` → `/users/42`, with values encoded so they round-trip back through `matchRoute`. The params argument is typed from the pattern, so a forgotten or misspelt one does not compile. |
 | `Link` | An `<a href>` that intercepts a plain left-click and calls `navigate` — modified clicks, non-primary buttons, and `preventDefault`ed events are left to the browser. Takes `navigate` as a prop (`navigate={router.navigate}`); `to` may be reactive. Pass `active` to mark the current link — it sets `aria-current="page"`, and appends `activeClass` on top of `class` when you supply one — and `target`/`rel`/`title`/`id`/`style` pass through to the anchor. |
 | `RouterView` | Renders the matched route's view (the `view` key by default) and swaps it on navigation — the outlet that replaces a hand-written `route().route?.['view']` cast. Takes `router={router}`. |
-| `Route`, `RouterMode`, `RouterOptions`, `RouteState`, `Router`, `NavigateOptions`, `RouteParams`, `LinkProps`, `RouterViewProps` | Exported types. |
+| `Route`, `RouterMode`, `RouterOptions`, `RouteState`, `Router`, `NavigateOptions`, `RouteParams`, `PathParams`, `LinkProps`, `RouterViewProps` | Exported types. |
 
 ```tsx
 import { createRouter, RouterView } from '@amritk/mini/router'

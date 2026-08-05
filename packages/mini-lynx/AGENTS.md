@@ -23,8 +23,14 @@ bun run --filter='@amritk/mini-lynx' types:check
 bun run --filter='@amritk/mini-lynx' build
 ```
 
-`types:check` is one pass now. It used to be two — a DOM-free core and a DOM
-host checked separately — and the DOM host is gone.
+`types:check` and `build` are two passes each, and the second one is narrow:
+`tsconfig.dom.json` / `tsconfig.dom.build.json` cover `src/router/browser/`
+alone, which is the only directory allowed to name `window`. Everything else
+compiles with no ambient platform at all. **`src/router/browser` is excluded
+from `tsconfig.json` and `tsconfig.build.json`** — that exclusion is what keeps
+the exemption a directory the compiler enforces rather than a convention, so do
+not "tidy" it away, and do not add a second file to that directory without a
+reason that could not live behind the seam.
 
 ## Layout
 
@@ -75,6 +81,9 @@ src/
   flow/                   Show, Switch/Match, Dynamic, For, Index, defaultKey
   composition/            createContext, Portal, ErrorBoundary
   router/                 A pluggable history, RouteView, RouteLink, RouteStack + its transitions
+    route.ts              route() — the definition helper that keeps a pattern's literal type
+    render-route.ts       The one cast that calls a route's view (see AnyRoute)
+    browser/              createBrowserHistory — the only DOM in the package, on its own subpath
   forms/                  createForm, Field, bindField, schema validation
   query/                  createQuery over @tanstack/query-core
   elements/               querySelector/querySelectorAll and invoke — the engine's UI methods
@@ -91,7 +100,7 @@ no `elements.ts` and no `host.ts`. All of them were deleted rather than moved �
 §3 of the design note is the table of what replaced each.
 
 Two things this package no longer owns and re-exports instead:
-`matchRoute`/`parseQuery` and `schemaToValidator` live in
+`matchRoute`/`buildPath`/`PathParams`/`parseQuery` and `schemaToValidator` live in
 [`@amritk/mini-helpers`](../mini-helpers/AGENTS.md), because they turned out
 identical in `@amritk/mini` and here and a defect in one was latent in the
 other. `/router` and `/forms` re-export them, so a consumer's imports are

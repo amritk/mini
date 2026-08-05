@@ -20,5 +20,8 @@
     "customConditions": []
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx"]
+  // `src/router/browser` is built by `tsconfig.dom.build.json` instead, which is
+  // the only pass that compiles against the DOM library. Excluded here so this
+  // one keeps failing on a platform reference the way it always has.
+  "exclude": ["dist", "node_modules", "src/router/browser", "**/*.test.ts", "**/*.test.tsx"]
 }

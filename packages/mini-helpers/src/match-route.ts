@@ -1,4 +1,11 @@
-/** The parameters captured from a matched route, keyed by their `:name`. */
+import type { PathParams } from './path-params'
+
+/**
+ * The parameters captured from a matched route, keyed by their `:name`.
+ *
+ * The widened form: what a pattern known only as `string` can promise. When the
+ * pattern is a literal, {@link PathParams} says which keys are actually there.
+ */
 export type RouteParams = Record<string, string>
 
 /**
@@ -21,10 +28,19 @@ export type RouteParams = Record<string, string>
  * normalised so `/users` and `/users/` are the same route, and captured
  * segments are `decodeURIComponent`-decoded so `%20` and friends arrive
  * readable.
+ *
+ * The captured params are typed from the pattern when it is a literal —
+ * `matchRoute('/users/:id', path)` gives back `{ id: string } | null` — and
+ * fall back to {@link RouteParams} when it is only known to be a `string`. See
+ * {@link PathParams}.
  */
-export const matchRoute = (pattern: string, path: string): RouteParams | null => {
+export const matchRoute = <P extends string>(pattern: P, path: string): PathParams<P> | null => {
   const patternParts = split(pattern)
   const pathParts = split(path)
+  // Filled as a plain record and cast on the way out. The loop below writes
+  // exactly the keys `PathParams` names — that is the same grammar read twice —
+  // but the connection is between a runtime loop and a type-level one, and
+  // there is no way to state it to the compiler other than saying so.
   const params: RouteParams = {}
 
   for (let i = 0; i < patternParts.length; i++) {
@@ -32,7 +48,7 @@ export const matchRoute = (pattern: string, path: string): RouteParams | null =>
     if (segment === '*') {
       // A trailing wildcard swallows whatever remains, joined back into a path.
       params['rest'] = pathParts.slice(i).map(decode).join('/')
-      return params
+      return params as PathParams<P>
     }
     const value = pathParts[i]
     if (value === undefined) return null
@@ -42,7 +58,7 @@ export const matchRoute = (pattern: string, path: string): RouteParams | null =>
 
   // With no wildcard, a match must consume the path exactly — a longer path is
   // a different, more specific route.
-  return patternParts.length === pathParts.length ? params : null
+  return patternParts.length === pathParts.length ? (params as PathParams<P>) : null
 }
 
 /** Splits a path into its non-empty segments, dropping leading and trailing slashes. */
