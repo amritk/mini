@@ -1,4 +1,7 @@
-# @amritk/mini — notes for AI coding agents
+# AI.md — @amritk/mini
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
 
 A deliberately tiny signals-based UI layer: reactive DOM bindings plus a
 compilerless JSX runtime. This file is the fast path for an LLM; the full
@@ -36,7 +39,7 @@ and `bun run check:reactivity` runs the same check in CI.
 ## Signals
 
 ```ts
-import { signal, computed, effect, batch } from '@amritk/mini'
+import { signal, computed, effect, effectScope, batch, watch } from '@amritk/mini'
 
 const count = signal(0)
 count()            // read  → 0
@@ -45,6 +48,22 @@ const doubled = computed(() => count() * 2)
 effect(() => console.log(doubled())) // re-runs on every change; runs sync
 batch(() => { count(1); count(2) })  // one propagation pass, not two
 ```
+
+- **`watch(get, callback, options?)`** reacts to *changes*, which `effect`
+  cannot express: the first evaluation only records dependencies, and the
+  callback fires on later changes with `(next, previous)`. That is what makes
+  "attach a listener when the overlay opens" safe to write — it must not fire
+  during setup. Pass `{ immediate: true }` to run for the current value too
+  (`previous` arrives `undefined`). Only `get` is tracked, so the callback may
+  read and write other signals without re-arming the watcher. It returns a stop
+  function, and values are compared with `Object.is`.
+- **`effectScope(fn)`** owns the effects created inside it and disposes them
+  together. `mount` opens one for you — reach for it directly only outside a
+  component tree.
+- **`template(html)`** parses a static HTML string **once** and returns a clone
+  factory; each call hands back a `TemplateInstance` — the cloned `root` plus a
+  `ref` map of the elements you marked — to wire up with the imperative binds
+  below. It is the escape hatch for hot markup, not the normal way to build UI.
 
 ## Building UI
 
@@ -95,14 +114,52 @@ and `<select value={picked}>` actually selects the option. They are one-way;
 
 | Import | Purpose | Extra peer dep |
 |---|---|---|
-| `@amritk/mini` | signals, `mount`, `list`, binds, JSX | — |
-| `@amritk/mini/router` | client-side router (`createRouter`, `Link`, `RouterView`) | — |
+| `@amritk/mini` | signals, `watch`, `mount`, `list`, `template`, binds, JSX | — |
+| `@amritk/mini/router` | client-side router: `createRouter`, `Link`, `RouterView`, plus `matchRoute` / `buildPath` re-exported from `@amritk/mini-helpers` | — |
 | `@amritk/mini/flow` | `Show` / `Switch` / `Match` / `For` / `Dynamic` control-flow | — |
-| `@amritk/mini/forms` | `createForm` field state + validation | `@amritk/runtime-validators` (schema arm only) |
+| `@amritk/mini/forms` | `createForm` field state + validation, `Field`, `schemaToValidator` | `@amritk/runtime-validators` (schema arm only) |
 | `@amritk/mini/query` | `createQuery` cache/dedupe/retry adapter | `@tanstack/query-core` |
 | `@amritk/mini/hot` | `hotMount` — hot reloading at the app entry point | — |
+| `@amritk/mini/vite` | build-time tooling: `catchCalledSignals`, `acceptHotUpdates`, `findCalledSignalBindings` | `vite` (for the plugins) |
 
 Install: `bun add @amritk/mini` (or npm/pnpm/yarn).
+
+### Routing
+
+`createRouter` matches the URL into a reactive `route` signal and gives you
+`navigate`; `<Link>` takes `router.navigate` as a **prop** rather than reading
+an ambient context, because mini prop-drills on purpose. Matching itself is
+pure string arithmetic re-exported from `@amritk/mini-helpers`, so the route
+table and the type both follow the pattern:
+
+```ts
+import { buildPath, matchRoute } from '@amritk/mini/router'
+
+matchRoute('/users/:id', '/users/42')   // → { id: '42' }, typed from the literal
+buildPath('/users/:id', { id: '42' })   // → '/users/42', and cannot forget a param
+```
+
+`matchRoute` returns `null` when nothing matched — `{}` is a *successful* match
+of a pattern with no params, so `if (!params)` is the check.
+
+### Forms
+
+`createForm` holds values, dirty/touched/error state and submit handling as
+signals, and withholds a field's message until it is blurred or the form
+submitted. `<Field form={form} name="email" label="Email" />` renders label,
+control and live error in one go; `as="textarea" | "select"` picks the control.
+Validation is either a plain `(values) => errors` function or a JSON Schema
+object, told apart at runtime by `typeof` — the schema arm compiles through
+`schemaToValidator` and is the only thing that needs
+`@amritk/runtime-validators`.
+
+### Build-time tooling on `/vite`
+
+`catchCalledSignals()` is the plugin that catches the called-signal mistake
+above; `findCalledSignalBindings(source)` is the scanner underneath it, for a
+CLI gate or a non-Vite toolchain — hand it source text, get back the bindings it
+flagged. Both are purely syntactic and skip any line marked
+`// mini-static-ok`, which is how a deliberately static read opts out.
 
 ## Hot reload
 

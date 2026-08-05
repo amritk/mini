@@ -20,6 +20,7 @@ You'll need [Bun](https://bun.sh) ≥ 1.1.
 | `bun run check` | Lint with biome |
 | `bun run format` | Auto-format with biome |
 | `bun run check:reactivity` | Catch signals frozen by being called in JSX |
+| `bun run check:ai-docs` | Check every package's `AI.md` against what it publishes |
 | `bun run types:check` | Type-check both packages and both playgrounds |
 | `bun run build` | Build both packages and both playgrounds |
 | `bun run test:dist` | Load, drive and npm-install the built artifacts (needs a prior build) |

@@ -191,3 +191,13 @@ const pick = async () => {
   if (result.ok) chosen(result.value)
 }
 ```
+
+## Status
+
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** What a
+`UIDatePicker` in a sheet and an `AlertDialog` actually do under a user's thumb,
+and how each platform behaves when a dialog is up as the app backgrounds, are
+unverified. Do not present it as proven.

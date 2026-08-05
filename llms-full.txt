@@ -4,7 +4,10 @@ Generated from each package's AI.md by `scripts/generate-llms.ts`. This is the p
 
 ---
 
-# @amritk/mini — notes for AI coding agents
+# AI.md — @amritk/mini
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
 
 A deliberately tiny signals-based UI layer: reactive DOM bindings plus a
 compilerless JSX runtime. This file is the fast path for an LLM; the full
@@ -42,7 +45,7 @@ and `bun run check:reactivity` runs the same check in CI.
 ## Signals
 
 ```ts
-import { signal, computed, effect, batch } from '@amritk/mini'
+import { signal, computed, effect, effectScope, batch, watch } from '@amritk/mini'
 
 const count = signal(0)
 count()            // read  → 0
@@ -51,6 +54,22 @@ const doubled = computed(() => count() * 2)
 effect(() => console.log(doubled())) // re-runs on every change; runs sync
 batch(() => { count(1); count(2) })  // one propagation pass, not two
 ```
+
+- **`watch(get, callback, options?)`** reacts to *changes*, which `effect`
+  cannot express: the first evaluation only records dependencies, and the
+  callback fires on later changes with `(next, previous)`. That is what makes
+  "attach a listener when the overlay opens" safe to write — it must not fire
+  during setup. Pass `{ immediate: true }` to run for the current value too
+  (`previous` arrives `undefined`). Only `get` is tracked, so the callback may
+  read and write other signals without re-arming the watcher. It returns a stop
+  function, and values are compared with `Object.is`.
+- **`effectScope(fn)`** owns the effects created inside it and disposes them
+  together. `mount` opens one for you — reach for it directly only outside a
+  component tree.
+- **`template(html)`** parses a static HTML string **once** and returns a clone
+  factory; each call hands back a `TemplateInstance` — the cloned `root` plus a
+  `ref` map of the elements you marked — to wire up with the imperative binds
+  below. It is the escape hatch for hot markup, not the normal way to build UI.
 
 ## Building UI
 
@@ -101,14 +120,52 @@ and `<select value={picked}>` actually selects the option. They are one-way;
 
 | Import | Purpose | Extra peer dep |
 |---|---|---|
-| `@amritk/mini` | signals, `mount`, `list`, binds, JSX | — |
-| `@amritk/mini/router` | client-side router (`createRouter`, `Link`, `RouterView`) | — |
+| `@amritk/mini` | signals, `watch`, `mount`, `list`, `template`, binds, JSX | — |
+| `@amritk/mini/router` | client-side router: `createRouter`, `Link`, `RouterView`, plus `matchRoute` / `buildPath` re-exported from `@amritk/mini-helpers` | — |
 | `@amritk/mini/flow` | `Show` / `Switch` / `Match` / `For` / `Dynamic` control-flow | — |
-| `@amritk/mini/forms` | `createForm` field state + validation | `@amritk/runtime-validators` (schema arm only) |
+| `@amritk/mini/forms` | `createForm` field state + validation, `Field`, `schemaToValidator` | `@amritk/runtime-validators` (schema arm only) |
 | `@amritk/mini/query` | `createQuery` cache/dedupe/retry adapter | `@tanstack/query-core` |
 | `@amritk/mini/hot` | `hotMount` — hot reloading at the app entry point | — |
+| `@amritk/mini/vite` | build-time tooling: `catchCalledSignals`, `acceptHotUpdates`, `findCalledSignalBindings` | `vite` (for the plugins) |
 
 Install: `bun add @amritk/mini` (or npm/pnpm/yarn).
+
+### Routing
+
+`createRouter` matches the URL into a reactive `route` signal and gives you
+`navigate`; `<Link>` takes `router.navigate` as a **prop** rather than reading
+an ambient context, because mini prop-drills on purpose. Matching itself is
+pure string arithmetic re-exported from `@amritk/mini-helpers`, so the route
+table and the type both follow the pattern:
+
+```ts
+import { buildPath, matchRoute } from '@amritk/mini/router'
+
+matchRoute('/users/:id', '/users/42')   // → { id: '42' }, typed from the literal
+buildPath('/users/:id', { id: '42' })   // → '/users/42', and cannot forget a param
+```
+
+`matchRoute` returns `null` when nothing matched — `{}` is a *successful* match
+of a pattern with no params, so `if (!params)` is the check.
+
+### Forms
+
+`createForm` holds values, dirty/touched/error state and submit handling as
+signals, and withholds a field's message until it is blurred or the form
+submitted. `<Field form={form} name="email" label="Email" />` renders label,
+control and live error in one go; `as="textarea" | "select"` picks the control.
+Validation is either a plain `(values) => errors` function or a JSON Schema
+object, told apart at runtime by `typeof` — the schema arm compiles through
+`schemaToValidator` and is the only thing that needs
+`@amritk/runtime-validators`.
+
+### Build-time tooling on `/vite`
+
+`catchCalledSignals()` is the plugin that catches the called-signal mistake
+above; `findCalledSignalBindings(source)` is the scanner underneath it, for a
+CLI gate or a non-Vite toolchain — hand it source text, get back the bindings it
+flagged. Both are purely syntactic and skip any line marked
+`// mini-static-ok`, which is how a deliberately static read opts out.
 
 ## Hot reload
 
@@ -148,7 +205,10 @@ hotMount(document.body, App, import.meta.hot)
 
 ---
 
-# @amritk/mini-lynx — notes for AI coding agents
+# AI.md — @amritk/mini-lynx
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
 
 A signals runtime for **Lynx**: real elements built once, mutated forever by
 signals, no virtual tree. This file is the fast path for an LLM; the full
@@ -354,6 +414,11 @@ selector and a `SelectorQuery` match on.
   waterfall, sticky headers and snap, none of which this package implements or
   needs to. `item-key` is required on a `list-item` and is the engine's identity,
   a different thing from JSX's `key`.
+- **`signal` / `computed` / `effect` / `effectScope`** — the same engine as
+  `@amritk/mini`, re-exported. A signal is read by calling it and written by
+  calling it with the next value; `computed` derives; `effect` re-runs
+  synchronously. `mount` opens the `effectScope` that owns them, so reach for
+  that one directly only outside a tree.
 - **`batch` / `watch` / `untrack`** — group writes, react to changes only, and
   read without subscribing. `watch` skips the initial run unless you pass
   `{ immediate: true }`, which is what makes "navigate when the route changes"
@@ -372,15 +437,15 @@ Mutations are committed once per tick: a hundred signal writes cost one
 | `@amritk/mini-lynx/engine` | `LynxElementApi` and `LynxElement`, plus `setEngine` / `requireEngine` / `scheduleFlush`. Import this when you are *supplying* an engine rather than rendering into one |
 | `@amritk/mini-lynx/flow` | `Show` / `Switch` / `Match` / `Dynamic` / `For` / `Index` / `defaultKey`. For a long collection reach for the engine's `<list>` instead |
 | `@amritk/mini-lynx/composition` | `createContext` (provide takes a **function**), `Portal`, `ErrorBoundary` |
-| `@amritk/mini-lynx/router` | `createRouter`, `route`, `createMemoryHistory`, `RouteView`, `RouteStack`, `RouteLink`, `matchRoute`, `buildPath`, `parseQuery`. Matching is pure arithmetic; history is a seam, and memory is the default because a stack of screens the app holds is genuinely what navigation is here. Define routes with `route(path, view, meta)` and the view is handed params typed from the pattern |
+| `@amritk/mini-lynx/router` | `createRouter`, `route`, `createMemoryHistory`, `RouteView`, `RouteStack`, `RouteLink`, `fadeTransition`, `matchRoute`, `buildPath`, `parseQuery`. Matching is pure arithmetic; history is a seam, and memory is the default because a stack of screens the app holds is genuinely what navigation is here. Define routes with `route(path, view, meta)` and the view is handed params typed from the pattern. `RouteStack` keeps every screen beneath the top one built — scroll position, half-filled forms and in-flight requests all survive a push — and animates with a `transition`, of which `fadeTransition()` is the one shipped; write your own against the same signature for anything else |
 | `@amritk/mini-lynx/router/browser` | `createBrowserHistory` — the same route table driven by the address bar. The **only** module in the package that touches `window`, which is why it is a separate entry with a compiler pass of its own. Import it in a web build; a device build never resolves it |
 | `@amritk/mini-lynx/forms` | `createForm` / `Field` / `bindField` / `schemaToValidator`. Which binding a field gets is decided by the type of its **initial value**, not by the element |
 | `@amritk/mini-lynx/query` | `createQuery` over `@tanstack/query-core` — the same API as `@amritk/mini`'s. Mind the main-thread note above |
 | `@amritk/mini-lynx/elements` | `querySelector`, `querySelectorAll`, `invoke` — the engine's UI methods, which are actions rather than attributes |
-| `@amritk/mini-lynx/keyboard` | `trackKeyboard` (one line at startup), `keyboardHeight`, `keyboardLift`, `avoidKeyboard` (a `ref` for a control), `KeyboardAvoiding`. Lynx does **not** avoid the keyboard for you, and the engine event behind this does not exist on the web |
+| `@amritk/mini-lynx/keyboard` | `trackKeyboard` (one line at startup), `keyboardHeight`, `keyboardLift`, `avoidKeyboard` (a `ref` marking a control the keyboard must not cover), `focusedField`, `keepAboveKeyboard`, `KeyboardAvoiding`. Lynx does **not** avoid the keyboard for you, and the engine event behind this does not exist on the web. `<KeyboardAvoiding>` is the ordinary way in; under it `keepAboveKeyboard()` is the *measured* lift — exactly enough to clear `focusedField()` and never more — for when the movement is yours to make. Only `focus` is listened to, never `blur`: two adjacent taps fire the first field's blur and the second's focus in an order nothing here controls, and reacting to blur is what makes a screen flinch between them |
 | `@amritk/mini-lynx/gestures` | `setGestureDetector`, `GestureType` — recogniser *arbitration*, the part ordinary events cannot express |
 | `@amritk/mini-lynx/recycle` | `recycle` — `<list>`'s cell recycler. A cell receives **getters**, because it outlives the row it was built for |
-| `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent` — the fallback event transport. Only if the worklet round trip fails on a device |
+| `@amritk/mini-lynx/bridge` | `namedHandlerTransport`, `dispatchNamedEvent`, `HANDLER_PREFIX` — the fallback event transport. Only if the worklet round trip fails on a device. Every name it mints starts with `HANDLER_PREFIX`, so a forwarder on a page running two frameworks can tell this runtime's events from the other's |
 | `@amritk/mini-lynx/testing` | `createFakeEngine`, `serializeTree` — a complete in-memory PAPI |
 
 There is no `/ui`, no `/platform`, no `/animate` and no host subpath. Components
@@ -607,7 +672,11 @@ onCleanup(onDeepLink(({ url }) => link(url)))
 ## Testing your own screens
 
 ```ts
+import { MODULE } from '@amritk/lynx-deep-linking'
 import { createFakeDeepLinking } from '@amritk/lynx-deep-linking/testing'
+
+const links = createFakeDeepLinking()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: links.module } })
 ```
 
 It is the executable statement of the JavaScript-to-native contract, and it
@@ -616,11 +685,17 @@ as `noHandler`, a URL with no scheme as `invalidURL`, and a held link is
 replayed exactly once. Handles: `setInitialURL`, `deliver`, `hold`,
 `setHandledSchemes`, `opened()`, `settingsOpened()`.
 
+`MODULE` is the key `NativeModules` exposes the native module under, and the
+one the fake registers against. `EVENTS` names the global events the native
+side publishes — there is exactly one, `EVENTS.link` — and you need it only to
+forward or assert on the emitter directly; `onDeepLink` is the way in.
+
 ## Status
 
-Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, the Objective-C
-compiles against the real Lynx pod, and a parity suite pins both method surfaces
-against the TypeScript — **but none of it has run on a device.** The cold-start
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** The cold-start
 capture on both platforms depends on load-order behaviour (a `ContentProvider`
 on Android, `+load` on iOS) that nothing here can exercise. Do not present it as
 proven.
@@ -821,6 +896,16 @@ const pick = async () => {
 }
 ```
 
+## Status
+
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** What a
+`UIDatePicker` in a sheet and an `AlertDialog` actually do under a user's thumb,
+and how each platform behaves when a dialog is up as the app backgrounds, are
+unverified. Do not present it as proven.
+
 ---
 
 # AI.md — @amritk/lynx-location
@@ -993,7 +1078,11 @@ onCleanup(watchPosition((u) => { if (u.ok) position(u.position) }, { distanceFil
 ## Testing your own screens
 
 ```ts
+import { MODULE } from '@amritk/lynx-location'
 import { createFakeLocation } from '@amritk/lynx-location/testing'
+
+const location = createFakeLocation()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: location.module } })
 ```
 
 It is the executable statement of the JavaScript-to-native contract, and it
@@ -1003,11 +1092,18 @@ with no fix times out. Handles: `setPermissionStatus`, `setPermissionOutcome`,
 `setLocationEnabled`, `setNextFix`, `setLastKnownPosition`, `emitPosition`,
 `emitError`, `watches()`.
 
+`MODULE` is the key `NativeModules` exposes the native module under, and the one
+the fake registers against. `EVENTS` names the global events the native side
+publishes — `EVENTS.position` and `EVENTS.error`, both carrying the `watchId`
+that `watchPosition` filters on, because one native module serves every watch in
+the app. You need either only when wiring or asserting on the emitter yourself.
+
 ## Status
 
-Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, the Objective-C
-compiles against the real Lynx pod, and a parity suite pins both method surfaces
-against the TypeScript — **but none of it has run on a device.** Permission
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** Permission
 flows, provider behaviour and what a fix actually contains outdoors are
 unverified. Do not present it as proven.
 
@@ -1116,10 +1212,43 @@ immediately.
   `onCleanup`.
 - **Nothing here is reactive.** Wire a promise into your own signal:
   `const status = signal('undetermined'); getPermissionStatus().then(status)`.
-- **Both native halves compile against the real Lynx SDK in CI, but nothing has
-  run them on a device.** Permission flows, Doze-delayed alarms, APNs
-  registration and FCM delivery are all unverified. See the README's status
-  table before treating this as production-ready.
+
+## Testing your own screens
+
+```ts
+import { MODULE } from '@amritk/lynx-notifications'
+import { createFakeNotifications } from '@amritk/lynx-notifications/testing'
+
+const notifications = createFakeNotifications()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: notifications.module } })
+
+notifications.setPermissionOutcome('denied')   // the prompt the user will refuse
+notifications.deliver({ title: 'Standup in 5' })  // a foreground arrival
+```
+
+It is the executable statement of the JavaScript-to-native contract, and it
+reproduces platform rules rather than smoothing them: a second permission
+request after a refusal returns the refusal without prompting, and a cold-start
+tap seeded with `holdColdStartResponse` is replayed exactly once, to whoever
+subscribes first. Handles: `setPermissionStatus`, `setPermissionOutcome`,
+`issueToken`, `deliver`, `respond`, `holdColdStartResponse`, `scheduled()`,
+`channels()`, `badge()`.
+
+`MODULE` is the key `NativeModules` exposes the native module under, and the one
+the fake registers against. `EVENTS` names the global events the native side
+publishes — `EVENTS.received`, `EVENTS.response` and `EVENTS.token` — and you
+need it only to forward or assert on the emitter directly; the `on*` functions
+are the way in.
+
+## Status
+
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** Permission
+flows, Doze-delayed alarms, APNs registration and FCM delivery are all
+unverified. See the README's status table before treating this as
+production-ready.
 
 ---
 

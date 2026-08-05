@@ -101,7 +101,40 @@ immediately.
   `onCleanup`.
 - **Nothing here is reactive.** Wire a promise into your own signal:
   `const status = signal('undetermined'); getPermissionStatus().then(status)`.
-- **Both native halves compile against the real Lynx SDK in CI, but nothing has
-  run them on a device.** Permission flows, Doze-delayed alarms, APNs
-  registration and FCM delivery are all unverified. See the README's status
-  table before treating this as production-ready.
+
+## Testing your own screens
+
+```ts
+import { MODULE } from '@amritk/lynx-notifications'
+import { createFakeNotifications } from '@amritk/lynx-notifications/testing'
+
+const notifications = createFakeNotifications()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: notifications.module } })
+
+notifications.setPermissionOutcome('denied')   // the prompt the user will refuse
+notifications.deliver({ title: 'Standup in 5' })  // a foreground arrival
+```
+
+It is the executable statement of the JavaScript-to-native contract, and it
+reproduces platform rules rather than smoothing them: a second permission
+request after a refusal returns the refusal without prompting, and a cold-start
+tap seeded with `holdColdStartResponse` is replayed exactly once, to whoever
+subscribes first. Handles: `setPermissionStatus`, `setPermissionOutcome`,
+`issueToken`, `deliver`, `respond`, `holdColdStartResponse`, `scheduled()`,
+`channels()`, `badge()`.
+
+`MODULE` is the key `NativeModules` exposes the native module under, and the one
+the fake registers against. `EVENTS` names the global events the native side
+publishes — `EVENTS.received`, `EVENTS.response` and `EVENTS.token` — and you
+need it only to forward or assert on the emitter directly; the `on*` functions
+are the way in.
+
+## Status
+
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** Permission
+flows, Doze-delayed alarms, APNs registration and FCM delivery are all
+unverified. See the README's status table before treating this as
+production-ready.

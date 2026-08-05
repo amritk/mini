@@ -168,7 +168,11 @@ onCleanup(watchPosition((u) => { if (u.ok) position(u.position) }, { distanceFil
 ## Testing your own screens
 
 ```ts
+import { MODULE } from '@amritk/lynx-location'
 import { createFakeLocation } from '@amritk/lynx-location/testing'
+
+const location = createFakeLocation()
+installNativeBridge({ peer, emitter, modules: { [MODULE]: location.module } })
 ```
 
 It is the executable statement of the JavaScript-to-native contract, and it
@@ -178,10 +182,17 @@ with no fix times out. Handles: `setPermissionStatus`, `setPermissionOutcome`,
 `setLocationEnabled`, `setNextFix`, `setLastKnownPosition`, `emitPosition`,
 `emitError`, `watches()`.
 
+`MODULE` is the key `NativeModules` exposes the native module under, and the one
+the fake registers against. `EVENTS` names the global events the native side
+publishes — `EVENTS.position` and `EVENTS.error`, both carrying the `watchId`
+that `watchPosition` filters on, because one native module serves every watch in
+the app. You need either only when wiring or asserting on the emitter yourself.
+
 ## Status
 
-Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, the Objective-C
-compiles against the real Lynx pod, and a parity suite pins both method surfaces
-against the TypeScript — **but none of it has run on a device.** Permission
+Pre-alpha. The Kotlin compiles in CI against the real Lynx AAR, and a parity
+suite pins both native method surfaces against the TypeScript. The Objective-C
+compiles only when somebody runs `pod lib lint` on a Mac by hand — the macOS CI
+job was disabled on cost — and **none of it has run on a device.** Permission
 flows, provider behaviour and what a fix actually contains outdoors are
 unverified. Do not present it as proven.

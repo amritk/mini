@@ -27,6 +27,13 @@ jobs:
       - name: Check mini reactivity footgun
         run: bun run check:reactivity
 
+      # Regenerating `llms.txt` catches a stale bundle, but a stale *source*
+      # regenerates perfectly: an `AI.md` that never mentions the subpath a
+      # release added is wrong in a way no diff can see. This reads what each
+      # package actually exports and asks whether its `AI.md` says so.
+      - name: Check AI docs match what each package publishes
+        run: bun run check:ai-docs
+
       # `llms.txt` and `llms-full.txt` are generated from the packages' `AI.md`
       # files and committed, so they go stale in exactly the way a committed
       # build artifact always does: silently, and only for the audience that
