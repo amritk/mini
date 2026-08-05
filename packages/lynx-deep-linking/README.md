@@ -296,7 +296,7 @@ reach stand behind it, and it is worth knowing which one a green run came from:
 | Facade behaviour | `bun run test` | real code, fake platform |
 | Cross-language signatures | `src/native-contract.test.ts` | parses Kotlin + Objective-C, compares to TypeScript |
 | Kotlin compiles + packages | `bun run check:android` | real Lynx AAR, real Android SDK |
-| Objective-C compiles | `pod lib lint` (CI, macOS) | real Lynx pod, real iOS SDK |
+| Objective-C compiles | `pod lib lint` (manual, macOS — not in CI) | real Lynx pod, real iOS SDK |
 
 None of that is a device. Whether the `ContentProvider` initialiser wins the
 race against the first activity, whether `+load` fires before the launch

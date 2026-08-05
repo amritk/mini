@@ -27,8 +27,10 @@ bun run --filter='@amritk/lynx-deep-linking' build
 bun run check:android
 ```
 
-The iOS half is compiled by `pod lib lint` on a macOS CI runner — there is no
-way to build it on Linux at all. See "What is verified, and what is not" below,
+The iOS half is not compiled anywhere automatic: the macOS CI job that ran
+`pod lib lint` is commented out in `.github/workflows/ci.yml` because it cost 81
+minutes a run, and there is no way to build it on Linux at all. Run it by hand
+on a Mac when you touch `ios/`. See "What is verified, and what is not" below,
 which is the most important thing on this page.
 
 ## Layout
@@ -140,7 +142,7 @@ one you are relying on before trusting a green run.
 | Facade behaviour | `bun run test` | real code, fake platform |
 | Cross-language signatures | `src/native-contract.test.ts` | parses Kotlin + Objective-C, compares to TypeScript |
 | Kotlin compiles + packages | `bun run check:android` | real `org.lynxsdk.lynx:lynx` AAR, real Android SDK |
-| Objective-C compiles | `pod lib lint` (CI, macOS) | real Lynx pod, real iOS SDK |
+| Objective-C compiles | `pod lib lint` (manual, macOS — not in CI) | real Lynx pod, real iOS SDK |
 
 `native-contract.test.ts` is the cheapest of these and catches the failure a
 compiler cannot on either side: a method renamed in one language, an argument

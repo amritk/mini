@@ -260,7 +260,11 @@ came from:
   with an explanation locally, `--require-sdk` in CI. The Gradle harness lives in
   `android-check/` rather than `android/` so the shipped directory stays clean.
 - **`pod lib lint`** compiles the Objective-C against the real Lynx pod and iOS
-  SDK. macOS only, so CI is the only place it can ever run.
+  SDK. macOS only. It ran in CI until the job's cost — 81 minutes a run, almost
+  all of it recompiling the Lynx engine once per pod — bought it out; the job is
+  commented out in `.github/workflows/ci.yml` with the two fixes worth making
+  before re-enabling it. Nothing compiles the Objective-C now unless someone
+  runs this by hand on a Mac.
 
 **None of that is a device.** Permission flows, `AlarmManager` under Doze, APNs
 registration and FCM delivery are unverified, as is whether Lynx's annotation

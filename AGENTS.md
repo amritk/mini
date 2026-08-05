@@ -39,11 +39,13 @@ sources of their own:
 [`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
 the platform's own date picker, action sheet and alert — and
 [`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
-`@amritk/lynx-deep-linking`, deep links in and out. Those compile in CI —
-`bun run check:android` for the Kotlin, `pod lib lint` on a macOS runner for the
-Objective-C — and a parity suite pins their method surfaces against the
-TypeScript. **None of it has run on a device.** See each package's `AGENTS.md`
-for what that does and does not cover.
+`@amritk/lynx-deep-linking`, deep links in and out. The Kotlin compiles in CI —
+`bun run check:android` — and a parity suite pins their method surfaces against
+the TypeScript. The Objective-C compiles nowhere automatic: `pod lib lint` on a
+macOS runner cost 81 minutes a run and is commented out in
+`.github/workflows/ci.yml`, so run it by hand on a Mac when you touch `ios/`.
+**None of it has run on a device.** See each package's `AGENTS.md` for what that
+does and does not cover.
 
 The four are deliberately alike: each was built from the last one's shape, so a
 structural change to one is usually owed to the others. Where one diverges it

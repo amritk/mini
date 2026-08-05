@@ -53,9 +53,9 @@ jobs:
       - name: Smoke and e2e test built artifacts
         run: bun run test:dist
 
-  # The two jobs below are the only things anywhere that compile the native
-  # halves of the `@amritk/lynx-*` packages — notifications, location, dialogs
-  # and deep linking.
+  # `android` below — and `ios`, while it was enabled — are the only things
+  # anywhere that compile the native halves of the `@amritk/lynx-*` packages —
+  # notifications, location, dialogs and deep linking.
   # Everything in `Check` above runs in JavaScript and would pass just as
   # happily against Kotlin and Objective-C that do not build —
   # `src/native-contract.test.ts` narrows that gap by comparing the two native
@@ -97,34 +97,64 @@ jobs:
       - name: Compile the Android libraries
         run: bun run check:android --require-sdk
 
-  ios:
-    name: iOS native
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-
-      # `pod lib lint` builds the podspec's sources against the real iOS SDK,
-      # resolving `Lynx` from CocoaPods so the Lynx headers the module imports
-      # are the actual ones. It validates from the files on disk and never
-      # fetches the podspec's `source`.
-      #
-      # `--allow-warnings` because CocoaPods warns about things a library
-      # published from a monorepo subdirectory cannot avoid; it does NOT
-      # suppress compiler errors, which is the point of running this.
-      - name: Lint and compile the notifications pod
-        working-directory: packages/lynx-notifications/ios
-        run: pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios
-
-      # A separate step rather than a second podspec in the same command, so a
-      # failure names which pod broke without reading the log.
-      - name: Lint and compile the location pod
-        working-directory: packages/lynx-location/ios
-        run: pod lib lint MiniLynxLocation.podspec --allow-warnings --platforms=ios
-
-      - name: Lint and compile the dialogs pod
-        working-directory: packages/lynx-dialogs/ios
-        run: pod lib lint MiniLynxDialogs.podspec --allow-warnings --platforms=ios
-
-      - name: Lint and compile the deep-linking pod
-        working-directory: packages/lynx-deep-linking/ios
-        run: pod lib lint MiniLynxDeepLinking.podspec --allow-warnings --platforms=ios
+  # DISABLED — the iOS job below was the entire wall clock of this workflow:
+  # 81 minutes, against 2m17s for `Android native` and 50s for `Check`.
+  #
+  # Not because the code is large. The four pods are ~2,600 lines of
+  # Objective-C between them. Each `pod lib lint` builds an eight-target graph
+  # — `Lynx`, `LynxBase`, `LynxServiceAPI`, `Lynx-LynxResources`, `PrimJS` and
+  # a generated host `App` — and compiling the Lynx engine is essentially the
+  # whole twenty minutes per pod. Because every lint gets its own throwaway
+  # sandbox, that compile happened four times per run, sequentially, to check
+  # four small files. On a macOS runner's 10x multiplier that is ~810 billed
+  # minutes for a check whose Android counterpart costs two.
+  #
+  # What is lost while this is off: nothing anywhere compiles the Objective-C.
+  # `src/native-contract.test.ts` still compares the native method surfaces
+  # against the TypeScript one, so a renamed or dropped method is still caught
+  # — but a syntax error, a bad selector, or a header that no longer exists
+  # will reach a published tarball. Treat a release touching
+  # `packages/lynx-*/ios/**` as unverified and lint those pods by hand:
+  #
+  #     cd packages/lynx-notifications/ios
+  #     pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios
+  #
+  # Re-enabling as-is brings the 81 minutes back with it. The two fixes worth
+  # making first, in order of payoff: gate the job on `packages/lynx-*/ios/**`
+  # and the podspecs changing (use a job-level `if:`, not a workflow-level
+  # `paths:` — a workflow that never runs never reports, and a required status
+  # check that never reports blocks the PR forever), and collapse the four
+  # lints into a single Podfile carrying all four as development pods so Lynx
+  # compiles once instead of four times.
+  #
+  # ios:
+  #   name: iOS native
+  #   runs-on: macos-15
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     # `pod lib lint` builds the podspec's sources against the real iOS SDK,
+  #     # resolving `Lynx` from CocoaPods so the Lynx headers the module imports
+  #     # are the actual ones. It validates from the files on disk and never
+  #     # fetches the podspec's `source`.
+  #     #
+  #     # `--allow-warnings` because CocoaPods warns about things a library
+  #     # published from a monorepo subdirectory cannot avoid; it does NOT
+  #     # suppress compiler errors, which is the point of running this.
+  #     - name: Lint and compile the notifications pod
+  #       working-directory: packages/lynx-notifications/ios
+  #       run: pod lib lint MiniLynxNotifications.podspec --allow-warnings --platforms=ios
+  #
+  #     # A separate step rather than a second podspec in the same command, so a
+  #     # failure names which pod broke without reading the log.
+  #     - name: Lint and compile the location pod
+  #       working-directory: packages/lynx-location/ios
+  #       run: pod lib lint MiniLynxLocation.podspec --allow-warnings --platforms=ios
+  #
+  #     - name: Lint and compile the dialogs pod
+  #       working-directory: packages/lynx-dialogs/ios
+  #       run: pod lib lint MiniLynxDialogs.podspec --allow-warnings --platforms=ios
+  #
+  #     - name: Lint and compile the deep-linking pod
+  #       working-directory: packages/lynx-deep-linking/ios
+  #       run: pod lib lint MiniLynxDeepLinking.podspec --allow-warnings --platforms=ios
