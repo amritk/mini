@@ -1,6 +1,6 @@
 {
   "name": "@amritk/playground-mini-lynx",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "description": "Kitchen-sink playground for @amritk/mini-lynx and the native modules around it, previewed through a DOM implementation of Lynx's Element PAPI and deployed to Cloudflare Workers as a static SPA.",
   "type": "module",

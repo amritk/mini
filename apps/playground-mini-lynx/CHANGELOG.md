@@ -1,5 +1,16 @@
 # @amritk/playground-mini-lynx
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [40cbdb5]
+  - @amritk/mini-lynx-native@0.2.1
+  - @amritk/lynx-deep-linking@0.2.1
+  - @amritk/lynx-dialogs@0.2.1
+  - @amritk/lynx-location@0.2.1
+  - @amritk/lynx-notifications@0.2.1
+
 ## 0.0.4
 
 ### Patch Changes
