@@ -201,12 +201,10 @@ reactivity, no platform.**
   `URLSearchParams`, which is a web global and not an ECMAScript one.
 - **Depends on:** nothing. `@amritk/runtime-validators` is an optional peer of
   `/schema` alone.
-- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline. Both
-  dependents resolve it through the `development` condition while type-checking
-  (`customConditions` in their `tsconfig.json`, dropped again in
-  `tsconfig.build.json`) so CI can type-check before it builds; the emit
-  resolves it through `types` instead, which is why `bun run --workspaces build`
-  builds this package first.
+- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline. Its
+  dependents resolve it through `types`/`import` like any consumer, in the type
+  check as well as the emit, which is why `bun run --workspaces build` builds
+  this package first and why CI builds before it type-checks.
 
 ### `@amritk/mini-lynx-native` (`packages/mini-lynx-native`)
 
@@ -408,10 +406,12 @@ checked.
 
 Two conventions keep them honest, and both are worth preserving:
 
-- **They resolve the packages through the `development` condition**, pinned in
-  each app's `vite.config.ts` and `tsconfig.json`, so they build from `src` and
-  run in a fresh clone with no prior `bun run build`. Packaging is deliberately
-  not their job — `scripts/consumer-e2e.test.ts` packs and installs real
+- **They resolve the packages the way a consumer does**, through `types` and
+  `import` to `dist`, so the packages have to be built before either app is
+  type-checked or built. They used to pin a `development` condition and build
+  straight from `src`; that condition shipped in the published manifests and
+  pointed at the `src` the tarballs also carry, so it is gone. Packaging is
+  still not their job — `scripts/consumer-e2e.test.ts` packs and installs real
   tarballs for that.
 - **The root `build`, `types:check` and `test` include them**, so a breaking
   change to a package fails CI in the playground too. `playground-mini-lynx`
@@ -475,8 +475,8 @@ reason.
   `bun run build`. It loads every compiled module under plain Node, drives the
   built `mini-lynx` runtime through its memory host, and — in
   `consumer-e2e.test.ts` — packs both packages the way `release:publish` does
-  (`catalog:`/`workspace:` resolved, the `development` condition stripped),
-  installs the tarballs into scratch projects, and imports every declared
+  (`catalog:`/`workspace:` resolved), installs the tarballs into scratch
+  projects, and imports every declared
   subpath from them. That catches build-, pack- and manifest-level breakage the
   src-aliased suite cannot see by construction.
 

@@ -10,11 +10,7 @@
     // in `extends` and resets both to the Node-only defaults — the same reason
     // `tsconfig.build.json` re-asserts its own.
     "lib": ["ESNext", "DOM"],
-    "types": [],
-    // Dropped for the emit pass, exactly as `tsconfig.build.json` drops it: a
-    // source-resolved `@amritk/mini-helpers` would put another package's `src`
-    // inside this one's `rootDir`.
-    "customConditions": []
+    "types": []
   },
   "include": ["src/router/browser/**/*.ts"],
   "exclude": ["dist", "node_modules", "**/*.test.ts"]

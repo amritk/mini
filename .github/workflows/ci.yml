@@ -44,14 +44,23 @@ jobs:
           bun run generate-llms
           git diff --exit-code llms.txt llms-full.txt
 
+      # Ahead of the type check, not after it. The packages used to resolve each
+      # other's SOURCE while type-checking, through a `development` condition in
+      # their exports maps — which meant the manifests shipped a condition
+      # pointing at `./src/*.ts` inside a tarball that also ships `src`, so
+      # anything honouring it handed consumers raw TypeScript. The condition is
+      # gone; cross-package imports resolve to `dist` like a consumer's do, and
+      # `dist` has to exist by the time anything reads it.
+      - name: Build
+        run: bun run build
+
       - name: Type check
         run: bun run types:check
 
+      # Unaffected by the ordering above: vitest.config.ts aliases every
+      # workspace package to its `src/`, so the suite has never needed a build.
       - name: Test
         run: bun run test
-
-      - name: Build
-        run: bun run build
 
       # Loads every compiled module under plain Node, drives the built
       # mini-lynx runtime end-to-end through its fake Element PAPI, and

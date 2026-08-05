@@ -12,7 +12,7 @@ import { ROOT, runNode } from './e2e-helpers'
  * there can catch a build step corrupting the output: the sources can be
  * perfect while `tsgo`, `tsc-alias`, or the comment-stripping pass emits
  * something Node cannot load. Everything here runs under plain `node` (no Bun,
- * no aliases, no `development` export condition) for that reason.
+ * no aliases) for that reason.
  *
  * Requires a prior `bun run build`; run via `bun run test:dist`.
  */
@@ -62,8 +62,8 @@ const declaredEntries = (pkg: PackageJson, dir: string): string[] => {
   const targets: string[] = []
   const walk = (node: unknown): void => {
     if (typeof node === 'string') {
-      // The `development` condition points at src/ and is stripped at publish
-      // time; package.json itself is not a module to resolve.
+      // Only the built modules are targets to check; `package.json` and the
+      // native autolinker's `lynx.lib.json` are data, not modules to resolve.
       if (node.startsWith('./dist/')) targets.push(join(PACKAGES_DIR, dir, node))
       return
     }

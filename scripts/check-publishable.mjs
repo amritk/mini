@@ -4,18 +4,20 @@ import { pathToFileURL } from 'node:url'
 
 // The last gate before a tarball leaves the machine. `@amritk/mini-lynx-native@0.2.0`
 // went to npm as src-only: it was published by hand rather than through the release
-// job, so `bun run build`, strip-development-exports and copy-license never ran. The
-// manifest still promised `./dist/index.js`, the tarball carried no dist at all, and
-// the surviving `development` condition meant a bundler that honoured it resolved the
-// raw TypeScript and looked healthy — which is how a broken package stayed usable
-// enough that nobody noticed for a release.
+// job, so neither `bun run build` nor copy-license ran, and the `development` condition
+// the exports maps carried at the time survived into the manifest. The manifest still
+// promised `./dist/index.js`, the tarball carried no dist at all, and that condition
+// pointed at `./src/*.ts` — which does ship — so anything honouring it resolved raw
+// TypeScript and looked healthy. That is how a broken package stayed usable enough
+// that nobody noticed for a release.
 //
-// Every check here is one of those three misses. `npm publish` runs this from the
-// package root as `prepublishOnly`, so publishing out of band fails loudly instead of
-// shipping a manifest whose exports point at files that are not there. The equivalent
-// checks in scripts/dist-smoke.test.ts and scripts/consumer-e2e.test.ts guard the same
-// ground for the repo; this one guards the act of publishing, which is the part a CI
-// step cannot reach.
+// `npm publish` runs this from the package root as `prepublishOnly`, so publishing out
+// of band fails loudly instead of shipping a manifest whose exports point at files that
+// are not there. The condition itself is gone from every exports map now, which is why
+// the check for it reads as a regression guard: reintroducing one would restore exactly
+// the failure above, and the publish is the last place to say so. The equivalent checks
+// in scripts/dist-smoke.test.ts and scripts/consumer-e2e.test.ts guard the same ground
+// for the repo; this one guards the act of publishing, which a CI step cannot reach.
 
 /** Every `./dist/...` target declared anywhere in an exports subtree. */
 const distTargets = (node, found = []) => {
@@ -59,9 +61,7 @@ export const checkPublishable = (dir) => {
   if (hasDevelopmentCondition(pkg.exports ?? {})) {
     // The condition resolves to `./src/*.ts`, and src ships, so leaving it in
     // hands raw TypeScript to any consumer or bundler that honours it.
-    problems.push(
-      'exports still carries a `development` condition — run `bun run scripts/strip-development-exports.ts`',
-    )
+    problems.push('exports carries a `development` condition — it resolves to the src this ships, so it cannot go out')
   }
 
   if (!existsSync(join(dir, 'LICENSE'))) {

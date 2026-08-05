@@ -5,12 +5,7 @@
     // them: this is Lynx code, and neither of Lynx's two script contexts is a
     // browser or a Node process.
     "lib": ["ESNext"],
-    "types": [],
-    // Resolve `@amritk/mini-lynx-native` to the workspace's SOURCE through the
-    // `development` condition it already declares, rather than to its `dist`.
-    // CI type-checks BEFORE it builds, so without this a fresh clone would look
-    // for a `.d.ts` that does not exist yet.
-    "customConditions": ["development"]
+    "types": []
   },
   "include": ["src/**/*.ts"]
 }

@@ -6,13 +6,7 @@
     // browser or a Node process. It is also what keeps `parse-url.ts` off the
     // `URL` global, which is a web platform API a native engine need not have.
     "lib": ["ESNext"],
-    "types": [],
-    // Resolve `@amritk/mini-lynx-native` and `@amritk/mini-helpers` to the
-    // workspace's SOURCE through the `development` condition they already
-    // declare, rather than to their `dist`. CI type-checks BEFORE it builds, so
-    // without this a fresh clone would look for a `.d.ts` that does not exist
-    // yet.
-    "customConditions": ["development"]
+    "types": []
   },
   "include": ["src/**/*.ts"]
 }

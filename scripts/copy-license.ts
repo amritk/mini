@@ -8,8 +8,8 @@ import { pathToFileURL } from 'node:url'
  * npm only bundles a LICENSE file that sits inside the package directory —
  * the root license never reaches the tarball on its own, so published
  * packages would carry a `license: MIT` field with no license text. Like
- * resolve-workspace-protocol and strip-development-exports, this runs in the
- * ephemeral publish job and is never committed.
+ * resolve-workspace-protocol, this runs in the ephemeral publish job and is
+ * never committed.
  */
 export const copyLicenses = async (root: string): Promise<string[]> => {
   const source = join(root, 'LICENSE')

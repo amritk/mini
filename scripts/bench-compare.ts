@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { build } from 'esbuild'
+import { build, type Plugin } from 'esbuild'
 
 /**
  * bench-compare — measures the bundled, gzipped size of every `@amritk/mini`
@@ -101,6 +101,31 @@ const gitSha = (tree: string): string => {
 }
 
 /**
+ * Resolves `@amritk/*` imports to the source inside the tree being measured.
+ *
+ * The `development` export condition used to do this, and it is gone. The bench
+ * measures a source tree and never runs a build, so without a source resolver a
+ * cross-package import — `@amritk/mini`'s router reaching `@amritk/mini-helpers`
+ * — resolves to a `dist/` that is not there and the entry reports "measure
+ * failed" instead of a number. Returning null for anything it cannot place
+ * hands the specifier back to esbuild, so a genuine third-party `@amritk`
+ * dependency still resolves from node_modules as it should.
+ */
+const workspaceSource = (tree: string, external: readonly string[]): Plugin => ({
+  name: 'workspace-source',
+  setup(build) {
+    build.onResolve({ filter: /^@amritk\// }, ({ path }) => {
+      if (external.includes(path)) return { external: true }
+      const [, pkg, ...subpath] = path.split('/')
+      const base = join(tree, 'packages', pkg ?? '', 'src', ...subpath)
+      // `./router` is a directory with an index; `./jsx-runtime` is a file.
+      const candidate = [join(base, 'index.ts'), `${base}.ts`].find((file) => existsSync(file))
+      return candidate === undefined ? null : { path: candidate }
+    })
+  },
+})
+
+/**
  * Gzipped size of a bundled entry in one tree, or `null` when the entry does
  * not exist there — a subpath the baseline predates renders "n/a (new entry)"
  * rather than failing the run.
@@ -119,13 +144,7 @@ const measureBundle = async (tree: string, entry: string, external: readonly str
       platform: 'browser',
       target: 'es2022',
       external: [...external],
-      // Resolve workspace packages to their `src/` through the `development`
-      // condition they declare, the same way the playgrounds and both
-      // `types:check` passes do. This bench measures a source tree and never
-      // runs a build, so without it a cross-package import — `@amritk/mini`'s
-      // router reaching `@amritk/mini-helpers` — resolves to a `dist/` that is
-      // not there and the entry reports "measure failed" instead of a number.
-      conditions: ['development'],
+      plugins: [workspaceSource(tree, external)],
     })
     return { median: gzipSync(result.outputFiles[0]?.contents ?? new Uint8Array()).length }
   } catch (error) {

@@ -48,55 +48,46 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./jsx-runtime": {
-      "development": "./src/jsx-runtime.ts",
       "types": "./dist/jsx-runtime.d.ts",
       "import": "./dist/jsx-runtime.js",
       "default": "./dist/jsx-runtime.js"
     },
     "./jsx-dev-runtime": {
-      "development": "./src/jsx-dev-runtime.ts",
       "types": "./dist/jsx-dev-runtime.d.ts",
       "import": "./dist/jsx-dev-runtime.js",
       "default": "./dist/jsx-dev-runtime.js"
     },
     "./router": {
-      "development": "./src/router/index.ts",
       "types": "./dist/router/index.d.ts",
       "import": "./dist/router/index.js",
       "default": "./dist/router/index.js"
     },
     "./flow": {
-      "development": "./src/flow/index.ts",
       "types": "./dist/flow/index.d.ts",
       "import": "./dist/flow/index.js",
       "default": "./dist/flow/index.js"
     },
     "./forms": {
-      "development": "./src/forms/index.ts",
       "types": "./dist/forms/index.d.ts",
       "import": "./dist/forms/index.js",
       "default": "./dist/forms/index.js"
     },
     "./query": {
-      "development": "./src/query/index.ts",
       "types": "./dist/query/index.d.ts",
       "import": "./dist/query/index.js",
       "default": "./dist/query/index.js"
     },
     "./hot": {
-      "development": "./src/hot/index.ts",
       "types": "./dist/hot/index.d.ts",
       "import": "./dist/hot/index.js",
       "default": "./dist/hot/index.js"
     },
     "./vite": {
-      "development": "./src/vite/index.ts",
       "types": "./dist/vite/index.d.ts",
       "import": "./dist/vite/index.js",
       "default": "./dist/vite/index.js"

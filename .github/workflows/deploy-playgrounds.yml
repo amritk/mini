@@ -38,10 +38,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The apps resolve `@amritk/mini` and `@amritk/mini-lynx` through the
-      # `development` condition, so they build straight from `src` and need no
-      # prior package build. Type-checking them is still worth the seconds: a
-      # broken playground should fail here rather than deploy.
+      # The apps used to resolve `@amritk/mini` and `@amritk/mini-lynx` through
+      # a `development` condition and build straight from `src`. That condition
+      # is gone — it shipped in the published manifests and pointed at the `src`
+      # the tarballs also carry — so the playgrounds now resolve `dist` like any
+      # consumer, and the packages have to be built before either app is
+      # type-checked or built. Building the whole workspace rather than the
+      # app's dependency closure keeps this from needing an edit every time a
+      # playground picks up another package.
+      - name: Build packages
+        run: bun run --filter './packages/*' build
+
+      # Worth the seconds: a broken playground should fail here rather than
+      # deploy.
       - name: Type check
         run: bun run --filter "@amritk/${{ matrix.app }}" types:check
 
