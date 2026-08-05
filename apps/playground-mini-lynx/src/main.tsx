@@ -3,6 +3,7 @@ import { trackKeyboard } from '@amritk/mini-lynx/keyboard'
 
 import { App } from './app'
 import { createDomPapi } from './lib/dom-papi'
+import { nativeRoot } from './lib/native-root'
 import { createVisualViewportEmitter } from './lib/visual-viewport-keyboard'
 import './styles.css'
 
@@ -39,6 +40,18 @@ setEngine(engine)
 // `keyboardstatuschanged` on the web, so the browser reports the keyboard from
 // `visualViewport` instead and everything above the height is the same code.
 trackKeyboard({ emitter: createVisualViewportEmitter() })
+
+// The native side, before the first render rather than after it. On a device
+// this line is `installNativeBridge()` in the BACKGROUND chunk and the two
+// root subscriptions are in the root component; here `nativeRoot()` installs
+// the preview's stand-in device (`lib/fake-device.ts`) and then makes those
+// same two subscriptions.
+//
+// Its being first is the part that carries over. A link or a notification tap
+// that arrived before the app was running is held natively and replayed once,
+// to whoever subscribes first — so anything that subscribes after the first
+// screen is up is subscribing after the replay has already happened.
+nativeRoot()
 
 const page = engine.__GetPageElement?.()
 if (!page) throw new Error('The DOM engine did not hand back a page element')

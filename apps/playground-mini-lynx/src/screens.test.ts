@@ -5,13 +5,18 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createDomPapi } from './lib/dom-papi'
 import { ComposeScreen } from './screens/compose'
 import { DataScreen } from './screens/data'
+import { DialogsScreen } from './screens/dialogs'
 import { ElementsScreen } from './screens/elements'
 import { EngineScreen } from './screens/engine'
 import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
 import { FormsScreen } from './screens/forms'
 import { KeyboardScreen } from './screens/keyboard'
+import { LinksScreen } from './screens/links'
 import { ListScreen } from './screens/list'
+import { LocationScreen } from './screens/location'
+import { NativeScreen } from './screens/native'
+import { NotificationsScreen } from './screens/notifications'
 import { RoutingScreen } from './screens/routing'
 import { StylingScreen } from './screens/styling'
 import { TextScreen } from './screens/text'
@@ -43,6 +48,14 @@ const SCREENS: readonly (readonly [name: string, screen: () => LynxElement])[] =
   ['data', DataScreen],
   ['engine', EngineScreen],
   ['routing', () => RoutingScreen({ params: () => ({ owner: 'amritk' }) })],
+  // The five that reach for the bridge. They build against the preview's fake
+  // device, which `lib/fake-device.ts` installs on first use — so mounting one
+  // here exercises the same wiring the app boots with, rather than a stub of it.
+  ['native', NativeScreen],
+  ['notifications', NotificationsScreen],
+  ['location', LocationScreen],
+  ['dialogs', DialogsScreen],
+  ['links', LinksScreen],
 ]
 
 afterEach(() => {

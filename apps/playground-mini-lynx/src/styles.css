@@ -274,3 +274,37 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+/*
+ * The preview's stand-in for a presented dialog.
+ *
+ * `position: fixed` is relative to the screen rather than to the scroller, which
+ * is the one property that makes this read as a dialog at all: a platform sheet
+ * is presented OVER the app, and an inline card at the top of a long screen is
+ * something the user has to go and find. Lynx supports `fixed` for exactly this
+ * kind of thing, so nothing here is a browser-only trick.
+ *
+ * It sits above the tab bar rather than over it, because the tab bar is this
+ * app's only way out and a modal that covers the exit is worse than one that
+ * does not look quite like the platform's.
+ */
+.dialog-surface {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 84px;
+  z-index: 30;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border);
+  background-color: var(--surface);
+  box-shadow: 0 10px 30px rgba(11, 14, 21, 0.18);
+}
+
+.dialog-surface-title {
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}

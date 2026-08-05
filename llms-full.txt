@@ -1262,8 +1262,12 @@ import { createFakeContexts, createFakeEmitter } from '@amritk/mini-lynx-native/
 - **`callNative` vs `callNativeAsync` is about the NATIVE method's shape, not
   the JavaScript one.** Both return a promise. Use `callNative` when the native
   method returns its result; use `callNativeAsync` when it takes a trailing
-  callback. Picking the wrong one is a promise that never settles (using
-  `callNative` on a callback method) or `undefined` (the other way round).
+  callback. The two wrong ways round fail differently: `callNativeAsync` on a
+  *returning* method appends a callback nothing ever invokes, so the promise
+  **never settles**; `callNative` on a *callback* method invokes it with the
+  callback missing, so it settles with whatever the method returned — usually
+  `undefined`, or a rejection if the native side reached for the argument that
+  was not there.
 - **A native value cannot be read during a component's build.** Everything
   crosses a thread. Bind a signal, start the call, write the signal when it
   settles — do not try to `await` your way into a synchronous render.

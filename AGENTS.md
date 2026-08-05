@@ -69,6 +69,14 @@ deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
 
+`apps/playground-mini-lynx` covers the bridge and the four native modules too,
+which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
+is the answer: it installs both halves of the bridge over the fake contexts the
+package publishes, and registers each module's own published fake as the
+registry — so the screens drive the shipping facades against the same contract
+those packages' suites assert on, and nothing about a module is reimplemented
+for the preview.
+
 ## Workflow
 
 ```bash

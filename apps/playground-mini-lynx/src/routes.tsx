@@ -3,13 +3,18 @@ import { createBrowserHistory } from '@amritk/mini-lynx/router/browser'
 
 import { ComposeScreen } from './screens/compose'
 import { DataScreen } from './screens/data'
+import { DialogsScreen } from './screens/dialogs'
 import { ElementsScreen } from './screens/elements'
 import { EngineScreen } from './screens/engine'
 import { EventsScreen } from './screens/events'
 import { FlowScreen } from './screens/flow'
 import { FormsScreen } from './screens/forms'
 import { KeyboardScreen } from './screens/keyboard'
+import { LinksScreen } from './screens/links'
 import { ListScreen } from './screens/list'
+import { LocationScreen } from './screens/location'
+import { NativeScreen } from './screens/native'
+import { NotificationsScreen } from './screens/notifications'
 import { RoutingScreen } from './screens/routing'
 import { StylingScreen } from './screens/styling'
 import { TextScreen } from './screens/text'
@@ -64,6 +69,15 @@ const ROUTES: readonly AppRoute[] = [
     badge: '↦',
     nav: false,
   }),
+  // The packages either side of the runtime: the bridge to Lynx's background
+  // context, and the four native modules built on it. They come last because
+  // each one assumes the screen before this group — a call is a promise across
+  // a thread, and none of it is reactive until an app makes it so.
+  route('/native', () => <NativeScreen />, { label: 'Bridge', badge: '⇋', nav: true }),
+  route('/notifications', () => <NotificationsScreen />, { label: 'Notify', badge: '✉', nav: true }),
+  route('/location', () => <LocationScreen />, { label: 'Location', badge: '⌖', nav: true }),
+  route('/dialogs', () => <DialogsScreen />, { label: 'Dialogs', badge: '❐', nav: true }),
+  route('/links', () => <LinksScreen />, { label: 'Links', badge: '↗', nav: true }),
 ]
 
 export type AppRouter = Router<AppRoute>
