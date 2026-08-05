@@ -1,6 +1,6 @@
 {
   "name": "@amritk/lynx-notifications",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local and remote push notifications for Lynx: an Android and iOS native module, and a promise-shaped facade that reaches it from the main thread.",
   "type": "module",
   "license": "MIT",
