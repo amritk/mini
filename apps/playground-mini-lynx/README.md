@@ -6,11 +6,12 @@ Lynx's Element PAPI, and deployed to Cloudflare Workers as a static SPA.
 
 It also exercises the packages either side of the runtime:
 [`@amritk/mini-lynx-native`](../../packages/mini-lynx-native), the bridge to
-Lynx's background context, and the four native modules built on it —
+Lynx's background context, and the five native modules built on it —
 [`lynx-notifications`](../../packages/lynx-notifications),
 [`lynx-location`](../../packages/lynx-location),
-[`lynx-dialogs`](../../packages/lynx-dialogs) and
-[`lynx-deep-linking`](../../packages/lynx-deep-linking).
+[`lynx-dialogs`](../../packages/lynx-dialogs),
+[`lynx-deep-linking`](../../packages/lynx-deep-linking) and
+[`lynx-secure-storage`](../../packages/lynx-secure-storage).
 
 Private, unpublished, and not part of the release.
 
@@ -46,11 +47,11 @@ browser does not have either — so `src/lib/fake-device.ts` stands in for it th
 way `dom-papi.ts` stands in for the engine.
 
 It is wiring rather than invention. Each native package publishes the fake its
-own suite runs against — `@amritk/lynx-location/testing` and the three beside
+own suite runs against — `@amritk/lynx-location/testing` and the four beside
 it — precisely so that an app testing its own screens does not write a second
 one, and this app is the first consumer to take them up on it. `fake-device.ts`
 creates the pair of context proxies, installs the background half of the bridge
-over them, and registers the four fakes as the module registry. Nothing about
+over them, and registers the five fakes as the module registry. Nothing about
 any module is reimplemented here.
 
 What that buys, and what it does not:
@@ -104,6 +105,7 @@ The root `bun run build`, `types:check` and `test` all include this app.
 | `/location` | `@amritk/lynx-location`: permission versus the device switch, `getCurrentPosition` as a union, `watchPosition` and its unsubscribe, `reverseGeocode` and its four failures |
 | `/dialogs` | `@amritk/lynx-dialogs`: date picker, action sheet and alert — with a stand-in dialog surface drawn from what the fake module reports as presented |
 | `/links` | `@amritk/lynx-deep-linking`: the launch URL versus the link event, `parseURL`'s host-and-path trap, `createURL`, `openURL`/`canOpenURL`/`openSettings` |
+| `/secure-storage` | `@amritk/lynx-secure-storage`: why a failed read throws where an absent key answers `null`, `whenUnlocked` against a locked screen, a keyset that recovers versus a keystore that does not, and a restart against a reinstall |
 
 ## Keeping up with the engine
 

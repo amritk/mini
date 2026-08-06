@@ -16,6 +16,7 @@ import { LocationScreen } from './screens/location'
 import { NativeScreen } from './screens/native'
 import { NotificationsScreen } from './screens/notifications'
 import { RoutingScreen } from './screens/routing'
+import { SecureStorageScreen } from './screens/secure-storage'
 import { StylingScreen } from './screens/styling'
 import { TextScreen } from './screens/text'
 
@@ -70,7 +71,7 @@ const ROUTES: readonly AppRoute[] = [
     nav: false,
   }),
   // The packages either side of the runtime: the bridge to Lynx's background
-  // context, and the four native modules built on it. They come last because
+  // context, and the five native modules built on it. They come last because
   // each one assumes the screen before this group — a call is a promise across
   // a thread, and none of it is reactive until an app makes it so.
   route('/native', () => <NativeScreen />, { label: 'Bridge', badge: '⇋', nav: true }),
@@ -78,6 +79,7 @@ const ROUTES: readonly AppRoute[] = [
   route('/location', () => <LocationScreen />, { label: 'Location', badge: '⌖', nav: true }),
   route('/dialogs', () => <DialogsScreen />, { label: 'Dialogs', badge: '❐', nav: true }),
   route('/links', () => <LinksScreen />, { label: 'Links', badge: '↗', nav: true }),
+  route('/secure-storage', () => <SecureStorageScreen />, { label: 'Secrets', badge: '⚿', nav: true }),
 ]
 
 export type AppRouter = Router<AppRoute>

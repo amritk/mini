@@ -37,7 +37,8 @@ mini/
 │   ├── lynx-notifications/     # @amritk/lynx-notifications — the first native module
 │   ├── lynx-location/          # @amritk/lynx-location — the second, built from its shape
 │   ├── lynx-dialogs/           # @amritk/lynx-dialogs — the third: date picker, sheet, alert
-│   └── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
+│   ├── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
+│   └── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -370,6 +371,52 @@ most wants one: it depends on a provider being created before the first activity
 and on `+load` running before the launch notification. The caveat is carried in
 the package's `README.md`, `AI.md` and `AGENTS.md` exactly as its siblings carry
 theirs.
+
+### `@amritk/lynx-secure-storage` (`packages/lynx-secure-storage`)
+
+The fifth native module, and the same shape again: a string-to-string store that
+is encrypted at rest — the iOS Keychain (`kSecClassGenericPassword`) and
+Android's `EncryptedSharedPreferences` over a Keystore-backed `MasterKey` —
+behind a promise-shaped facade over `@amritk/mini-lynx-native`.
+
+It exists because Lynx ships **no storage of any kind**: `@lynx-js/types`
+declares no key-value API on the `lynx` global, and the one published option,
+TikTok's `sparkling-storage`, is plain `SharedPreferences` on Android and has no
+iOS implementation at all — only a protocol the host app is expected to resolve
+from a DI registry. So there was nowhere to put a session token, in an engine
+that may have no cookie jar.
+
+- **`null` means absent, and a failed read throws.** The only package here whose
+  surface is not uniformly "failures are values", and the asymmetry is the
+  design: `setSecureItem` answers a `SecureWriteResult` because an app holding a
+  fresh credential must branch on whether it was persisted, while
+  `getSecureItem` returns `string | null` — so a store that would not open,
+  reported as an empty one, would sign a user out of an app whose credential is
+  intact on the disk.
+- **The `ThisDeviceOnly` suffix is the package.** Both iOS protection classes
+  carry it; without it a credential rides out through iCloud Keychain and
+  encrypted backups, and nothing fails or warns. The parity suite greps for a
+  bare `kSecAttrAccessible*` because no signature check would ever look there.
+- **The Android backup exclusion ships in the library's manifest**, not in its
+  README. The master key never leaves the device, so a restored preferences file
+  is undecryptable ciphertext — which reads as corruption rather than as a
+  signed-out user — and auto-backup is on by default. A host with backup rules
+  of its own gets a manifest-merger failure, which is the intended outcome.
+- **A corrupted keyset is recovered from, never propagated.**
+  `EncryptedSharedPreferences` throws on `create`, which for most apps is on the
+  path to the first screen; the data is unrecoverable either way, and the only
+  question is whether the app opens.
+- **Depends on:** `@amritk/mini-lynx-native`, and nothing else on the JavaScript
+  side. Its Android half carries the first `implementation` dependency in the
+  repository (`androidx.security:security-crypto`), because the alternative is a
+  hand-written Keystore-and-GCM envelope inside a UI library.
+- **Build:** the same `tsgo` + `tsc-alias` + `strip-comments` pipeline.
+
+**None of that is a device either**, and this is the package where the gap costs
+most: the uninstall behaviour, the restore behaviour and the locked-screen
+behaviour are all platform behaviours, and all three are what the package is
+*for*. The caveat is carried in its `README.md`, `AI.md` and `AGENTS.md` exactly
+as its siblings carry theirs.
 
 ## The playgrounds (`apps/`)
 

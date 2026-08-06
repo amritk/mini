@@ -1,0 +1,13 @@
+{
+  "extends": ["./tsconfig.json", "../../tsconfig.build.json"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Re-asserted because the shared `../../tsconfig.build.json` (applied last
+    // in `extends`) resets `lib`/`types` back to the Node-only defaults.
+    "lib": ["ESNext"],
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
+}

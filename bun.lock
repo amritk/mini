@@ -18,7 +18,7 @@
     },
     "apps/playground-mini": {
       "name": "@amritk/playground-mini",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "dependencies": {
         "@amritk/mini": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
@@ -32,12 +32,13 @@
     },
     "apps/playground-mini-lynx": {
       "name": "@amritk/playground-mini-lynx",
-      "version": "0.0.3",
+      "version": "0.0.5",
       "dependencies": {
         "@amritk/lynx-deep-linking": "workspace:*",
         "@amritk/lynx-dialogs": "workspace:*",
         "@amritk/lynx-location": "workspace:*",
         "@amritk/lynx-notifications": "workspace:*",
+        "@amritk/lynx-secure-storage": "workspace:*",
         "@amritk/mini-lynx": "workspace:*",
         "@amritk/mini-lynx-native": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
@@ -53,7 +54,7 @@
     },
     "packages/lynx-deep-linking": {
       "name": "@amritk/lynx-deep-linking",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "@amritk/mini-lynx-native": "workspace:*",
@@ -70,7 +71,7 @@
     },
     "packages/lynx-dialogs": {
       "name": "@amritk/lynx-dialogs",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -86,7 +87,7 @@
     },
     "packages/lynx-location": {
       "name": "@amritk/lynx-location",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -102,6 +103,22 @@
     },
     "packages/lynx-notifications": {
       "name": "@amritk/lynx-notifications",
+      "version": "0.2.1",
+      "dependencies": {
+        "@amritk/mini-lynx-native": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+      "optionalPeers": [
+        "typescript",
+      ],
+    },
+    "packages/lynx-secure-storage": {
+      "name": "@amritk/lynx-secure-storage",
       "version": "0.1.0",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
@@ -118,7 +135,7 @@
     },
     "packages/mini": {
       "name": "@amritk/mini",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -144,7 +161,7 @@
     },
     "packages/mini-helpers": {
       "name": "@amritk/mini-helpers",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "devDependencies": {
         "@amritk/runtime-validators": "^0.9.0",
         "typescript": "^5",
@@ -160,7 +177,7 @@
     },
     "packages/mini-lynx": {
       "name": "@amritk/mini-lynx",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -186,7 +203,7 @@
     },
     "packages/mini-lynx-native": {
       "name": "@amritk/mini-lynx-native",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@lynx-js/types": "^4.0.0",
         "typescript": "^5",
@@ -212,6 +229,8 @@
     "@amritk/lynx-location": ["@amritk/lynx-location@workspace:packages/lynx-location"],
 
     "@amritk/lynx-notifications": ["@amritk/lynx-notifications@workspace:packages/lynx-notifications"],
+
+    "@amritk/lynx-secure-storage": ["@amritk/lynx-secure-storage@workspace:packages/lynx-secure-storage"],
 
     "@amritk/mini": ["@amritk/mini@workspace:packages/mini"],
 

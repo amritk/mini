@@ -18,6 +18,7 @@ import { LocationScreen } from './screens/location'
 import { NativeScreen } from './screens/native'
 import { NotificationsScreen } from './screens/notifications'
 import { RoutingScreen } from './screens/routing'
+import { SecureStorageScreen } from './screens/secure-storage'
 import { StylingScreen } from './screens/styling'
 import { TextScreen } from './screens/text'
 
@@ -48,7 +49,7 @@ const SCREENS: readonly (readonly [name: string, screen: () => LynxElement])[] =
   ['data', DataScreen],
   ['engine', EngineScreen],
   ['routing', () => RoutingScreen({ params: () => ({ owner: 'amritk' }) })],
-  // The five that reach for the bridge. They build against the preview's fake
+  // The six that reach for the bridge. They build against the preview's fake
   // device, which `lib/fake-device.ts` installs on first use — so mounting one
   // here exercises the same wiring the app boots with, rather than a stub of it.
   ['native', NativeScreen],
@@ -56,6 +57,7 @@ const SCREENS: readonly (readonly [name: string, screen: () => LynxElement])[] =
   ['location', LocationScreen],
   ['dialogs', DialogsScreen],
   ['links', LinksScreen],
+  ['secure-storage', SecureStorageScreen],
 ]
 
 afterEach(() => {

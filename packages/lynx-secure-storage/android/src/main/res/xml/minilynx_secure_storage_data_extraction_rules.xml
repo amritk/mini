@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Android 12+ replacement for the file beside this one
+  (`android:dataExtractionRules`). Both are declared, because a host app runs on
+  both sides of that line and the platform reads whichever one applies.
+
+  Two sections, and the second is the one that is easy to miss: `cloud-backup`
+  is Google's backup service, and `device-transfer` is the direct
+  phone-to-phone copy a user does when setting up a new device. That transfer
+  never leaves the user's hands, which makes it sound harmless — but the
+  AndroidKeyStore key still does not travel with it, so the file lands on the
+  new phone as undecryptable ciphertext exactly as a cloud restore would.
+-->
+<data-extraction-rules>
+  <cloud-backup>
+    <exclude
+      domain="sharedpref"
+      path="minilynx_secure_storage.xml" />
+  </cloud-backup>
+  <device-transfer>
+    <exclude
+      domain="sharedpref"
+      path="minilynx_secure_storage.xml" />
+  </device-transfer>
+</data-extraction-rules>

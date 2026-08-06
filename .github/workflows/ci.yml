@@ -71,7 +71,7 @@ jobs:
 
   # `android` below — and `ios`, while it was enabled — are the only things
   # anywhere that compile the native halves of the `@amritk/lynx-*` packages —
-  # notifications, location, dialogs and deep linking.
+  # notifications, location, dialogs, deep linking and secure storage.
   # Everything in `Check` above runs in JavaScript and would pass just as
   # happily against Kotlin and Objective-C that do not build —
   # `src/native-contract.test.ts` narrows that gap by comparing the two native
@@ -174,3 +174,7 @@ jobs:
   #     - name: Lint and compile the deep-linking pod
   #       working-directory: packages/lynx-deep-linking/ios
   #       run: pod lib lint MiniLynxDeepLinking.podspec --allow-warnings --platforms=ios
+  #
+  #     - name: Lint and compile the secure-storage pod
+  #       working-directory: packages/lynx-secure-storage/ios
+  #       run: pod lib lint MiniLynxSecureStorage.podspec --allow-warnings --platforms=ios

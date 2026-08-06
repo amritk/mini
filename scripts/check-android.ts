@@ -35,6 +35,7 @@ const CHECKS = [
   { name: '@amritk/lynx-location', dir: 'packages/lynx-location', project: 'location' },
   { name: '@amritk/lynx-dialogs', dir: 'packages/lynx-dialogs', project: 'dialogs' },
   { name: '@amritk/lynx-deep-linking', dir: 'packages/lynx-deep-linking', project: 'deeplinking' },
+  { name: '@amritk/lynx-secure-storage', dir: 'packages/lynx-secure-storage', project: 'securestorage' },
 ] as const
 
 /** The two spellings the Android tooling accepts, in the order it prefers them. */

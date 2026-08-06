@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto-backup rules for Android 11 and below (`android:fullBackupContent`).
+
+  `path` is the preferences file name, with the `.xml` the framework adds and
+  `SecureStore.FILE` does not. `src/native-contract.test.ts` checks that this
+  name still matches the Kotlin — a rename on one side is silent, and the
+  symptom is a credential quietly entering cloud backup.
+
+  Everything else the host app stores is left alone: an `<exclude>` narrows the
+  default, it does not replace it.
+-->
+<full-backup-content>
+  <exclude
+    domain="sharedpref"
+    path="minilynx_secure_storage.xml" />
+</full-backup-content>

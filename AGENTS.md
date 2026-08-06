@@ -39,16 +39,20 @@ Two more sit alongside them, for the part of a Lynx app that is not rendering:
 [`packages/mini-lynx-native`](./packages/mini-lynx-native) —
 `@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
 contexts, because `NativeModules` lives only in the latter and the runtime lives
-only in the former — and four native modules built on it, with Android and iOS
+only in the former — and five native modules built on it, with Android and iOS
 sources of their own:
 [`packages/lynx-notifications`](./packages/lynx-notifications) —
 `@amritk/lynx-notifications`, local and remote push —
 [`packages/lynx-location`](./packages/lynx-location) —
 `@amritk/lynx-location`, device location —
 [`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
-the platform's own date picker, action sheet and alert — and
+the platform's own date picker, action sheet and alert —
 [`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
-`@amritk/lynx-deep-linking`, deep links in and out. The Kotlin compiles in CI —
+`@amritk/lynx-deep-linking`, deep links in and out — and
+[`packages/lynx-secure-storage`](./packages/lynx-secure-storage) —
+`@amritk/lynx-secure-storage`, the Keychain and `EncryptedSharedPreferences`
+behind a string-to-string store, because Lynx ships no storage at all and a
+credential has to live somewhere. The Kotlin compiles in CI —
 `bun run check:android` — and a parity suite pins their method surfaces against
 the TypeScript. The Objective-C compiles nowhere automatic: `pod lib lint` on a
 macOS runner cost 81 minutes a run and is commented out in
@@ -56,13 +60,15 @@ macOS runner cost 81 minutes a run and is commented out in
 **None of it has run on a device.** See each package's `AGENTS.md` for what that
 does and does not cover.
 
-The four are deliberately alike: each was built from the last one's shape, so a
+The five are deliberately alike: each was built from the last one's shape, so a
 structural change to one is usually owed to the others. Where one diverges it
 says why — `lynx-dialogs` has no events, because a dialog is asked once and
 answers once, so it carries none of the `GlobalEventEmitter` fan-out the others
 need; `lynx-deep-linking` is the only one whose inbound half starts *outside*
 any LynxView, which is why it owns a `ContentProvider` and a `+load` and why its
-launch URL is a value rather than an event.
+launch URL is a value rather than an event; `lynx-secure-storage` is the only
+one that **throws** on part of its surface, because `null` from a read has to
+keep meaning "there is no such key" and never "the store would not open".
 
 Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
 `@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*
@@ -80,13 +86,22 @@ deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
 
-`apps/playground-mini-lynx` covers the bridge and the four native modules too,
+`apps/playground-mini-lynx` covers the bridge and all five native modules too,
 which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
 is the answer: it installs both halves of the bridge over the fake contexts the
 package publishes, and registers each module's own published fake as the
 registry — so the screens drive the shipping facades against the same contract
 those packages' suites assert on, and nothing about a module is reimplemented
 for the preview.
+
+**A new package, or a new entry point on one, is not finished until it has a
+playground screen.** Register its published fake in `src/lib/fake-device.ts`,
+add the screen under `src/screens/`, put it in the route table and add it to
+`src/screens.test.ts`. This is not a documentation chore: the playground is the
+only place in the repository where a package is used the way a consumer uses it,
+and every composition-level defect this repo has found was found there rather
+than in a suite. A package with no screen is a package nobody has actually
+tried.
 
 ## Workflow
 
