@@ -46,7 +46,7 @@ sources of their own:
 [`packages/lynx-location`](./packages/lynx-location) —
 `@amritk/lynx-location`, device location —
 [`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
-the platform's own date picker, action sheet and alert — and
+the platform's own date picker, action sheet and alert —
 [`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
 `@amritk/lynx-deep-linking`, deep links in and out — and
 [`packages/lynx-secure-storage`](./packages/lynx-secure-storage) —
@@ -86,14 +86,22 @@ deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
 
-`apps/playground-mini-lynx` covers the bridge and four of the five native
-modules too — `@amritk/lynx-secure-storage` has no screen there yet —
+`apps/playground-mini-lynx` covers the bridge and all five native modules too,
 which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
 is the answer: it installs both halves of the bridge over the fake contexts the
 package publishes, and registers each module's own published fake as the
 registry — so the screens drive the shipping facades against the same contract
 those packages' suites assert on, and nothing about a module is reimplemented
 for the preview.
+
+**A new package, or a new entry point on one, is not finished until it has a
+playground screen.** Register its published fake in `src/lib/fake-device.ts`,
+add the screen under `src/screens/`, put it in the route table and add it to
+`src/screens.test.ts`. This is not a documentation chore: the playground is the
+only place in the repository where a package is used the way a consumer uses it,
+and every composition-level defect this repo has found was found there rather
+than in a suite. A package with no screen is a package nobody has actually
+tried.
 
 ## Workflow
 

@@ -253,4 +253,10 @@ everywhere and means something different in each.
 Before adding anything that returns a value, decide which side of the throw
 rule it is on, and write the reason down.
 
+Then add it to the playground. `apps/playground-mini-lynx/src/screens/secure-storage.tsx`
+drives this package's shipping facade against its published fake, over the real
+bridge, and it is the only place in the repository where any of this is used the
+way a consumer uses it. A new method with no panel there is a method nobody has
+actually tried.
+
 Add a changeset for every change (`bunx changeset`).

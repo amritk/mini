@@ -38,6 +38,7 @@
         "@amritk/lynx-dialogs": "workspace:*",
         "@amritk/lynx-location": "workspace:*",
         "@amritk/lynx-notifications": "workspace:*",
+        "@amritk/lynx-secure-storage": "workspace:*",
         "@amritk/mini-lynx": "workspace:*",
         "@amritk/mini-lynx-native": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",

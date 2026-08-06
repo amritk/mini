@@ -6,6 +6,8 @@ import { MODULE as LOCATION } from '@amritk/lynx-location'
 import { createFakeLocation, type FakeLocation } from '@amritk/lynx-location/testing'
 import { MODULE as NOTIFICATIONS } from '@amritk/lynx-notifications'
 import { createFakeNotifications, type FakeNotifications } from '@amritk/lynx-notifications/testing'
+import { MODULE as SECURE_STORAGE } from '@amritk/lynx-secure-storage'
+import { createFakeSecureStorage, type FakeSecureStorage } from '@amritk/lynx-secure-storage/testing'
 import { signal } from '@amritk/mini-lynx'
 import { type ContextMessage, type ContextProxy, setPeerContext } from '@amritk/mini-lynx-native'
 import { installNativeBridge } from '@amritk/mini-lynx-native/background'
@@ -16,7 +18,7 @@ import { createFakeContexts, createFakeEmitter, type FakeEmitter } from '@amritk
  *
  * `dom-papi.ts` stands in for the *engine*; this stands in for everything on
  * the other side of the bridge — the second JavaScript context, the
- * `GlobalEventEmitter`, and the four native modules registered on it. Together
+ * `GlobalEventEmitter`, and the five native modules registered on it. Together
  * they are why a screen here can call `getCurrentPosition()` and get an answer
  * with no device and no simulator anywhere.
  *
@@ -50,8 +52,9 @@ export type FakeDevice = {
   readonly location: FakeLocation
   readonly dialogs: FakeDialogs
   readonly links: FakeDeepLinking
+  readonly secureStorage: FakeSecureStorage
   /**
-   * The `GlobalEventEmitter` the four modules publish through.
+   * The `GlobalEventEmitter` the modules with events publish through.
    *
    * Exposed because the `/native` screen demonstrates the wire itself rather
    * than any module on it, and "native published an event" is a thing only the
@@ -85,7 +88,7 @@ export type FakeDevice = {
 /**
  * A module that exists only to be called badly.
  *
- * The four real modules are facades: they pick `callNative` or `callNativeAsync`
+ * The five real modules are facades: they pick `callNative` or `callNativeAsync`
  * for you, so their screens cannot show what happens when that choice is wrong —
  * which is the bridge's single most reported failure. This one is registered
  * beside them with a method of each shape, so `/native` can make the wrong call
@@ -140,6 +143,10 @@ const install = (): FakeDevice => {
   const location = createFakeLocation(emitter)
   const dialogs = createFakeDialogs()
   const links = createFakeDeepLinking(emitter)
+  // No emitter: nothing outside the app ever writes to the secure store, so
+  // that package has no events to publish — the same shape `lynx-dialogs` has,
+  // by a different argument.
+  const secureStorage = createFakeSecureStorage()
 
   /**
    * Both proxies are wrapped rather than either fake, so the counter moves on
@@ -170,6 +177,7 @@ const install = (): FakeDevice => {
       [LOCATION]: location.module,
       [DIALOGS]: dialogs.module,
       [DEEP_LINKING]: links.module,
+      [SECURE_STORAGE]: secureStorage.module,
       [DEMO_MODULE]: demoModule,
     },
   })
@@ -181,6 +189,7 @@ const install = (): FakeDevice => {
     location,
     dialogs,
     links,
+    secureStorage,
     emitter,
     messages: () => {
       revision()
