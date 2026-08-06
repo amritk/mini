@@ -68,6 +68,7 @@ const PUBLISHED = [
   '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
   '@amritk/lynx-notifications',
+  '@amritk/lynx-secure-storage',
   '@amritk/mini',
   '@amritk/mini-helpers',
   '@amritk/mini-lynx',
@@ -102,6 +103,7 @@ const USES_BRIDGE = [
   '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
   '@amritk/lynx-notifications',
+  '@amritk/lynx-secure-storage',
 ] as const
 
 const PACKAGES_DIR = join(ROOT, 'packages')

@@ -1,0 +1,50 @@
+<!--
+  No `package` attribute: Android Gradle Plugin 8 removed it outright and fails
+  the build if it is present. The package comes from `namespace` in
+  build.gradle.kts instead.
+
+  This library declares no permission and no component. The only thing it
+  contributes is the pair of backup rules below, and it contributes them rather
+  than documenting them because a host that forgets this one produces the worst
+  failure mode this package has.
+
+  ## Why the library, and not the app
+
+  The master key lives in the AndroidKeyStore and never leaves the device. Back
+  up `shared_prefs/minilynx_secure_storage.xml` and restore it — onto a new
+  phone, or onto the same one after a wipe — and the file arrives without the
+  key that decrypts it. What the app then has is not an absent credential, which
+  it knows how to handle, but ciphertext it cannot read: the store throws on
+  open, the library discards and recreates it, and a user who restored a backup
+  is quietly signed out. Worse, the same bytes are now sitting in a cloud
+  backup, which is exactly where a credential should not be.
+
+  Auto-backup is on by default for apps targeting API 23 and up, so this is the
+  default behaviour of every host that does nothing.
+
+  ## What a host has to do about it
+
+  Usually nothing. If the host app declares its own `android:fullBackupContent`
+  or `android:dataExtractionRules`, the manifest merger will refuse to pick a
+  winner and fail the build with a message naming both — which is the intended
+  outcome, because it is a decision the app owns and a build error is the only
+  way to make it a decision at all. The fix is one line in the host's manifest:
+
+      <application
+        android:fullBackupContent="@xml/app_backup_rules"
+        android:dataExtractionRules="@xml/app_data_extraction_rules"
+        tools:replace="android:fullBackupContent,android:dataExtractionRules">
+
+  plus the same two `<exclude domain="sharedpref" path="minilynx_secure_storage.xml"/>`
+  entries copied into the app's own rule files. `README.md` carries this with the
+  full XML.
+
+  A host that sets `android:allowBackup="false"` needs neither.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <application
+    android:dataExtractionRules="@xml/minilynx_secure_storage_data_extraction_rules"
+    android:fullBackupContent="@xml/minilynx_secure_storage_backup_rules" />
+
+</manifest>

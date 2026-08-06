@@ -1,0 +1,77 @@
+{
+  "name": "@amritk/lynx-secure-storage",
+  "version": "0.1.0",
+  "description": "Encrypted key-value storage for Lynx: Keychain on iOS, EncryptedSharedPreferences on Android, and a promise-shaped facade that reaches them from the main thread.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
+  "keywords": [
+    "lynx",
+    "secure-storage",
+    "keychain",
+    "keystore",
+    "encrypted-shared-preferences",
+    "token",
+    "native-module",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/lynx-secure-storage"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/lynx-secure-storage#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "android",
+    "!android/build",
+    "!android/.gradle",
+    "ios",
+    "lynx.lib.json",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "prepublishOnly": "node ../../scripts/check-publishable.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/lynx-secure-storage/"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./lynx.lib.json": "./lynx.lib.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "dependencies": {
+    "@amritk/mini-lynx-native": "workspace:*"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
