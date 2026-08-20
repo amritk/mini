@@ -234,6 +234,13 @@ export const createForm = <V extends FieldValues>(config: FormConfig<V>): Form<V
 
   const handleSubmit = async (event?: { preventDefault: () => void }): Promise<void> => {
     event?.preventDefault()
+    // A submit already in flight owns the form until it settles. `isSubmitting`
+    // is tracked anyway, and the documented `disabled={form.isSubmitting}` does
+    // cover a double-click on the button — but it only covers THAT button, and
+    // `handleSubmit` is also wired to a key press and called by hand. The
+    // failure it prevents is not a cosmetic one: `onSubmit` is where an order
+    // gets placed, so running it twice is the expensive kind of bug.
+    if (isSubmitting()) return
     batch(() => {
       submitted(true)
       submitError(undefined)

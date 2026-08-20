@@ -259,6 +259,13 @@ export const createForm = <V extends FieldValues>(config: FormConfig<V>): Form<V
     })
 
   const handleSubmit = async (): Promise<void> => {
+    // A submit already in flight owns the form until it settles. This matters
+    // more here than it does on the web: there is no form element and no
+    // platform `disabled`, so `handleSubmit` hangs off a `bindtap` and a
+    // `bindconfirm` with nothing between a second tap and a second `onSubmit`.
+    // That is where an order gets placed, so running it twice is the expensive
+    // kind of bug.
+    if (isSubmitting()) return
     batch(() => {
       submitted(true)
       submitError(undefined)
