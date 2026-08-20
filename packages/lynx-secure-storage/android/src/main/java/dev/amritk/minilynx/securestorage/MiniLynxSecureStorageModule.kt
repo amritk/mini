@@ -172,7 +172,18 @@ class MiniLynxSecureStorageModule(context: LynxContext) : LynxContextModule(cont
    */
   @LynxMethod
   fun isSecureStorageAvailable(callback: Callback) {
-    STORAGE.execute { callback.invoke(SecureStore.isUsable(appContext)) }
+    STORAGE.execute {
+      // Guarded like every other method here, and it matters most on this one:
+      // it is what an app calls to find out whether the store works at all, so
+      // the state it has to survive is the store being as broken as it gets.
+      val usable =
+        try {
+          SecureStore.isUsable(appContext)
+        } catch (error: Throwable) {
+          false
+        }
+      callback.invoke(usable)
+    }
   }
 
   /**
@@ -184,13 +195,22 @@ class MiniLynxSecureStorageModule(context: LynxContext) : LynxContextModule(cont
    * because an exception escaping into the executor kills the thread this
    * package needs for every subsequent call, and leaves the caller's promise
    * unsettled with nothing to read.
+   *
+   * `Throwable` rather than `Exception`, which is the wider net on purpose. The
+   * failure this has to survive is a host that linked the module but shipped
+   * without `androidx.security.crypto` — R8 stripped it, or the dependency was
+   * never declared — and that arrives as a `NoClassDefFoundError`, which is an
+   * `Error` and not an `Exception`. Catching only the latter would let the one
+   * case this package most needs to report cleanly become the one case where
+   * the caller's promise never settles at all: not a failed read, but a screen
+   * that waits forever.
    */
   private fun answer(callback: Callback, operation: () -> JavaOnlyMap) {
     STORAGE.execute {
       val result =
         try {
           operation()
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
           StorageResults.failure(
             StorageResults.KEYSTORE_FAILURE,
             "the encrypted store could not be used (${error.javaClass.simpleName})",
