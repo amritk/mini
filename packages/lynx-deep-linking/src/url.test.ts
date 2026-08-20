@@ -119,6 +119,18 @@ describe('createURL', () => {
     expect(createURL('myapp', 'profile/42', { host: 'app' })).toBe('myapp://app/profile/42')
   })
 
+  it('keeps a port in the host but encodes the delimiters that would end it', () => {
+    // `:` belongs in an authority; `/`, `?` and `#` terminate one, so a host
+    // carrying them would silently produce a different URL than the caller
+    // described — and the query below would land after a `?` already there.
+    expect(createURL('https', 'a', { host: 'localhost:3000' })).toBe('https://localhost:3000/a')
+
+    const url = createURL('myapp', 'path', { host: 'a?b', query: { k: 'v' } })
+    expect(url).toBe('myapp://a%3Fb/path?k=v')
+    expect(parseURL(url).host).toBe('a%3Fb')
+    expect(parseURL(url).query).toEqual({ k: 'v' })
+  })
+
   it('builds a bare scheme URL', () => {
     expect(createURL('myapp')).toBe('myapp://')
   })

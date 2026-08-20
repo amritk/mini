@@ -101,9 +101,9 @@ export const installNativeBridge = (options: InstallBridgeOptions = {}): (() => 
    * is a version problem. They are fixed in different places.
    */
   const resolveMethod = (module: string, method: string): ((...args: unknown[]) => unknown) => {
-    const target = modules?.[module]
+    const target = lookupModule(module)
     if (!target) throw new Error(`the native module "${module}" is not linked into this app`)
-    const fn = target[method]
+    const fn = inherited(method) ? undefined : target[method]
     if (typeof fn !== 'function') {
       throw new Error(`the native module "${module}" has no method "${method}"`)
     }
@@ -112,10 +112,15 @@ export const installNativeBridge = (options: InstallBridgeOptions = {}): (() => 
 
   /** Answers an `exists` probe. Never throws: not-linked is the answer, not a failure. */
   const moduleExists = (module: string, method: string): boolean => {
-    const target = modules?.[module]
+    const target = lookupModule(module)
     if (!target) return false
-    return method === '' ? true : typeof target[method] === 'function'
+    if (method === '') return true
+    return !inherited(method) && typeof target[method] === 'function'
   }
+
+  /** The registry read both paths go through, so neither can forget the screen above. */
+  const lookupModule = (module: string): Readonly<Record<string, unknown>> | undefined =>
+    inherited(module) ? undefined : modules?.[module]
 
   const serveCall = (call: CallPayload): void => {
     const { id, module, method, args, form } = call
@@ -227,6 +232,23 @@ export const installNativeBridge = (options: InstallBridgeOptions = {}): (() => 
  * stringified rather than dropped: native bridges throw strings and plain
  * objects often enough that discarding them would lose the only clue.
  */
+/**
+ * Whether a name is one every object already answers to.
+ *
+ * A plain property read walks the prototype chain, so `NativeModules.constructor`
+ * is `Object` and `NativeModules.toString` is a function — which means a probe
+ * for a module nobody linked answers `true`, and a call for one gets `Object`
+ * applied to its arguments instead of an honest "not linked". The same is true
+ * of a method name on a module bag.
+ *
+ * The screen is on the NAME rather than an own-property test on the bag, and
+ * deliberately: the engine is free to hand modules or their methods over
+ * through a prototype or a proxy, and a `hasOwnProperty` check would call those
+ * unlinked. No native module or method is called `toString`, so screening the
+ * handful of names `Object.prototype` occupies costs nothing real.
+ */
+const inherited = (name: string): boolean => name in Object.prototype
+
 const describe = (error: unknown): string => {
   if (error instanceof Error) return error.message
   return typeof error === 'string' ? error : `${String(error)}`

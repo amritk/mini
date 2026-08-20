@@ -67,6 +67,19 @@ export type NativeEventListener = (...args: readonly unknown[]) => void
 
 let attached = false
 let ready = false
+
+/**
+ * The correlation id for the next call, and it never goes back.
+ *
+ * `resetNativeChannel` deliberately does NOT reset this. A reset rejects the
+ * calls in flight, but it cannot cancel the native work already under way, and
+ * a method that answers late still sends its reply home under the id it was
+ * given. If ids restarted, that stale reply would land on whichever fresh call
+ * happened to be filed under the same number and resolve it with another
+ * call's result — a wrong answer rather than a missing one, which is far worse.
+ * Monotonic ids make the stale reply match nothing, so it is warned about and
+ * dropped, which is what it is.
+ */
 let nextId = 1
 
 const pending = new Map<number, Pending>()
@@ -244,7 +257,6 @@ export const resetNativeChannel = (): void => {
   }
   attached = false
   ready = false
-  nextId = 1
 
   const inflight = [...pending.values()]
   pending.clear()
