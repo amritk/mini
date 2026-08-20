@@ -35,33 +35,24 @@ import type { StyleValue } from './types'
  */
 export const applyProp = (element: LynxElement, name: string, value: unknown): void => {
   if (name === 'show') {
-    // Wrapping a static boolean in a getter means one code path serves both
-    // forms, so `show={false}` behaves exactly like a tracked one.
-    const get = typeof value === 'function' ? (value as () => boolean) : () => value as boolean
-    bind(value, () => applyVisible(element, Boolean(get())))
+    bind(element, name, value, applyShowProp)
     return
   }
 
   if (name === 'style') {
-    bind(value, (current) => applyStyle(element, (current ?? null) as StyleValue | string | null))
+    bind(element, name, value, applyStyleProp)
     return
   }
 
   if (name === 'class') {
-    bind(value, (current) => {
-      requireEngine().__SetClasses(element, resolveClass(current))
-      scheduleFlush()
-    })
+    bind(element, name, value, applyClassProp)
     return
   }
 
   if (name === 'id') {
     // `id` has its own PAPI call rather than being an attribute, because it is
     // what an id selector and a `SelectorQuery` match on.
-    bind(value, (current) => {
-      requireEngine().__SetID(element, current === null || current === undefined ? null : String(current))
-      scheduleFlush()
-    })
+    bind(element, name, value, applyIdProp)
     return
   }
 
@@ -71,22 +62,7 @@ export const applyProp = (element: LynxElement, name: string, value: unknown): v
     return
   }
 
-  bind(value, (current) => {
-    // Only `null` and `undefined` clear an attribute. **`false` is a value**,
-    // and passing it through is the whole difference between a runtime that can
-    // express Lynx and one that can nearly express it.
-    //
-    // The web habit is the opposite — `disabled={false}` means "no attribute",
-    // because HTML boolean attributes are true by their presence. Lynx is not
-    // HTML: `flatten`, `accessibility-element` and `accessibility-disabled` all
-    // default to something other than false, so `flatten={false}` is a stated
-    // opt-out and swallowing it leaves the element doing the opposite of what
-    // the source says. There is no way to write it back afterwards either,
-    // which is what makes this the runtime's decision rather than an app's.
-    const absent = current === null || current === undefined
-    requireEngine().__SetAttribute(element, name, absent ? null : toAttributeValue(name, current))
-    scheduleFlush()
-  })
+  bind(element, name, value, applyAttributeProp)
 }
 
 /**
@@ -167,12 +143,64 @@ const parseEvent = (prop: string): EventProp => {
   return null
 }
 
-/** Applies once for a plain value, or on every change for a getter. */
-const bind = (value: unknown, apply: (current: unknown) => void): void => {
+/**
+ * How one prop is written, once the static-or-reactive question has been
+ * settled. The element and the name arrive as arguments rather than as captured
+ * variables, which is the entire point of the shape — see {@link bind}.
+ */
+type ApplyProp = (element: LynxElement, name: string, current: unknown) => void
+
+const applyShowProp: ApplyProp = (element, _name, current) => {
+  applyVisible(element, Boolean(current))
+}
+
+const applyStyleProp: ApplyProp = (element, _name, current) => {
+  applyStyle(element, (current ?? null) as StyleValue | string | null)
+}
+
+const applyClassProp: ApplyProp = (element, _name, current) => {
+  requireEngine().__SetClasses(element, resolveClass(current))
+  scheduleFlush()
+}
+
+const applyIdProp: ApplyProp = (element, _name, current) => {
+  requireEngine().__SetID(element, current === null || current === undefined ? null : String(current))
+  scheduleFlush()
+}
+
+const applyAttributeProp: ApplyProp = (element, name, current) => {
+  // Only `null` and `undefined` clear an attribute. **`false` is a value**, and
+  // passing it through is the whole difference between a runtime that can
+  // express Lynx and one that can nearly express it.
+  //
+  // The web habit is the opposite — `disabled={false}` means "no attribute",
+  // because HTML boolean attributes are true by their presence. Lynx is not
+  // HTML: `flatten`, `accessibility-element` and `accessibility-disabled` all
+  // default to something other than false, so `flatten={false}` is a stated
+  // opt-out and swallowing it leaves the element doing the opposite of what the
+  // source says. There is no way to write it back afterwards either, which is
+  // what makes this the runtime's decision rather than an app's.
+  const absent = current === null || current === undefined
+  requireEngine().__SetAttribute(element, name, absent ? null : toAttributeValue(name, current))
+  scheduleFlush()
+}
+
+/**
+ * Applies once for a plain value, or on every change for a getter.
+ *
+ * `apply` is one of the shared {@link ApplyProp} functions rather than a closure
+ * built for this one prop, and the element and name are threaded through to it.
+ * That is what lets a STATIC prop — most props, on most elements — be applied
+ * without allocating anything at all; only a getter pays for the one closure its
+ * effect genuinely needs. A thousand-row list is tens of thousands of props, all
+ * applied on the main thread in one frame, so the closures it does not build are
+ * the frame's to spend elsewhere.
+ */
+const bind = (element: LynxElement, name: string, value: unknown, apply: ApplyProp): void => {
   if (typeof value === 'function') {
     const get = value as () => unknown
-    effect(() => apply(get()))
+    effect(() => apply(element, name, get()))
     return
   }
-  apply(value)
+  apply(element, name, value)
 }

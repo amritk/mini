@@ -53,6 +53,37 @@ import { describe, expect, it } from 'vitest'
  * runtime is MAIN-THREAD: the work it saves is not work moved to a background
  * thread, it is work the frame no longer has to fit around.
  *
+ * It moved a fourth time, by 166 bytes (5559 → 5725 measured), for the two
+ * paths every row of every list runs through: binding an event and applying a
+ * prop. Both were paying for a general shape on every call and using it almost
+ * never. `add-event.ts` kept an element's listeners in a `Map` keyed by a
+ * `"type:name"` string it built per bind, and held every pair's handlers in a
+ * `Set` — a map of one and a set of one, on the elements an app actually
+ * builds; it now keeps a short array of pairs and stores a lone handler
+ * directly, growing the set only when a pair genuinely gains a second handler.
+ * `apply-prop.ts` built a fresh closure for every prop so that `bind` could
+ * decide static-or-reactive; the appliers are now shared module-level functions
+ * taking the element and name as arguments, so a STATIC prop — most props, on
+ * most elements — allocates nothing to be applied.
+ *
+ * Measured in isolation, against a host that does nothing, the two paths cost
+ * what they were meant to: binding and releasing a hundred thousand listeners
+ * went from 145 ms to 62 ms, and applying two hundred thousand static
+ * attributes from 18.9 ms to 2.8 ms. End to end through
+ * `scripts/bench-reconciler.ts` the same change reads smaller, because roughly
+ * half of that benchmark is the fake engine's own bookkeeping: creating ten
+ * thousand rows went from 260 ms to 185 ms, clearing a thousand from 5.6 ms to
+ * 4.6 ms, replacing a thousand from 28.1 ms to 23.8 ms, and creating a thousand
+ * from 21.6 ms to 19.8 ms — medians of three fifteen-sample runs, with the
+ * engine-call counts unchanged in every case. Reordering cases (swap, remove,
+ * select) are unchanged, which is the check that the story is the right one:
+ * they reconcile without building a row, so they bind no listener and apply no
+ * prop.
+ *
+ * Same reasoning as the third move: this is main-thread work the frame no
+ * longer has to fit around, and the garbage it stops making is garbage a real
+ * device's collector no longer walks.
+ *
  * It stays snug against the measured size on purpose. `/flow` is several times
  * the headroom and `/testing` is a complete Element PAPI, so a real leak cannot
  * hide in it. Raise it only for a deliberate, reviewed change to the core.
@@ -61,7 +92,7 @@ import { describe, expect, it } from 'vitest'
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** Gzipped-byte ceiling for the bundled `.` entry. */
-const GZIP_BUDGET = 5560
+const GZIP_BUDGET = 5726
 
 /** Subpath directories whose sources must never enter the core graph. */
 const SUBPATH_DIRS = ['flow/', 'composition/', 'router/', 'testing/', 'forms/', 'query/', 'bridge/']
