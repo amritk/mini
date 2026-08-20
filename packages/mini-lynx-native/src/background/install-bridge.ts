@@ -131,7 +131,12 @@ export const installNativeBridge = (options: InstallBridgeOptions = {}): (() => 
     }
 
     try {
-      const target = modules?.[module]
+      // Through the same screened lookup `resolveMethod` uses, rather than a
+      // second raw read of the registry. The raw one was safe only because
+      // `resolveMethod` throws on the line below before this value is ever
+      // applied — which is a guarantee that lives in the ORDER of two
+      // statements, and the next person to reorder them would not know that.
+      const target = lookupModule(module)
       const fn = resolveMethod(module, method)
 
       if (form === 'return') {
