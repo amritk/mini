@@ -89,6 +89,36 @@ describe('jsx-runtime', () => {
     expect(clicks).toEqual(['hit', 'hit'])
   })
 
+  it('never writes a string on* prop through as an inline handler', () => {
+    // `setAttribute('onclick', str)` is a script sink as live as innerHTML, and
+    // a spread of props that came from data is the ordinary way a string gets
+    // there. Blocking it is what keeps `grep bindHtml` a complete audit of this
+    // package's XSS surface.
+    const warnings: unknown[] = []
+    const warn = console.warn
+    console.warn = (...args: unknown[]) => warnings.push(args[1])
+    try {
+      const spread: Record<string, unknown> = { onclick: 'alert(1)', onClick: 'alert(2)', onerror: 'alert(3)' }
+      const el = (<div {...spread} />) as HTMLElement
+
+      expect(el.outerHTML).toBe('<div></div>')
+      expect(el.getAttribute('onclick')).toBeNull()
+      expect(warnings).toEqual(['onclick', 'onClick', 'onerror'])
+    } finally {
+      console.warn = warn
+    }
+  })
+
+  it('leaves an attribute that merely starts with "on" alone', () => {
+    // `once` and `online` are not handler slots on any element, so the guard
+    // above must not swallow a custom attribute for sharing two letters.
+    const custom: Record<string, unknown> = { once: 'true', online: 'yes' }
+    const el = (<div {...custom} />) as HTMLElement
+
+    expect(el.getAttribute('once')).toBe('true')
+    expect(el.getAttribute('online')).toBe('yes')
+  })
+
   it('calls ref with the fully built element', () => {
     let seen: HTMLElement | undefined
     const el = (

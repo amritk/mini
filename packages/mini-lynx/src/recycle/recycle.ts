@@ -379,6 +379,18 @@ const diff = (
   const beforeKeys = new Map(before.map((info, index) => [info['item-key'], index]))
   const afterKeys = new Set(after.map((info) => info['item-key']))
 
+  // Keying is the whole basis of this diff, so two rows under one key make it
+  // describe a list nobody has: the map keeps only the last index for a
+  // repeated key, and every row before it then reports as having MOVED from
+  // that index — on an update that changed nothing at all. Both `list()`
+  // implementations already say so out loud when their keys collide, and this
+  // is the same mistake with a stranger symptom, because a scroll position
+  // drifting is much harder to trace back to `itemKey` than a missing row is.
+  // Free to notice: the set is built either way.
+  if (afterKeys.size !== after.length) {
+    warn('recycle: duplicate itemKey values make the list inventory ambiguous; rows will appear to move on their own')
+  }
+
   const removeAction: number[] = []
   for (const [key, index] of beforeKeys) if (!afterKeys.has(key)) removeAction.push(index)
 

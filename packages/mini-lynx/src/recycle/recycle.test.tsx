@@ -357,4 +357,24 @@ describe('recycle', () => {
     expect(engine.findAll('list-item')).toHaveLength(before)
     setErrorHandler(null)
   })
+
+  it('warns when two rows share an itemKey', () => {
+    // The inventory diff is keyed, so a repeated key makes it describe a list
+    // nobody has: rows report as moving on an update that changed nothing.
+    // Both `list()` implementations already warn on a key collision; this is
+    // the same mistake with a symptom that is far harder to trace back.
+    const warnings: string[] = []
+    const warn = console.warn
+    console.warn = (message: string) => warnings.push(message)
+    try {
+      const rows = signal<Row[]>([
+        { id: 'same', label: 'A' },
+        { id: 'same', label: 'B' },
+      ])
+      setup(rows)
+      expect(warnings.some((message) => message.includes('duplicate itemKey'))).toBe(true)
+    } finally {
+      console.warn = warn
+    }
+  })
 })
