@@ -92,6 +92,35 @@ describe('create-form', () => {
     expect(form.isSubmitting()).toBe(false)
   })
 
+  it('ignores a second submit while the first is still in flight', async () => {
+    // `disabled={form.isSubmitting}` covers a double-click on the button, but
+    // only that button — `handleSubmit` is also wired to a key press and called
+    // by hand, and `onSubmit` is where an order gets placed.
+    let calls = 0
+    let resolveSubmit: (() => void) | undefined
+    const form = createForm({
+      initialValues: { name: 'Ada' },
+      onSubmit: () => {
+        calls++
+        return new Promise<void>((resolve) => (resolveSubmit = resolve))
+      },
+    })
+
+    const first = form.handleSubmit()
+    await form.handleSubmit()
+    expect(calls).toBe(1)
+
+    resolveSubmit?.()
+    await first
+    expect(form.isSubmitting()).toBe(false)
+
+    // The guard lifts once the first one settles, so the form is still usable.
+    const second = form.handleSubmit()
+    expect(calls).toBe(2)
+    resolveSubmit?.()
+    await second
+  })
+
   it('resets values and interaction state', () => {
     const form = createForm({ initialValues: { name: 'Ada' } })
     form.setValue('name', 'Grace')

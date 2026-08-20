@@ -363,8 +363,34 @@ const createElement = (tag: string): HTMLElement | SVGElement =>
  * the static and reactive paths so both behave identically.
  */
 const setAttribute = (element: Element, name: string, value: unknown): void => {
+  if (isEventAttribute(element, name)) {
+    console.warn('[mini] refusing to write an inline event handler attribute:', name)
+    return
+  }
   if (value === false || value === null || value === undefined) element.removeAttribute(name)
   else element.setAttribute(name, value === true ? '' : String(value))
+}
+
+/**
+ * Whether writing this name would install an INLINE event handler — a string
+ * the browser compiles and runs.
+ *
+ * This is the one name shape that is never written through, and it is a safety
+ * rule rather than a tidiness one. `setAttribute('onclick', someString)` is a
+ * script sink every bit as live as `innerHTML`, and the ordinary way a string
+ * reaches it is a `{...props}` spread carrying data nobody audited. Letting it
+ * through would mean markup injection on a path `grep bindHtml` does not find,
+ * and the whole XSS story here rests on that grep being complete.
+ *
+ * A real handler never arrives here: `jsx` binds a function-valued `on…` prop
+ * with `addEventListener` before any of this is reached, which is also why the
+ * test is on the element rather than on the name alone. `onclick` is a slot
+ * every element has and `once` is not a slot at all, so a custom attribute that
+ * merely starts with those two letters keeps working.
+ */
+const isEventAttribute = (element: Element, name: string): boolean => {
+  const lower = name.toLowerCase()
+  return lower.startsWith('on') && lower in element
 }
 
 /**

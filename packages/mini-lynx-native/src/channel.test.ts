@@ -191,4 +191,47 @@ describe('channel', () => {
 
     await expect(pending).rejects.toThrow(/reset before this call was answered/)
   })
+
+  it('never settles a fresh call with a reply left over from before a reset', async () => {
+    const contexts = createFakeContexts()
+    setPeerContext(contexts.mainThread)
+
+    // A method that keeps its callback rather than answering, so a reply can be
+    // made to arrive after the reset that rejected the call it belongs to.
+    const held: ((value: unknown) => void)[] = []
+    uninstall = installNativeBridge({
+      peer: contexts.background,
+      modules: { StorageModule: { hold: (done: (value: unknown) => void) => held.push(done) } },
+    })
+
+    const abandoned = callNativeAsync('StorageModule', 'hold')
+    await expect(
+      (async () => {
+        resetNativeChannel()
+        await abandoned
+      })(),
+    ).rejects.toThrow(/reset before this call was answered/)
+
+    setPeerContext(contexts.mainThread)
+    const fresh = callNativeAsync('StorageModule', 'hold')
+
+    // The abandoned call finally answers. It must not be mistaken for this one:
+    // ids restarting at 1 used to hand this result straight to `fresh`.
+    held[0]?.('stale')
+
+    const raced = await Promise.race([fresh, Promise.resolve('still pending')])
+    expect(raced).toBe('still pending')
+  })
+
+  it('does not mistake a name off Object.prototype for a linked module', async () => {
+    setup()
+
+    // `NativeModules.constructor` is `Object` and `NativeModules.toString` is a
+    // function, so a plain property read would call both of these linked.
+    await expect(isNativeModuleAvailable('constructor')).resolves.toBe(false)
+    await expect(isNativeModuleAvailable('toString')).resolves.toBe(false)
+    await expect(isNativeModuleAvailable('StorageModule', 'hasOwnProperty')).resolves.toBe(false)
+    await expect(callNative('constructor', 'call')).rejects.toThrow(/is not linked into this app/)
+    await expect(callNative('StorageModule', 'valueOf')).rejects.toThrow(/has no method "valueOf"/)
+  })
 })

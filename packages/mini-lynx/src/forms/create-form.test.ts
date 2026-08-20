@@ -126,6 +126,35 @@ describe('create-form', () => {
     expect(form.field('email').error()).toBeUndefined()
   })
 
+  it('ignores a second submit while the first is still in flight', async () => {
+    // There is no form element and no platform `disabled` here, so
+    // `handleSubmit` hangs off a `bindtap` with nothing between a second tap
+    // and a second `onSubmit` — which is where an order gets placed.
+    let calls = 0
+    let resolveSubmit: (() => void) | undefined
+    const form = createForm({
+      initialValues: { name: 'Ada' },
+      onSubmit: () => {
+        calls++
+        return new Promise<void>((resolve) => (resolveSubmit = resolve))
+      },
+    })
+
+    const first = form.handleSubmit()
+    await form.handleSubmit()
+    expect(calls).toBe(1)
+
+    resolveSubmit?.()
+    await first
+    expect(form.isSubmitting()).toBe(false)
+
+    // The guard lifts once the first one settles, so the form is still usable.
+    const second = form.handleSubmit()
+    expect(calls).toBe(2)
+    resolveSubmit?.()
+    await second
+  })
+
   it('restores everything on reset', async () => {
     const form = createForm({
       initialValues: { email: '' },

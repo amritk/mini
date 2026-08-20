@@ -45,7 +45,7 @@ export const createURL = (scheme: string, path = '', options: CreateURLOptions =
 
   // A host and a path both want the `/` between them; a path with no host is
   // the `myapp://profile/42` shape, where the first segment IS the authority.
-  const base = `${scheme}://${encodeURI(host)}${host && segments ? '/' : ''}${segments}`
+  const base = `${scheme}://${encodeAuthority(host)}${host && segments ? '/' : ''}${segments}`
 
   const search = Object.entries(query)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
@@ -53,3 +53,18 @@ export const createURL = (scheme: string, path = '', options: CreateURLOptions =
 
   return `${base}${search ? `?${search}` : ''}${fragment ? `#${encodeURIComponent(fragment)}` : ''}`
 }
+
+/**
+ * Encodes an authority without destroying the punctuation that belongs in one.
+ *
+ * `encodeURIComponent` is too strong here — it would eat the `:` in
+ * `localhost:3000` and the brackets around an IPv6 address — and `encodeURI` is
+ * too weak, because it leaves `/`, `?` and `#` alone and those are exactly the
+ * three characters that END an authority. A host carrying one of them would not
+ * be a badly encoded host, it would be a different URL: `{ host: 'a?b' }` turns
+ * the rest of the link into that host's query string, and the `query` this
+ * function was asked to append lands after a `?` that is already there.
+ *
+ * So encode the delimiters and leave the rest to `encodeURI`.
+ */
+const encodeAuthority = (host: string): string => encodeURI(host).replace(/[/?#]/g, encodeURIComponent)
