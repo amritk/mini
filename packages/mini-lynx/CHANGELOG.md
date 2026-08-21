@@ -1,5 +1,70 @@
 # @amritk/mini-lynx
 
+## 0.4.1
+
+### Patch Changes
+
+- 384672c: `handleSubmit` now ignores a second submit while the first is still in flight.
+
+  `isSubmitting` was tracked but never consulted, so two taps ran `onSubmit`
+  twice. The documented `disabled={form.isSubmitting}` covers a double-click on
+  that one button, but `handleSubmit` is also wired straight to a confirm key and
+  called by hand — and on Lynx there is no form element and no platform
+  `disabled` at all, so a `bindtap` had nothing between a second tap and a second
+  `onSubmit`. That is where an order gets placed. The guard lifts as soon as the
+  first submit settles, so a form stays usable after a failed save.
+
+- 03b0f61: Cut the allocations out of binding an event and applying a prop — the two
+  things every row of every list does.
+
+  `addEvent` kept each element's listeners in a `Map` keyed by a `"type:name"`
+  string it built on every bind, and held each pair's handlers in a `Set`. Both
+  are the right shape for the case the module exists for — several handlers
+  fanned out from one dispatcher — and the wrong shape for the case it spends its
+  time in, which is one element, one pair, one handler. It now keeps a short
+  array of pairs and stores a lone handler directly on its registration,
+  promoting to a `Set` only when a pair genuinely gains a second handler. The
+  fan-out behaviour is unchanged: handlers stay isolated, dispatch still walks a
+  copy when there is more than one, and the engine still sees exactly one
+  dispatcher per pair. Detaching now matches its registration by identity rather
+  than looking it up again by name, so a stale dispose cannot reach into a fresh
+  registration that a re-bind put in its place.
+
+  `applyProp` built a fresh closure for every prop so `bind` could decide
+  static-or-reactive from it. The appliers are now shared module-level functions
+  that take the element and the name as arguments, so a static prop — most props,
+  on most elements — allocates nothing at all to be applied, and only a getter
+  pays for the one closure its effect needs. A `show` getter is also read once per
+  update now instead of twice.
+
+  Measured against a host that does nothing, binding and releasing 100,000
+  listeners went from 145 ms to 62 ms, and applying 200,000 static attributes from
+  18.9 ms to 2.8 ms. Through `scripts/bench-reconciler.ts`, where about half the
+  time is the fake engine's own bookkeeping, creating 10,000 rows went from 260 ms
+  to 185 ms and clearing 1,000 from 5.6 ms to 4.6 ms, with the engine-call counts
+  unchanged in every case. The core entry grew 166 gzipped bytes for it, and the
+  budget in `core-size-budget.test.ts` records the trade.
+
+- 1197d3f: Close an inline-handler injection in the JSX runtime, and say something when a
+  recycling list's keys collide.
+
+  `@amritk/mini` no longer writes an `on…` prop through as an attribute when its
+  value is not a function. `setAttribute('onclick', someString)` installs an
+  inline handler — script the browser compiles and runs — and the ordinary way a
+  string got there was a `{...props}` spread carrying data nobody audited. That
+  was markup injection on a path `grep bindHtml` does not find, which is the grep
+  this package's whole XSS story rests on. The name is tested against the element,
+  so a custom attribute that merely starts with those two letters (`once`,
+  `online`) is untouched, and a function-valued handler still binds through
+  `addEventListener` exactly as before.
+
+  `@amritk/mini-lynx`'s `recycle` now warns when two rows share an `itemKey`. The
+  inventory diff is keyed, so a repeat made it describe a list nobody has: the map
+  keeps only the last index for a duplicated key, and every earlier row then
+  reports as having moved from it — on an update that changed nothing. Both
+  `list()` implementations already warn on a key collision; this is the same
+  mistake with a symptom much harder to trace back.
+
 ## 0.4.0
 
 ### Minor Changes
