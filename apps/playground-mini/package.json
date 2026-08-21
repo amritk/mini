@@ -1,6 +1,6 @@
 {
   "name": "@amritk/playground-mini",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "Kitchen-sink playground for @amritk/mini, deployed to Cloudflare Workers as a static SPA.",
   "type": "module",
