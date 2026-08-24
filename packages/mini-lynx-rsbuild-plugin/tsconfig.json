@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // A build-time plugin: it runs under Node, in the app's toolchain, and
+    // never in the engine. Unlike every other package here it is allowed the
+    // Node globals, and needs them — the background stub is resolved from disk.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

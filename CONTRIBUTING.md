@@ -21,19 +21,24 @@ You'll need [Bun](https://bun.sh) ≥ 1.1.
 | `bun run format` | Auto-format with biome |
 | `bun run check:reactivity` | Catch signals frozen by being called in JSX |
 | `bun run check:ai-docs` | Check every package's `AI.md` against what it publishes |
-| `bun run types:check` | Type-check both packages and both playgrounds |
-| `bun run build` | Build both packages and both playgrounds |
+| `bun run types:check` | Type-check every package and every app |
+| `bun run build` | Build every package and every app |
 | `bun run test:dist` | Load, drive and npm-install the built artifacts (needs a prior build) |
 
 Per package: `bun run --filter='@amritk/mini' test` (and `build`, `types:check`).
 
-`bun run test` covers `packages/*` only — the kitchen-sink playgrounds under
-`apps/` carry no tests of their own, and `bun run build` / `bun run types:check`
-are what keep them honest. Run one with
+`bun run test` covers `packages/*` plus the two apps that have suites of their
+own; `apps/playground-mini` has none, and `bun run build` / `bun run types:check`
+are what keep it honest. Run one with
 `bun run --filter='@amritk/playground-mini' dev`, and see
 [`apps/playground-mini`](./apps/playground-mini/README.md) and
 [`apps/playground-mini-lynx`](./apps/playground-mini-lynx/README.md) for what
 each demonstrates.
+
+`apps/starter-mini-lynx` is the odd one out: not a playground but a four-file
+starter that rspeedy builds into a real `.lynx.bundle` for
+[Lynx Explorer](./docs/mini-lynx-explorer.md). `bun run --filter='@amritk/starter-mini-lynx' dev`
+prints a QR code rather than opening a browser.
 
 ## Workflow
 

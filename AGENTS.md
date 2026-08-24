@@ -80,11 +80,28 @@ both re-export it from the subpath it already lived on.
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 
+One package is not a runtime at all:
+[`packages/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin) —
+`@amritk/mini-lynx-rsbuild-plugin`, the rspeedy build for a mini-lynx app. It
+runs on a laptop rather than on a phone, and it exists because a Lynx template
+is a container with two code slots rather than a bundle with an entry point:
+which code goes in which slot is the framework's to say, ReactLynx says it in
+`@lynx-js/react-rsbuild-plugin`, and there is no framework-agnostic plugin
+underneath to reuse. Its own `AGENTS.md` carries the invariants; the loop it
+serves, and what about that loop has and has not been verified, is
+[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md).
+
 Alongside them sit two private kitchen-sink playgrounds — `apps/playground-mini`
 and `apps/playground-mini-lynx` — that exercise every public entry point and
 deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
+
+A third app, `apps/starter-mini-lynx`, is a **starter** rather than a
+playground: four files, built by rspeedy into a real `.lynx.bundle` and opened
+on a device through Lynx Explorer. It is the build plugin's playground in the
+sense the rule below means — the only place that package is used the way a
+consumer uses it — and the only app here that does not run in a browser.
 
 `apps/playground-mini-lynx` covers the bridge and all five native modules too,
 which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
@@ -103,6 +120,13 @@ and every composition-level defect this repo has found was found there rather
 than in a suite. A package with no screen is a package nobody has actually
 tried.
 
+The rule is about *being used like a consumer uses it*, not about the screen.
+`@amritk/mini-lynx-rsbuild-plugin` has no runtime surface to render, so its
+equivalent is `apps/starter-mini-lynx`: a real app that builds through it, plus
+a test that runs one real rspeedy build and drives the artifact. A build-time
+package is finished when a change to it can break something a consumer would
+notice, in this repo, without a device.
+
 ## Workflow
 
 ```bash
@@ -112,8 +136,8 @@ bun run check               # biome lint + format check
 bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
 bun run check:ai-docs       # every package's AI.md against what that package actually exports
 bun run check:android       # compile the notifications Kotlin (needs ANDROID_HOME; skips without)
-bun run types:check         # type-check both packages and both playgrounds
-bun run build               # build both packages and both playgrounds
+bun run types:check         # type-check every package and every app
+bun run build               # build every package and every app (the starter builds a .lynx.bundle)
 bun run test:dist           # load and drive the built dist/ artifacts (needs a prior build)
 bun run bench -- --baseline <dir>   # bundle-size delta against another checkout
 ```

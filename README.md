@@ -24,7 +24,13 @@ shapes:
 | **[`@amritk/mini`](./packages/mini)** | The DOM. Reactive bindings, keyed lists, static-template cloning, and a compilerless JSX runtime. |
 | **[`@amritk/mini-lynx`](./packages/mini-lynx)** | **Lynx**, through its Element PAPI. The engine's own elements, attributes and events — no vocabulary in between. |
 
-A third package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
+Getting a Lynx app onto a phone takes one more package —
+**[`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin)**,
+the [rspeedy](https://lynxjs.org/rspeedy) build for a mini-lynx app: two chunks,
+one `.lynx.bundle`, and a QR code Lynx Explorer scans. See
+[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md).
+
+A third runtime package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
 handful of helpers that turned out identical in both — route matching, query
 parsing, JSON Schema compilation. Both packages depend on it and re-export it, so
 you never import it directly; it is separate only because its charter is worth
@@ -125,6 +131,8 @@ package READMEs:
   subpaths.
 - [`@amritk/mini-helpers`](./packages/mini-helpers/README.md) — the pure helpers
   both of the above share, and the bar for adding to them.
+- [`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin/README.md)
+  — the rspeedy build: `rspeedy dev`, a QR code, and the app on your phone.
 
 ## Playgrounds
 
@@ -143,6 +151,15 @@ entry point of its package and deployed to Cloudflare Workers as a static SPA:
 ```sh
 bun run --filter '@amritk/playground-mini' dev
 bun run --filter '@amritk/playground-mini-lynx' dev
+```
+
+A third app is not a playground but a **starter**:
+[`starter-mini-lynx`](./apps/starter-mini-lynx/README.md) — four files, built by
+rspeedy into a real `.lynx.bundle` and opened on a phone through Lynx Explorer.
+It is the only app here that runs on a device rather than in a browser.
+
+```sh
+bun run --filter '@amritk/starter-mini-lynx' dev    # prints a QR code
 ```
 
 ## For AI agents & LLMs
