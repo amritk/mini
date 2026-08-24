@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // The one package here that is allowed a browser wholesale. Everything else
+    // withholds `lib.dom` because Lynx's main-thread context is not a browser
+    // and a stray `document` there is a bug on the only target that ships —
+    // this package IS the browser standing in for that engine, so the DOM is
+    // its subject rather than a leak. No Node types: nothing here runs in one.
+    "lib": ["ESNext", "DOM"],
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

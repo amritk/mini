@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+
+    // The DOM libs are here for `src/preview/`, which is the browser half of
+    // this project. Device code must not name `document` or `window`: Lynx's
+    // main-thread context is not a browser, and the compiler cannot tell you
+    // that while both halves share one config. Keep the browser in `preview/`.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    // The compilerless JSX runtime: `<view>` compiles to a call into
+    // `@amritk/mini-lynx/jsx-runtime`, which creates a real element once and
+    // then mutates it. There is no virtual tree and no diffing pass.
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini-lynx"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

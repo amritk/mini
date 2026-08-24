@@ -22,7 +22,9 @@ abstraction the package owned, with the browser and the device as two peer
 targets. That abstraction is gone — the package targets Lynx and nothing else —
 so the preview drops one level down and implements the **engine's** API instead.
 
-`src/lib/dom-papi.ts` is that implementation. It is the same move Lynx itself
+[`@amritk/mini-lynx-preview`](../../packages/mini-lynx-preview) is that
+implementation, and it is a published package rather than a file in this app —
+`src/main.tsx` asks it for an engine and hands the engine to `setEngine`. It is the same move Lynx itself
 makes in `@lynx-js/web-platform`, where `web-core` reimplements the Element PAPI
 in JavaScript over custom elements; this is a small, honest subset of the same
 idea. The important consequence is that the relationship is no longer symmetric:
@@ -44,7 +46,7 @@ otherwise imply otherwise:
 The runtime is only half of what a Lynx app touches. `NativeModules` and
 `GlobalEventEmitter` live in the **background** JavaScript context, which a
 browser does not have either — so `src/lib/fake-device.ts` stands in for it the
-way `dom-papi.ts` stands in for the engine.
+way the preview package stands in for the engine.
 
 It is wiring rather than invention. Each native package publishes the fake its
 own suite runs against — `@amritk/lynx-location/testing` and the four beside
@@ -145,7 +147,7 @@ CSS: classes carry everything static and an inline `style` prop carries what is
 genuinely dynamic. The previous version deliberately had no stylesheet at all,
 since a five-tag vocabulary's only portable channel was a bag of numbers. The
 rules that exist only to make a *browser* lay out like Lynx are kept separately,
-in `src/lib/install-lynx-reset.ts`, so `styles.css` stays something you could
+in the preview package's own reset, so `styles.css` stays something you could
 ship to a device.
 
 **Dark mode is a class, not a media query.** Lynx has no `@media` and no

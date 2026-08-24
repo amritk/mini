@@ -77,6 +77,20 @@ it imports neither package, and its charter is **no reactivity, no platform**,
 enforced by `src/purity.test.ts`. Neither package's public surface changed —
 both re-export it from the subpath it already lived on.
 
+Two more are about *getting started* rather than about running an app.
+[`packages/mini-lynx-preview`](./packages/mini-lynx-preview) —
+`@amritk/mini-lynx-preview`, Lynx's Element PAPI implemented over the DOM, so an
+app runs in a browser tab unmodified. It was `apps/playground-mini-lynx/src/lib/`
+until something outside this repo needed it: a scaffolded app cannot import a
+private app's `src/`. It imports the runtime for **types only**, so the wiring —
+`setEngine`, `mount` — stays in the app and a preview can never hand an engine to
+a second copy of the runtime. And
+[`packages/create-mini-lynx`](./packages/create-mini-lynx) —
+`@amritk/create-mini-lynx`, `bun create @amritk/mini-lynx my-app`: a template
+copied to a directory, then the user's package manager, ending at a running
+device-framed preview. It builds no Lynx bundle and says so; a physical device
+still needs a host application and a template-format bundler.
+
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 
@@ -85,6 +99,11 @@ and `apps/playground-mini-lynx` — that exercise every public entry point and
 deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
+
+The playground previews through `@amritk/mini-lynx-preview`, the same package a
+scaffolded app boots on — so the engine under the kitchen sink and the engine
+under a five-minute-old starter are one implementation, and a defect in it
+surfaces in the app with eighteen screens rather than in the one with a counter.
 
 `apps/playground-mini-lynx` covers the bridge and all five native modules too,
 which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
@@ -102,6 +121,14 @@ only place in the repository where a package is used the way a consumer uses it,
 and every composition-level defect this repo has found was found there rather
 than in a suite. A package with no screen is a package nobody has actually
 tried.
+
+The rule is about *runtime surface*, and two packages have none to demo.
+`@amritk/mini-lynx-preview` is what the playground itself boots on, which is a
+stronger statement than a screen would be — every screen is a test of it.
+`@amritk/create-mini-lynx` produces a directory of files rather than an API; its
+equivalent guard is `template.test.ts` plus the fact that the app it writes is
+the same wiring the playground uses. Neither is a precedent for a package that
+*does* have a surface.
 
 ## Workflow
 

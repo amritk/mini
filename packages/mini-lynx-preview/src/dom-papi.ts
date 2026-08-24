@@ -7,8 +7,8 @@ import { elementUniqueId, LYNX_EVENTS, toLynxEvent } from './to-lynx-event'
 /**
  * Lynx's Element PAPI, implemented over the DOM.
  *
- * The playground is a native app. It has no device in the loop and it deploys
- * as a static page, so something has to stand in for the engine — and the
+ * A Lynx app has no device in the loop until someone puts one there, so
+ * something has to stand in for the engine in the meantime — and the
  * interesting question is at which level. The old answer was a DOM *host*: a
  * second renderer behind an abstraction both targets implemented, which meant
  * every feature was written twice and the two could disagree. That abstraction

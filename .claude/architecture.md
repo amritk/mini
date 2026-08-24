@@ -38,7 +38,9 @@ mini/
 │   ├── lynx-location/          # @amritk/lynx-location — the second, built from its shape
 │   ├── lynx-dialogs/           # @amritk/lynx-dialogs — the third: date picker, sheet, alert
 │   ├── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
-│   └── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
+│   ├── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
+│   ├── mini-lynx-preview/      # @amritk/mini-lynx-preview — that Element PAPI, over the DOM
+│   └── create-mini-lynx/       # @amritk/create-mini-lynx — one command to an app on that preview
 ├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -417,6 +419,65 @@ most: the uninstall behaviour, the restore behaviour and the locked-screen
 behaviour are all platform behaviours, and all three are what the package is
 *for*. The caveat is carried in its `README.md`, `AI.md` and `AGENTS.md` exactly
 as its siblings carry theirs.
+
+### `@amritk/mini-lynx-preview` (`packages/mini-lynx-preview`)
+
+Lynx's Element PAPI, implemented over the DOM, so a `@amritk/mini-lynx` app runs
+in a browser tab unmodified. It lived in `apps/playground-mini-lynx/src/lib/`
+until `create-mini-lynx` needed the same engine — a scaffolded app cannot import
+a private app's `src/`, and a second copy of a shim this exact is a second thing
+to be wrong.
+
+- **One entry.** `createDomPapi` (the engine, for `setEngine`), `installLynxReset`
+  and `LYNX_ROOT_ATTRIBUTE` (the scoped stylesheet that makes browser defaults
+  Lynx defaults, and the attribute it keys on), and
+  `createVisualViewportEmitter` (the soft keyboard, which Lynx does not report
+  on the web).
+- **Types only from `@amritk/mini-lynx`.** Every import of the runtime is
+  `import type`, so the package holds no runtime edge onto it and the three lines
+  of wiring stay in the app. A preview that called `setEngine` itself would call
+  it on whichever copy of the runtime *it* resolved, which in a consumer's app
+  can be a different copy from the one the app imported — and the symptom is a
+  blank screen with no error in it. The peer dependency keeps the types honest
+  without adding the edge.
+- **It is the engine, not a host.** The abstraction it replaced was a DOM
+  *host*: a framework interface with two implementations, either of which could
+  be the odd one out. Implementing the engine's own API instead makes the
+  relationship asymmetric on purpose — the browser emulates Lynx, so a
+  disagreement is the preview's fault. Lynx makes the same move in
+  `@lynx-js/web-platform`; this is a small honest subset of it, sized for a dev
+  loop.
+- **Four blind spots, each documented at the line that causes it:** a missing
+  `__FlushElementTree` (the DOM is eager), element creation (`__CreateElement`
+  loses the per-tag creators' meaning, and the engine's own web port has the
+  same blind spot), layout (`linear-weight` and the `relative-*` family have no
+  CSS equivalent), and the background thread (a string handler has nowhere to
+  route to, so it is reported rather than dropped).
+- **Depends on:** nothing at runtime. `@amritk/mini-lynx` is a peer, for types.
+
+### `@amritk/create-mini-lynx` (`packages/create-mini-lynx`)
+
+`bun create @amritk/mini-lynx my-app` — the one command that ends with a running
+app. A template copied into a directory, then the user's package manager.
+
+- **Two halves.** `scaffold.ts` is the filesystem (copy, undo npm's dotfile
+  renaming, write the package name) and prints nothing; `cli.ts` is argument
+  parsing, the install and the output. That split is what makes the interesting
+  half testable without a subprocess, and `scaffold` usable from another
+  generator.
+- **No dependencies.** A scaffolder that installs a tree of its own before
+  writing a file is the slowest step in the experience it exists to make fast.
+- **The template is a real app, not a fixture.** It installs, type-checks and
+  builds on its own, and the only edit made on the way out is `package.json`'s
+  `name`. Its `src/preview/` is the browser stand-in; everything above it —
+  `app.tsx`, `styles.css`, `device.ts` — is what would ship to a device, and
+  `template.test.ts` asserts that half names no browser global.
+- **What it deliberately does not do:** build a Lynx bundle. That needs a Lynx
+  host application and a template-format bundler, so the honest claim is a
+  device-framed *preview*, and the generated `README.md` makes it in those
+  words. `src/device.ts` is the two-line entry a device build would use.
+- **Depends on:** nothing. The app it writes depends on `@amritk/mini-lynx` and,
+  for development, `@amritk/mini-lynx-preview`.
 
 ## The playgrounds (`apps/`)
 

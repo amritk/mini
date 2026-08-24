@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // A CLI, so this is the one package here that is allowed Node: it reads a
+    // template off disk and spawns a package manager. No DOM — the app it
+    // writes has a browser in it, this does not.
+    "lib": ["ESNext"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

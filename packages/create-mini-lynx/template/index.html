@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Inline, so a fresh project starts with a clean console rather than a
+         404 for a favicon nobody asked for. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%233b5bfd'/><circle cx='16' cy='16' r='6' fill='white'/></svg>"
+    />
+    <title>mini-lynx app</title>
+  </head>
+  <body>
+    <div class="preview">
+      <header class="preview-bar">
+        <span class="preview-name">mini-lynx</span>
+        <label class="preview-field">
+          <span>Device</span>
+          <select id="device"></select>
+        </label>
+        <span class="preview-note">a browser standing in for a device</span>
+      </header>
+
+      <!--
+        The device frame is browser chrome and nothing else: the app inside it
+        knows only about Lynx. `#app` is what the Element PAPI attaches its page
+        element to — see src/preview/main.ts.
+      -->
+      <div class="device">
+        <div class="device-notch"></div>
+        <div class="device-screen"><div id="app"></div></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/preview/main.ts"></script>
+  </body>
+</html>

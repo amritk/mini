@@ -529,6 +529,104 @@ an optional, types-only peer — install it to get the tag typings.
 
 ---
 
+# AI.md — @amritk/create-mini-lynx
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
+
+## Mental model
+
+A scaffolder. It copies a template — a complete, installable
+`@amritk/mini-lynx` app — into a new directory, renames the dotfiles npm
+mangles, and writes the package name. Then the CLI runs the user's package
+manager.
+
+The generated app's `bun run dev` serves it inside a device frame through
+[`@amritk/mini-lynx-preview`](../mini-lynx-preview), a browser implementation of
+Lynx's Element PAPI. **It does not build a Lynx bundle and cannot put the app on
+a physical device** — that needs a Lynx host application and a template-format
+bundler, neither of which this package ships.
+
+## The command
+
+```sh
+bun create @amritk/mini-lynx my-app          # bun
+npm create @amritk/mini-lynx@latest my-app   # npm, pnpm, yarn — same package
+
+# flags
+--pm <bun|npm|pnpm|yarn>   which package manager installs (default: the one running this)
+--no-install               write the files and stop
+--start                    boot the dev server when the install finishes (refused with --no-install)
+-h, --help / -v, --version
+```
+
+The directory argument defaults to `mini-lynx-app`. A non-empty target
+directory is refused, not merged into.
+
+## The surface, in full
+
+```ts
+import {
+  DEFAULT_NAME,
+  scaffold,
+  templateDirectory,
+  toPackageName,
+  type ScaffoldOptions,
+  type ScaffoldResult,
+} from '@amritk/create-mini-lynx'
+
+type ScaffoldOptions = {
+  directory: string             // created if missing; must be empty if it exists
+  name?: string                 // package.json name; defaults to toPackageName(basename(directory))
+  templateDirectory?: string    // defaults to the template this package ships
+}
+type ScaffoldResult = { directory: string; name: string; files: string[] }
+
+scaffold(options: ScaffoldOptions): Promise<ScaffoldResult>
+templateDirectory(): string     // the shipped template's absolute path
+toPackageName(raw: string): string   // a directory name → something npm accepts
+DEFAULT_NAME: 'mini-lynx-app'   // the fallback when a name cannot be salvaged
+```
+
+`scaffold` is the filesystem half on its own: it parses no arguments, runs no
+install and prints nothing, so a generator can drive it directly.
+
+## What the generated app looks like
+
+```
+src/app.tsx               the app — runs unchanged on a device
+src/styles.css            real CSS; ships to a device
+src/device.ts             renderPage(App) — the device entry, nothing bundles it yet
+src/preview/main.ts       the browser entry: createDomPapi → setEngine → mount
+src/preview/frame.css     the phone frame; browser chrome
+src/preview/device-switcher.ts  the size picker; browser chrome
+```
+
+Scripts: `dev`, `build`, `preview`, `types:check`. Dependencies:
+`@amritk/mini-lynx`, plus `@amritk/mini-lynx-preview`, `@lynx-js/types`,
+`typescript` and `vite` for development.
+
+## Gotchas
+
+- **`scaffold` throws on a non-empty directory.** That is deliberate: a
+  half-overwrite destroys work a copy cannot undo. Check or empty the directory
+  first.
+- **The template stores `_gitignore`, not `.gitignore`.** npm renames a
+  published `.gitignore` to `.npmignore` inside a tarball, so a template holding
+  the real name ships without it. `scaffold` renames it back — if you copy the
+  template yourself, you have to as well.
+- **The template's `@amritk/*` dependencies are `latest`.** Nothing in this repo
+  bumps a range inside a template on release, so a pinned one would go stale
+  silently. Pin them yourself after scaffolding if you need a reproducible
+  install.
+- **The preview is not a device, and not a web target either.** For a real web
+  build, Lynx ships `@lynx-js/web-platform`.
+- **The scaffolder has no dependencies.** Keep it that way if you extend it —
+  an install of its own is the slowest step in the experience it exists to make
+  fast.
+
+---
+
 # AI.md — @amritk/lynx-deep-linking
 
 For an LLM consuming this package. Editing the repo instead? See
@@ -1611,3 +1709,126 @@ import { createFakeContexts, createFakeEmitter } from '@amritk/mini-lynx-native/
 - **Nothing here is reactive.** No signals, deliberately — a second edge onto the
   signal engine gives a consumer two reactive graphs that cannot see each
   other's writes. Wire a promise into your own signal in one line.
+
+---
+
+# AI.md — @amritk/mini-lynx-preview
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
+
+## Mental model
+
+A `@amritk/mini-lynx` app talks to exactly one thing: Lynx's **Element PAPI**,
+about thirty functions a device injects as globals. This package implements
+those functions over the DOM, so the same app runs in a browser tab with nothing
+about it changed — same tags, same attribute names, same event names, same
+worklet dispatch. It is a *dev-time* dependency: a device build never imports it.
+
+The relationship is not symmetric. **The browser is emulating Lynx**, so when
+the two disagree the preview is what is wrong.
+
+## Minimal example
+
+```ts
+import { mount, pageElement, setEngine } from '@amritk/mini-lynx'
+import { createDomPapi } from '@amritk/mini-lynx-preview'
+
+setEngine(createDomPapi({ root: document.getElementById('app') ?? undefined }))
+mount(pageElement(), App)
+```
+
+On a device those three lines are `renderPage(App)` and nothing else: the engine
+is already injected and calls the entry point itself.
+
+The wiring stays in **your** app on purpose. This package imports
+`@amritk/mini-lynx` for types only and holds no runtime reference to it, so it
+cannot call `setEngine` on a second copy of the runtime and leave the copy your
+app imported with no engine at all — the failure that shape of helper produces
+is a blank screen with no error in it.
+
+## The surface, in full
+
+```ts
+import {
+  createDomPapi,
+  createVisualViewportEmitter,
+  installLynxReset,
+  LYNX_ROOT_ATTRIBUTE,
+  type DomPapiOptions,
+} from '@amritk/mini-lynx-preview'
+
+type DomPapiOptions = {
+  root?: HTMLElement                                    // defaults to document.body
+  onPublishEvent?: (name: string, handler: string) => void  // defaults to one console warning
+}
+createDomPapi(options?: DomPapiOptions): LynxElementApi   // the engine, for setEngine()
+installLynxReset(document: Document): void                // idempotent; createDomPapi calls it
+LYNX_ROOT_ATTRIBUTE: 'data-lynx-root'                     // marks the element the reset is scoped to
+createVisualViewportEmitter(): KeyboardEmitter            // for trackKeyboard({ emitter })
+```
+
+`LynxElementApi` and `KeyboardEmitter` are `@amritk/mini-lynx`'s own types, from
+`@amritk/mini-lynx/engine` and `@amritk/mini-lynx/keyboard`.
+
+## The keyboard, which needs one extra line
+
+Lynx reports the soft keyboard through `keyboardstatuschanged` on the engine's
+`GlobalEventEmitter`, and that event is unsupported on the web — so a preview
+would otherwise never hear about a keyboard at all and `<KeyboardAvoiding>`
+would sit there, correct and motionless. `createVisualViewportEmitter()` reports
+it from `visualViewport` instead:
+
+```ts
+import { trackKeyboard } from '@amritk/mini-lynx/keyboard'
+trackKeyboard({ emitter: createVisualViewportEmitter() })   // on a device: trackKeyboard()
+```
+
+## Rendering into the page from outside the runtime
+
+`Portal` takes a container you own. Anything you create for it has to carry
+`LYNX_ROOT_ATTRIBUTE`, or the preview's scoped layout reset does not apply to it
+and the subtree lays out like HTML rather than like Lynx:
+
+```ts
+const layer = document.createElement('view')
+layer.setAttribute(LYNX_ROOT_ATTRIBUTE, '')
+```
+
+## Gotchas
+
+- **A green preview is not a green device.** Four things this target is
+  structurally blind to: a missing `__FlushElementTree` (the DOM is eager, so an
+  uncommitted mutation still appears), anything element-creation-specific (on a
+  device `__CreateElement('view')` builds a node that is not really a view; in a
+  browser every tag is a custom element), layout (linear is approximated with
+  flex, and `linear-weight` and the `relative-*` family have no CSS equivalent),
+  and propagation for non-touch events (Lynx's response chain is a single node
+  for anything that is not a touch, so `scroll` does not bubble there and does
+  here).
+- **String event handlers cannot be delivered.** They name a handler in the
+  *background* JavaScript context, which a browser does not have. They are
+  reported through `onPublishEvent` — one console warning per handler name by
+  default — rather than silently dropped. Worklet handlers, which is what this
+  runtime registers, run normally.
+- **Elements keep their Lynx names.** `__CreateElement('view')` produces
+  `<view>`, not a `<div>`, so the browser inspector shows the tree the Lynx
+  devtool would. The browser therefore knows nothing about any of these tags,
+  which is what `installLynxReset` is for — it is scoped to the page element, so
+  the rest of the host page keeps its ordinary web defaults.
+- **`installLynxReset` is already called for you** by `createDomPapi`, once per
+  document. Call it directly only when you render Lynx tags into a document the
+  PAPI does not own.
+- **This is not a web *target*.** Lynx ships a real one — `@lynx-js/web-platform`
+  — and a production web build should use that. This is a small honest subset,
+  sized for a dev loop and for tests.
+- **`NativeModules` is a different boundary.** This package is the engine only.
+  The background context, where `NativeModules` and `GlobalEventEmitter` live,
+  is `@amritk/mini-lynx-native` and the fakes each `@amritk/lynx-*` package
+  publishes from its own `/testing` subpath.
+
+## Where it is used
+
+`create-mini-lynx` scaffolds an app whose `bun run dev` boots on this, and
+`apps/playground-mini-lynx` in this repo is the same wiring at kitchen-sink
+scale.

@@ -1,0 +1,57 @@
+{
+  "name": "@amritk/mini-lynx-preview",
+  "version": "0.0.0",
+  "description": "Lynx's Element PAPI implemented over the DOM, so a @amritk/mini-lynx app runs \u2014 unmodified \u2014 in a browser tab.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
+  "keywords": [
+    "lynx",
+    "preview",
+    "element-papi",
+    "dom",
+    "devtools",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/mini-lynx-preview"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/mini-lynx-preview#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "prepublishOnly": "node ../../scripts/check-publishable.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx-preview/"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@amritk/mini-lynx": ">=0.4.0"
+  },
+  "devDependencies": {
+    "@amritk/mini-lynx": "workspace:*",
+    "typescript": "^5"
+  }
+}

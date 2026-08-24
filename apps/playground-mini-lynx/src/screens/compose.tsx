@@ -1,9 +1,9 @@
 import { type LynxElement, type ReadonlySignal, type Signal, signal } from '@amritk/mini-lynx'
 import { createContext, ErrorBoundary, Portal } from '@amritk/mini-lynx/composition'
 import { Show } from '@amritk/mini-lynx/flow'
+import { LYNX_ROOT_ATTRIBUTE } from '@amritk/mini-lynx-preview'
 
 import { Action, Chip, Panel, Prose, Readout, Row } from '../components'
-import { LYNX_ROOT_ATTRIBUTE } from '../lib/install-lynx-reset'
 
 /**
  * `/compose` — the three seams a write-once codebase needs.

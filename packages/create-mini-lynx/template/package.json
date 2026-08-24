@@ -1,0 +1,20 @@
+{
+  "name": "mini-lynx-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "types:check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@amritk/mini-lynx": "latest"
+  },
+  "devDependencies": {
+    "@amritk/mini-lynx-preview": "latest",
+    "@lynx-js/types": "^4.0.0",
+    "typescript": "^5",
+    "vite": "^8"
+  }
+}

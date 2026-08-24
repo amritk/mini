@@ -92,6 +92,22 @@ framework (Preact, Solid), not a new helper here.
 
 ## Quick start
 
+Targeting Lynx? One command gets you an app running in a device-framed preview:
+
+```bash
+bun create @amritk/mini-lynx my-app
+cd my-app && bun run dev
+```
+
+That is [`create-mini-lynx`](./packages/create-mini-lynx). The app it writes runs
+on [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview) — a browser
+implementation of Lynx's Element PAPI — so there is something on screen, taking
+taps, before any device or host application is involved. It does **not** build a
+Lynx bundle: a physical device still needs a Lynx host app and a
+template-format bundler, and the generated README says so.
+
+For the DOM runtime, or to add the Lynx one to a project you already have:
+
 ```bash
 npm install @amritk/mini
 # or: pnpm add / yarn add / bun add
@@ -125,6 +141,9 @@ package READMEs:
   subpaths.
 - [`@amritk/mini-helpers`](./packages/mini-helpers/README.md) — the pure helpers
   both of the above share, and the bar for adding to them.
+- [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview/README.md) — Lynx's
+  Element PAPI over the DOM, and an honest list of what a browser cannot show
+  you about a device.
 
 ## Playgrounds
 

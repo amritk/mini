@@ -18,7 +18,7 @@
     },
     "apps/playground-mini": {
       "name": "@amritk/playground-mini",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "@amritk/mini": "workspace:*",
         "@amritk/runtime-validators": "^0.9.0",
@@ -32,7 +32,7 @@
     },
     "apps/playground-mini-lynx": {
       "name": "@amritk/playground-mini-lynx",
-      "version": "0.0.5",
+      "version": "0.0.6",
       "dependencies": {
         "@amritk/lynx-deep-linking": "workspace:*",
         "@amritk/lynx-dialogs": "workspace:*",
@@ -45,6 +45,7 @@
         "@tanstack/query-core": "^5.101.2",
       },
       "devDependencies": {
+        "@amritk/mini-lynx-preview": "workspace:*",
         "happy-dom": "^20.0.0",
         "typescript": "^5",
         "vite": "^8",
@@ -52,9 +53,19 @@
         "wrangler": "^4",
       },
     },
+    "packages/create-mini-lynx": {
+      "name": "@amritk/create-mini-lynx",
+      "version": "0.1.0",
+      "bin": {
+        "create-mini-lynx": "./dist/cli.js",
+      },
+      "devDependencies": {
+        "typescript": "^5",
+      },
+    },
     "packages/lynx-deep-linking": {
       "name": "@amritk/lynx-deep-linking",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "@amritk/mini-lynx-native": "workspace:*",
@@ -71,7 +82,7 @@
     },
     "packages/lynx-dialogs": {
       "name": "@amritk/lynx-dialogs",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -87,7 +98,7 @@
     },
     "packages/lynx-location": {
       "name": "@amritk/lynx-location",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -103,7 +114,7 @@
     },
     "packages/lynx-notifications": {
       "name": "@amritk/lynx-notifications",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -119,7 +130,7 @@
     },
     "packages/lynx-secure-storage": {
       "name": "@amritk/lynx-secure-storage",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@amritk/mini-lynx-native": "workspace:*",
       },
@@ -135,7 +146,7 @@
     },
     "packages/mini": {
       "name": "@amritk/mini",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -177,7 +188,7 @@
     },
     "packages/mini-lynx": {
       "name": "@amritk/mini-lynx",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@amritk/mini-helpers": "workspace:*",
         "alien-signals": "catalog:",
@@ -203,7 +214,7 @@
     },
     "packages/mini-lynx-native": {
       "name": "@amritk/mini-lynx-native",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "devDependencies": {
         "@lynx-js/types": "^4.0.0",
         "typescript": "^5",
@@ -217,11 +228,24 @@
         "typescript",
       ],
     },
+    "packages/mini-lynx-preview": {
+      "name": "@amritk/mini-lynx-preview",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@amritk/mini-lynx": "workspace:*",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@amritk/mini-lynx": ">=0.4.0",
+      },
+    },
   },
   "catalog": {
     "alien-signals": "3.2.1",
   },
   "packages": {
+    "@amritk/create-mini-lynx": ["@amritk/create-mini-lynx@workspace:packages/create-mini-lynx"],
+
     "@amritk/lynx-deep-linking": ["@amritk/lynx-deep-linking@workspace:packages/lynx-deep-linking"],
 
     "@amritk/lynx-dialogs": ["@amritk/lynx-dialogs@workspace:packages/lynx-dialogs"],
@@ -239,6 +263,8 @@
     "@amritk/mini-lynx": ["@amritk/mini-lynx@workspace:packages/mini-lynx"],
 
     "@amritk/mini-lynx-native": ["@amritk/mini-lynx-native@workspace:packages/mini-lynx-native"],
+
+    "@amritk/mini-lynx-preview": ["@amritk/mini-lynx-preview@workspace:packages/mini-lynx-preview"],
 
     "@amritk/playground-mini": ["@amritk/playground-mini@workspace:apps/playground-mini"],
 
