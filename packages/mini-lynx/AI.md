@@ -100,6 +100,28 @@ JSX config in the consuming package (this is **not** the React runtime):
 { "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "@amritk/mini-lynx" } }
 ```
 
+### The build that produces the two chunks
+
+The bundler that "marks the main-thread chunk" is
+[rspeedy](https://lynxjs.org/rspeedy), Lynx's own, and the marking is
+`@amritk/mini-lynx-rsbuild-plugin`:
+
+```ts
+// lynx.config.ts
+import { pluginMiniLynx } from '@amritk/mini-lynx-rsbuild-plugin'
+import { pluginQRCode } from '@lynx-js/qrcode-rsbuild-plugin'
+import { defineConfig } from '@lynx-js/rspeedy'
+
+export default defineConfig({
+  source: { entry: { main: './src/main-thread.tsx' } },
+  plugins: [pluginQRCode({ fullscreen: true }), pluginMiniLynx({ background: './src/background.ts' })],
+})
+```
+
+`source.entry` is the **main-thread** entry; the background module is the
+plugin's `background` option, not a second entry. `rspeedy dev` prints a QR code
+for Lynx Explorer; `rspeedy build` writes `dist/main.lynx.bundle`.
+
 ## Handlers run on the main thread
 
 Driving the Element PAPI is what puts this runtime there, so a `bindtap` handler

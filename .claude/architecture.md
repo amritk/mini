@@ -38,10 +38,12 @@ mini/
 │   ├── lynx-location/          # @amritk/lynx-location — the second, built from its shape
 │   ├── lynx-dialogs/           # @amritk/lynx-dialogs — the third: date picker, sheet, alert
 │   ├── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
-│   └── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
-├── apps/                      # Private kitchen-sink playgrounds, deployed to Cloudflare
+│   ├── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
+│   └── mini-lynx-rsbuild-plugin/ # @amritk/mini-lynx-rsbuild-plugin — the rspeedy build
+├── apps/                      # Private apps: two playgrounds, one device starter
 │   ├── playground-mini/       # every @amritk/mini entry point, running
-│   └── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
+│   ├── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
+│   └── starter-mini-lynx/     # a real .lynx.bundle, built by rspeedy, run in Lynx Explorer
 ├── .claude/                   # Developer guidelines
 ├── .changeset/                # Changesets config (release automation)
 ├── .github/                   # CI, release, bench, issue & PR templates
@@ -418,6 +420,53 @@ behaviour are all platform behaviours, and all three are what the package is
 *for*. The caveat is carried in its `README.md`, `AI.md` and `AGENTS.md` exactly
 as its siblings carry theirs.
 
+### `@amritk/mini-lynx-rsbuild-plugin` (`packages/mini-lynx-rsbuild-plugin`)
+
+The only package here that runs on a laptop rather than on a phone: one rsbuild
+plugin that teaches [rspeedy](https://lynxjs.org/rspeedy) how to build a
+`@amritk/mini-lynx` app into a `.lynx.bundle`.
+
+It exists because of a shape worth stating once. A Lynx template is not a bundle
+with an entry point; it is a container with two code slots — a main-thread chunk
+the engine executes to build the first screen, and a background chunk it loads
+as `/app-service.js` — plus CSS the encoder compiles. rspeedy builds the
+container, but **which code goes in which slot is the framework's to say**, and
+every framework says it in a plugin of its own. `@lynx-js/react-rsbuild-plugin`
+is ReactLynx's, and there is no framework-agnostic one beneath it:
+`@lynx-js/rsbuild-plugin`, which sounds like one, is the dev server and the
+per-thread minifier split. So the distance between "this runtime works" and "you
+can run it on your phone" was ~150 lines of rspack wiring that every consumer
+would otherwise write once each, wrongly.
+
+What it does: splits one `source.entry` into a main-thread entry and a
+background entry, adds `LynxTemplatePlugin` and `LynxEncodePlugin`, flags the
+main-thread chunk with the `lynx:main-thread` asset info the encoder splits on,
+wraps the background chunk for the engine's module loader, and points the JSX
+transform at `@amritk/mini-lynx`. In `dev` it also puts the dev-server client
+and `@rspack/core/hot/dev-server` on the front of the background chunk, so an
+edit reloads the page through the devtool — there is no hot update here, and
+there should not be: a component runs once, so there is nothing for a module
+diff to be applied to, and `renderPage`'s `removeComponents` is what makes the
+reload correct.
+
+Two things about it are unlike the rest of the repo:
+
+- **Its module load must stay side-effect free.** `@lynx-js/template-webpack-plugin`
+  opens a worker pool on import, and `scripts/dist-smoke.test.ts` imports every
+  published module under Node while `scripts/consumer-e2e.test.ts` imports the
+  entry from an install that has no `@lynx-js/*` in it at all. Both heavy
+  imports are dynamic, inside `modifyBundlerChain`.
+- **Its test runs the artifact.** `src/build.test.ts` performs one real rspeedy
+  build and then executes the built main-thread chunk in a `node:vm` context
+  whose globals are `createFakeEngine`'s Element PAPI, asserting on the tree it
+  renders and on `firstScreen`. Everything this plugin can get wrong — a JSX
+  transform pointed at React, a wrapper on the wrong chunk, a missing
+  main-thread flag — is a template that encodes cleanly and a device that shows
+  nothing, so asserting on the config would assert on the wrong thing.
+
+[`docs/mini-lynx-explorer.md`](../docs/mini-lynx-explorer.md) records the loop
+and, more usefully, which links in it have been verified and which have not.
+
 ## The playgrounds (`apps/`)
 
 Two private, unpublished apps — `@amritk/playground-mini` and
@@ -466,6 +515,21 @@ Two conventions keep them honest, and both are worth preserving:
   `src/screens.test.ts` mounts every screen and checks it builds and disposes
   without throwing, which is the cheapest guard against a screen that only fails
   for whoever next opens that tab.
+
+### `apps/starter-mini-lynx` — the third app, and not a playground
+
+Four files that build to a real `.lynx.bundle` and run on a device through Lynx
+Explorer. It is the build plugin's consumer, in the sense the playgrounds are
+the runtimes' consumers, and it is the only app here that does not run in a
+browser: `bun run dev` prints a QR code rather than opening localhost.
+
+It is deliberately small. A playground's job is coverage; a starter's is to be
+copied, so it carries a counter, `globalProps`, and the native bridge's
+round-trip — the last because a missing background chunk is otherwise invisible,
+and putting the answer on screen turns it into something a person holding a
+phone can read. Its `src/app.test.ts` drives the entry the way the engine does,
+which doubles as the shortest demonstration that an app on this runtime needs no
+device to be tested.
 
 `bun run check:reactivity` scans `apps/` alongside `packages/` for the same
 reason — the called-signal footgun is a consumer's mistake to make, so the

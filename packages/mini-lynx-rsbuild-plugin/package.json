@@ -1,0 +1,75 @@
+{
+  "name": "@amritk/mini-lynx-rsbuild-plugin",
+  "version": "0.1.0",
+  "description": "The rspeedy build for a @amritk/mini-lynx app: two chunks, one .lynx.bundle template, and a QR code Lynx Explorer scans.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
+  "keywords": [
+    "lynx",
+    "rspeedy",
+    "rsbuild",
+    "rspack",
+    "lynx-explorer",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/mini-lynx-rsbuild-plugin"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/mini-lynx-rsbuild-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "prepublishOnly": "node ../../scripts/check-publishable.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/mini-lynx-rsbuild-plugin/"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@lynx-js/runtime-wrapper-webpack-plugin": "^0.2.3",
+    "@lynx-js/template-webpack-plugin": "^0.15.1"
+  },
+  "peerDependencies": {
+    "@amritk/mini-lynx": ">=0.4.0",
+    "@lynx-js/rspeedy": ">=0.16.0",
+    "@rsbuild/core": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@amritk/mini-lynx": {
+      "optional": true
+    },
+    "@rsbuild/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@amritk/mini-lynx": "workspace:*",
+    "@amritk/mini-lynx-native": "workspace:*",
+    "@lynx-js/rspeedy": "^0.16.4",
+    "@rsbuild/core": "^2.1.10",
+    "@rspack/core": "^2.1.10",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,50 @@
+/*
+ * Real CSS, compiled into the template by the encoder rather than shipped as
+ * text and applied at runtime. Lynx's own stylesheet — `linear` layout,
+ * `flex`, selectors, variables — so there is nothing framework-shaped here.
+ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background-color: #0b1020;
+}
+
+.title {
+  color: #a5b4fc;
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.subtitle {
+  color: #64748b;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background-color: #151c33;
+}
+
+.card-label {
+  color: #64748b;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.card-value {
+  color: #e2e8f0;
+  font-size: 40px;
+  font-weight: bold;
+}
+
+.card-value-small {
+  color: #e2e8f0;
+  font-size: 14px;
+}

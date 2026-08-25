@@ -346,6 +346,22 @@ records what it was asked to do and does not do it; an assertion that an element
 was given `flex-direction: row` is sound, and one about how wide it ended up is
 not something any test outside a device should be making.
 
+## The relationship with the build
+
+`@amritk/mini-lynx-rsbuild-plugin` is what turns an app on this runtime into a
+`.lynx.bundle`, and two things here are its contract rather than this package's
+alone:
+
+- **`renderPage` installs a global and `removeComponents` tears the tree down.**
+  The dev loop's reload depends on the second: an edit reloads the whole page,
+  and the previous tree's effects have to stop. Changing either is a change to
+  how a dev build behaves on a device.
+- **The main-thread chunk is executed, not imported.** Anything the entry needs
+  at module scope has to work in a context with no module system and no `window`
+  — which is also why `packages/mini-lynx-rsbuild-plugin/src/build.test.ts` runs
+  the built chunk in a bare `node:vm` context and will fail if that stops being
+  true.
+
 ## The relationship with `@amritk/mini`
 
 Siblings, not layers. `mini` renders to the DOM, `mini-lynx` renders to Lynx,

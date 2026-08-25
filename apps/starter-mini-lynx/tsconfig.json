@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini-lynx",
+    // `@lynx-js/types` is the tag typings — the Lynx team's, tracking the
+    // engine version this app pins rather than the runtime's release schedule.
+    // The rspeedy client types are what make `import './app.css'` a module
+    // rather than an error; they are the build's, in the same way.
+    "types": ["@lynx-js/types", "@lynx-js/rspeedy/client"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "lynx.config.ts", "vitest.config.ts"]
+}

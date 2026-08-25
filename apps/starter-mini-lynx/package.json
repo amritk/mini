@@ -1,0 +1,27 @@
+{
+  "name": "@amritk/starter-mini-lynx",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The smallest real @amritk/mini-lynx app: rspeedy dev, a QR code, and Lynx Explorer.",
+  "type": "module",
+  "scripts": {
+    "dev": "rspeedy dev",
+    "build": "rspeedy build",
+    "preview": "rspeedy preview",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@amritk/mini-lynx": "workspace:*",
+    "@amritk/mini-lynx-native": "workspace:*",
+    "@amritk/mini-lynx-rsbuild-plugin": "workspace:*"
+  },
+  "devDependencies": {
+    "@lynx-js/qrcode-rsbuild-plugin": "^0.6.0",
+    "@lynx-js/rspeedy": "^0.16.4",
+    "@lynx-js/types": "^4.0.0",
+    "@rsbuild/core": "^2.1.10",
+    "typescript": "^5",
+    "vitest": "^4.1.5"
+  }
+}

@@ -108,6 +108,40 @@ real footgun of a compilerless JSX, and `@amritk/mini`'s scanner catches it
 (`catchCalledSignals` for a Vite build, `findCalledSignalBindings` for anything
 else — Lynx builds with rspack).
 
+## Getting it onto a phone
+
+```bash
+npm install -D @amritk/mini-lynx-rsbuild-plugin @lynx-js/rspeedy @lynx-js/qrcode-rsbuild-plugin
+```
+
+```ts
+// lynx.config.ts
+import { pluginMiniLynx } from '@amritk/mini-lynx-rsbuild-plugin'
+import { pluginQRCode } from '@lynx-js/qrcode-rsbuild-plugin'
+import { defineConfig } from '@lynx-js/rspeedy'
+
+export default defineConfig({
+  source: { entry: { main: './src/main-thread.tsx' } },
+  plugins: [pluginQRCode({ fullscreen: true }), pluginMiniLynx({ background: './src/background.ts' })],
+})
+```
+
+`rspeedy dev` then prints a QR code; scan it with
+[Lynx Explorer](https://lynxjs.org/guide/start/quick-start.html) and the app is
+on the device, reloading when you save. `rspeedy build` writes
+`dist/main.lynx.bundle`.
+
+The plugin exists because a Lynx template is a container with two code slots
+rather than a bundle with an entry point, and which code goes in which slot is
+the framework's to say — ReactLynx says it in
+`@lynx-js/react-rsbuild-plugin`, and there is no framework-agnostic one to
+reuse. [`@amritk/mini-lynx-rsbuild-plugin`](../mini-lynx-rsbuild-plugin) is that
+wiring for this runtime; a four-file app using it is
+[`apps/starter-mini-lynx`](../../apps/starter-mini-lynx), and the whole loop —
+what is verified, what a device still has to answer, and what to check when the
+phone shows nothing — is
+[`docs/mini-lynx-explorer.md`](../../docs/mini-lynx-explorer.md).
+
 ## Testing off-device
 
 The platform boundary is one type and a handful of functions, and
