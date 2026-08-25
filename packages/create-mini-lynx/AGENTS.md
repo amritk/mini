@@ -30,7 +30,7 @@ src/
   cli.ts          Argument parsing, the install, and every line of output
   template.test.ts  Structural checks on the template a successful copy cannot make
 template/
-  …               A complete, installable app. Not a fixture — see below
+  …               A complete, installable app with both loops wired. Not a fixture — see below
 ```
 
 ## Invariants — do not break these
@@ -47,11 +47,23 @@ template/
   destroys work no copy can undo. This is the one behaviour here worth being
   strict about.
 - **The template is a real app, not a fixture.** It installs, type-checks and
-  builds on its own, with no placeholder tokens to substitute — the only edit
-  the scaffolder makes is `package.json`'s `name`, through JSON rather than a
-  string replacement. Adding a `{{token}}` would put the template one step away
-  from being runnable, and the moment it stops being runnable it starts being
-  wrong.
+  builds on its own — *both* builds, `vite build` and `rspeedy build` — with no
+  placeholder tokens to substitute; the only edit the scaffolder makes is
+  `package.json`'s `name`, through JSON rather than a string replacement. Adding
+  a `{{token}}` would put the template one step away from being runnable, and
+  the moment it stops being runnable it starts being wrong.
+- **Both loops stay wired, and they stay one app.** `dev` is the browser preview
+  and `dev:device` is rspeedy, over a single `src/app.tsx`; the entries
+  (`src/preview/main.ts`, `src/main-thread.ts`) are the only files that differ
+  between the targets. A change that makes one loop work by editing the app for
+  it has broken the thing the template is for. `template.test.ts` pins the
+  script names, the device entries `lynx.config.ts` names, and the fact that
+  nothing outside `src/preview/` mentions a browser global.
+- **Everything in `styles.css` has to survive the encoder.** The Lynx template
+  encoder drops properties it does not support and warns at build time, where a
+  browser simply applies them — `text-transform` was in the first draft of this
+  template and is why the CSS carries a comment saying so. Run
+  `rspeedy build` after touching that file and read the warnings.
 - **`_gitignore` keeps its underscore.** npm renames a published `.gitignore` to
   `.npmignore`, so a template holding the real name ships without one and every
   scaffolded app commits `node_modules`. `RENAMED_ON_WRITE` is the list, and
@@ -62,9 +74,9 @@ template/
   and a scaffolded app installs a runtime older than its own starter code.
 - **The claims in the generated `README.md` are load-bearing.** It says the
   preview is a browser emulating Lynx, lists the four things that emulation is
-  blind to, and says outright that nothing here builds a Lynx bundle or reaches
-  a physical device. If that ever stops being true, it is this file and that one
-  that have to change first.
+  blind to, and points at `docs/mini-lynx-explorer.md` for which links in the
+  device loop are verified and which are not. If any of that stops being true,
+  it is this file and that one that have to change first.
 - **`cli.ts` runs `main` only when it IS the command.** `scripts/dist-smoke.test.ts`
   imports every built module to prove it loads; a CLI that scaffolded on import
   would write an app wherever that test ran.

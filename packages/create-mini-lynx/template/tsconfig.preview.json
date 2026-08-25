@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The one directory allowed to know it is in a browser. It supplies the
+    // engine Lynx would otherwise inject, so it names `document` by necessity —
+    // and this pass exists so that necessity stops at this directory.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
+  },
+  // Restated rather than inherited: `tsconfig.json` excludes this very
+  // directory, and an inherited exclusion would leave this pass no inputs.
+  "include": ["src/preview/**/*.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

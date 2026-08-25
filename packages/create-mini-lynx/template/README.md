@@ -6,18 +6,22 @@ no virtual tree, no diffing, no re-render.
 
 ```sh
 bun install
-bun run dev
+bun run dev          # the app in a device frame, in a browser tab
+bun run dev:device   # rspeedy: two QR codes, and the app on your phone
 ```
 
-That serves the app inside a device frame at the URL Vite prints.
+**Two loops, one `src/app.tsx`.** Which you reach for is a question about the
+change you are making, not about the project.
 
-## What you are looking at
+## `bun run dev` — the browser preview
 
-The app is running on a **browser implementation of Lynx's Element PAPI**
-([`@amritk/mini-lynx-preview`](https://github.com/amritk/mini/tree/main/packages/mini-lynx-preview)),
-not on a device. A Lynx app talks to about thirty engine functions and nothing
-else, so supplying those from a browser is enough to run the app unchanged —
-same tags, same attribute names, same event names, same dispatch.
+The app runs on a **browser implementation of Lynx's Element PAPI**
+([`@amritk/mini-lynx-preview`](https://github.com/amritk/mini/tree/main/packages/mini-lynx-preview)).
+A Lynx app talks to about thirty engine functions and nothing else, so supplying
+those from a browser is enough to run the app unchanged — same tags, same
+attribute names, same event names, same dispatch. There is a size picker above
+the frame, because Lynx has no `@media` and therefore no breakpoint to fall back
+on: a layout either fits the width the device hands it or it does not.
 
 The relationship is not symmetric: **the browser is emulating Lynx**, so when
 the two disagree the preview is what is wrong. Four things it is structurally
@@ -33,21 +37,62 @@ blind to:
 - **The background thread.** `NativeModules` lives in a second JavaScript
   context a browser does not have.
 
+Each of those is a reason to run the other loop before believing a screen.
+
+## `bun run dev:device` — the phone
+
+`rspeedy dev` builds a real `.lynx.bundle` and prints two QR codes. Scan either
+with **Lynx Explorer** — the second one carries Explorer's `?fullscreen=true`
+flag, so the screen is your app rather than the shell around it; press `a` in
+the terminal to switch. Saving a file rebuilds and reloads the page on the
+device.
+
+Explorer is Lynx's own host application; the Lynx docs are where to get a build
+of it for your platform. `bun run build:device` writes the same template to
+`dist/` without the server.
+
+The build is [`@amritk/mini-lynx-rsbuild-plugin`](https://github.com/amritk/mini/tree/main/packages/mini-lynx-rsbuild-plugin),
+configured in `lynx.config.ts`. What it does, and which links in this loop are
+verified rather than assumed, is
+[`docs/mini-lynx-explorer.md`](https://github.com/amritk/mini/blob/main/docs/mini-lynx-explorer.md).
+
 ## Layout
 
 ```
+lynx.config.ts          The device build: rspeedy, the QR plugin, pluginMiniLynx
+vite.config.ts          The browser preview build
 src/
-  app.tsx               The app. Every line of it runs unchanged on a device
-  styles.css            Real CSS, because Lynx has real CSS. Ships to a device
-  device.ts             The device entry: renderPage(App), and nothing else
+  app.tsx               The app. Both targets build this file, unchanged
+  styles.css            Real CSS, because Lynx has real CSS. Both targets, too
+  main-thread.ts        The device entry: renderPage(App)
+  background.ts         The device's background chunk: the native bridge
   preview/
     main.ts             The browser entry — the only file that knows what a browser is
     frame.css           The phone frame. Browser chrome; never ships
     device-switcher.ts  The size picker above the frame. Also chrome
 ```
 
-The split is the point. Anything under `preview/` is a stand-in; everything
-above it is the app.
+`tsconfig.json` covers everything except `src/preview/`, **without** the DOM
+libs, and `tsconfig.preview.json` is that one directory with them. That split is
+not decoration: Lynx's main-thread context is not a browser, so a `document` in
+app code compiles and then fails on the only target that ships. `bun run
+types:check` runs both passes.
+
+## Why two chunks on the device
+
+A Lynx template carries two code slots, and they are two different JavaScript
+contexts:
+
+- The **main thread** runs the Element PAPI, which is what this runtime drives.
+  Your components, your tree, your handlers — a handler here runs in the same
+  frame as the gesture, which is a gift and the reason heavy work in one blocks
+  rendering.
+- The **background thread** is the only place `NativeModules` and
+  `GlobalEventEmitter` exist.
+
+`src/background.ts` is the far end of that wire: one `installNativeBridge()`.
+Nothing in the starter calls a native module yet, but the file is there because
+a missing background chunk is invisible until something does.
 
 ## The three things that trip people up
 
@@ -64,31 +109,6 @@ expressed as variables.
 
 **A `<view>` is already a flex column.** Stacking costs no CSS;
 `flex-direction: row` is what costs a line.
-
-## Getting onto a real device
-
-This starter does not build a Lynx bundle, and it would be lying to you if it
-pretended to: that needs a Lynx host application (a
-[Sparkling](https://github.com/tiktok/Sparkling)- or LynxExplorer-style shell
-built for iOS or Android) and a bundler that emits Lynx's template format. What
-this project gives you is the half that is genuinely target-free — `src/app.tsx`
-and `src/styles.css` — plus `src/device.ts`, which is the two-line entry point a
-device build uses.
-
-When you wire one up, the app does not change. The entry does:
-
-```ts
-// src/device.ts — the whole file
-import { renderPage } from '@amritk/mini-lynx'
-import { App } from './app'
-
-renderPage(App)
-```
-
-Before shipping anything real, read the runtime's own
-[caveats about what has and has not run on a device](https://github.com/amritk/mini/tree/main/packages/mini-lynx#readme).
-Main-thread event dispatch through framework-defined worklet tokens is the one
-to prototype first.
 
 ## Where to go next
 
@@ -116,8 +136,11 @@ trackKeyboard({ emitter: createVisualViewportEmitter() })   // on a device: trac
 
 For the native side — notifications, location, dialogs, deep links, secure
 storage — see the `@amritk/lynx-*` packages. Each publishes a fake its own test
-suite runs against, so a preview drives the shipping facade rather than a
-reimplementation of it.
+suite runs against, so a browser can drive the shipping facade rather than a
+reimplementation of it. Those calls reach the device through `src/background.ts`.
+
+Before shipping anything real, read the runtime's own
+[caveats about what has and has not run on a device](https://github.com/amritk/mini/tree/main/packages/mini-lynx#readme).
 
 Kitchen-sink examples of all of it:
 [`apps/playground-mini-lynx`](https://github.com/amritk/mini/tree/main/apps/playground-mini-lynx).

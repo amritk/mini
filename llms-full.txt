@@ -307,6 +307,28 @@ JSX config in the consuming package (this is **not** the React runtime):
 { "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "@amritk/mini-lynx" } }
 ```
 
+### The build that produces the two chunks
+
+The bundler that "marks the main-thread chunk" is
+[rspeedy](https://lynxjs.org/rspeedy), Lynx's own, and the marking is
+`@amritk/mini-lynx-rsbuild-plugin`:
+
+```ts
+// lynx.config.ts
+import { pluginMiniLynx } from '@amritk/mini-lynx-rsbuild-plugin'
+import { pluginQRCode } from '@lynx-js/qrcode-rsbuild-plugin'
+import { defineConfig } from '@lynx-js/rspeedy'
+
+export default defineConfig({
+  source: { entry: { main: './src/main-thread.tsx' } },
+  plugins: [pluginQRCode({ fullscreen: true }), pluginMiniLynx({ background: './src/background.ts' })],
+})
+```
+
+`source.entry` is the **main-thread** entry; the background module is the
+plugin's `background` option, not a second entry. `rspeedy dev` prints a QR code
+for Lynx Explorer; `rspeedy build` writes `dist/main.lynx.bundle`.
+
 ## Handlers run on the main thread
 
 Driving the Element PAPI is what puts this runtime there, so a `bindtap` handler
@@ -541,11 +563,13 @@ A scaffolder. It copies a template — a complete, installable
 mangles, and writes the package name. Then the CLI runs the user's package
 manager.
 
-The generated app's `bun run dev` serves it inside a device frame through
+The generated app has **two loops over one `src/app.tsx`**: `bun run dev` serves
+it inside a device frame through
 [`@amritk/mini-lynx-preview`](../mini-lynx-preview), a browser implementation of
-Lynx's Element PAPI. **It does not build a Lynx bundle and cannot put the app on
-a physical device** — that needs a Lynx host application and a template-format
-bundler, neither of which this package ships.
+Lynx's Element PAPI; `bun run dev:device` builds a real `.lynx.bundle` through
+[`@amritk/mini-lynx-rsbuild-plugin`](../mini-lynx-rsbuild-plugin) and serves it
+to Lynx Explorer over a QR code. What differs between the two is the entry, not
+the app.
 
 ## The command
 
@@ -561,7 +585,9 @@ npm create @amritk/mini-lynx@latest my-app   # npm, pnpm, yarn — same package
 ```
 
 The directory argument defaults to `mini-lynx-app`. A non-empty target
-directory is refused, not merged into.
+directory is refused, not merged into. `--start` runs the *browser* loop
+(`dev`); the device loop is `bun run dev:device` in the new project, because it
+wants a phone in front of you.
 
 ## The surface, in full
 
@@ -594,17 +620,23 @@ install and prints nothing, so a generator can drive it directly.
 ## What the generated app looks like
 
 ```
-src/app.tsx               the app — runs unchanged on a device
-src/styles.css            real CSS; ships to a device
-src/device.ts             renderPage(App) — the device entry, nothing bundles it yet
+lynx.config.ts            rspeedy: the entry, the QR plugin, pluginMiniLynx
+vite.config.ts            the browser preview build
+src/app.tsx               the app — both targets build this file
+src/styles.css            real CSS; both targets, too
+src/main-thread.ts        renderPage(App) — the device's main-thread chunk
+src/background.ts         installNativeBridge() — the device's background chunk
 src/preview/main.ts       the browser entry: createDomPapi → setEngine → mount
 src/preview/frame.css     the phone frame; browser chrome
 src/preview/device-switcher.ts  the size picker; browser chrome
 ```
 
-Scripts: `dev`, `build`, `preview`, `types:check`. Dependencies:
-`@amritk/mini-lynx`, plus `@amritk/mini-lynx-preview`, `@lynx-js/types`,
-`typescript` and `vite` for development.
+Scripts: `dev`, `build`, `preview` (browser), `dev:device`, `build:device`
+(rspeedy), and `types:check`, which runs both `tsconfig` passes. Dependencies:
+`@amritk/mini-lynx` and `@amritk/mini-lynx-native`, plus
+`@amritk/mini-lynx-preview`, `@amritk/mini-lynx-rsbuild-plugin`,
+`@lynx-js/rspeedy`, `@lynx-js/qrcode-rsbuild-plugin`, `@lynx-js/types`,
+`@rsbuild/core`, `typescript` and `vite` for development.
 
 ## Gotchas
 
@@ -619,8 +651,14 @@ Scripts: `dev`, `build`, `preview`, `types:check`. Dependencies:
   bumps a range inside a template on release, so a pinned one would go stale
   silently. Pin them yourself after scaffolding if you need a reproducible
   install.
-- **The preview is not a device, and not a web target either.** For a real web
-  build, Lynx ships `@lynx-js/web-platform`.
+- **The preview is not a device, and not a web target either.** Reach for
+  `dev:device` before believing a screen — the four things the preview is blind
+  to are exactly the four it cannot warn you about. For a real *web* build, Lynx
+  ships `@lynx-js/web-platform`.
+- **The DOM libs stop at `src/preview/`.** `tsconfig.json` covers the app and
+  the device chunks without them; `tsconfig.preview.json` is the one directory
+  that gets them. Moving a `document` out of `preview/` fails the type check,
+  which is the point.
 - **The scaffolder has no dependencies.** Keep it that way if you extend it —
   an install of its own is the slowest step in the experience it exists to make
   fast.
@@ -1829,6 +1867,141 @@ layer.setAttribute(LYNX_ROOT_ATTRIBUTE, '')
 
 ## Where it is used
 
-`create-mini-lynx` scaffolds an app whose `bun run dev` boots on this, and
-`apps/playground-mini-lynx` in this repo is the same wiring at kitchen-sink
-scale.
+`create-mini-lynx` scaffolds an app whose `bun run dev` boots on this — and
+whose `bun run dev:device` builds a real `.lynx.bundle` through
+`@amritk/mini-lynx-rsbuild-plugin` instead, which is the loop to reach for when
+one of the blind spots above could be what you are looking at.
+`apps/playground-mini-lynx` in this repo is the same preview wiring at
+kitchen-sink scale.
+
+---
+
+# AI.md — @amritk/mini-lynx-rsbuild-plugin
+
+For an LLM consuming this package. Editing the repo instead? See
+[`AGENTS.md`](./AGENTS.md).
+
+## Mental model
+
+This is a **build-time** package. Nothing here runs on a device: it is one
+rsbuild plugin that teaches [rspeedy](https://lynxjs.org/rspeedy) — Lynx's
+build tool — how to turn a `@amritk/mini-lynx` app into a `.lynx.bundle`
+template.
+
+A Lynx template is not a bundle with an entry point. It is a container with two
+code slots — a **main-thread** chunk the engine executes to build the first
+screen, and a **background** chunk it loads as `/app-service.js` — plus the CSS,
+which the encoder compiles rather than shipping as text. rspeedy builds the
+container; which code goes in which slot is the framework's to say, and every
+framework says it in a plugin of its own. ReactLynx's is
+`@lynx-js/react-rsbuild-plugin`. This is that plugin for a runtime that renders
+on the main thread and drives the Element PAPI itself.
+
+## The surface, in full
+
+```ts
+import { pluginMiniLynx, type PluginMiniLynxOptions } from '@amritk/mini-lynx-rsbuild-plugin'
+
+type PluginMiniLynxOptions = {
+  /** The module that runs in the background chunk. Defaults to a stub that installs nothing. */
+  background?: string
+  /** The Lynx engine version the template is encoded for. Default '3.2'. */
+  targetSdkVersion?: string
+}
+
+pluginMiniLynx(options?: PluginMiniLynxOptions): RsbuildPlugin
+```
+
+That is the whole package. One function, two options.
+
+## A complete app
+
+Four files. There is no `App.tsx` convention and no framework entry to extend —
+`renderPage` is the entry.
+
+```ts
+// lynx.config.ts
+import { pluginMiniLynx } from '@amritk/mini-lynx-rsbuild-plugin'
+import { pluginQRCode } from '@lynx-js/qrcode-rsbuild-plugin'
+import { defineConfig } from '@lynx-js/rspeedy'
+
+export default defineConfig({
+  source: { entry: { main: './src/main-thread.tsx' } },
+  plugins: [
+    pluginQRCode({ fullscreen: true }),
+    pluginMiniLynx({ background: './src/background.ts' }),
+  ],
+})
+```
+
+```tsx
+// src/main-thread.tsx — the main-thread chunk, and the whole app
+import { renderPage, signal } from '@amritk/mini-lynx'
+import './app.css'
+
+const App = () => {
+  const count = signal(0)
+  return (
+    <view class="card" bindtap={() => count(count() + 1)}>
+      <text>{() => `tapped ${count()} times`}</text>
+    </view>
+  )
+}
+
+renderPage(App)
+```
+
+```ts
+// src/background.ts — the background chunk; omit it and the default stub is used
+import { installNativeBridge } from '@amritk/mini-lynx-native/background'
+
+installNativeBridge()
+```
+
+```jsonc
+// tsconfig.json — the build reads jsxImportSource from the plugin, but the
+// EDITOR reads it from here, so both have to say it
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini-lynx",
+    "types": ["@lynx-js/types", "@lynx-js/rspeedy/client"]
+  }
+}
+```
+
+Then `rspeedy dev`, scan the QR code with Lynx Explorer, and the app is on the
+phone.
+
+## Gotchas
+
+**`source.entry` names the MAIN-THREAD entry.** The background module is the
+plugin's `background` option, not a second entry. Adding it to `source.entry`
+would build a second template rather than a second chunk.
+
+**Nothing hot-updates.** An edit reloads the whole page through the devtool.
+This is not a limitation being worked around: a component in this runtime runs
+once, so there is no re-render for a new module version to be applied to. What
+makes the reload safe is that `renderPage` claims `removeComponents` and tears
+the previous tree down.
+
+**Live reload needs the devtool.** The reload is `Page.reload` over the CDP
+channel, which Lynx Explorer has and a production host app usually does not.
+
+**The plugin is for the `lynx` environment.** In a `web` environment it does
+nothing — a web build of a mini-lynx app is not a solved problem here, and a
+plugin that half-configured one would be worse than a plugin that skips it.
+
+**`targetSdkVersion` is a compatibility floor, not a feature switch.** An
+Explorer older than the version a template names refuses the template outright,
+with a message about the SDK rather than about your code.
+
+## Where the pieces are
+
+| Thing | Owned by |
+| --- | --- |
+| The `.lynx.bundle` container, and encoding it | `@lynx-js/template-webpack-plugin` (a dependency here) |
+| The dev server, the LAN URL, HMR transport | `@lynx-js/rspeedy` |
+| The QR code in the terminal | `@lynx-js/qrcode-rsbuild-plugin` |
+| Which chunk is which, and the JSX transform | this package |
+| Everything that runs on the device | `@amritk/mini-lynx` |

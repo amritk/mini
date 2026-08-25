@@ -75,10 +75,16 @@ The keyboard needs the extra line because Lynx's `keyboardstatuschanged` is
 unsupported on the web: without it `<KeyboardAvoiding>` would sit there, correct
 and motionless, and the preview would look like the feature was broken.
 
-## Getting a whole app for free
+## The other loop
 
-[`create-mini-lynx`](../create-mini-lynx) scaffolds a starter that is already
-wired to this — one command to a running preview:
+This is the loop with no phone in it. The one with a phone is
+[`@amritk/mini-lynx-rsbuild-plugin`](../mini-lynx-rsbuild-plugin) — the rspeedy
+build, a real `.lynx.bundle` and a QR code Lynx Explorer scans. They are
+complements rather than alternatives: the preview is where an edit is cheap, and
+the device is what the four blind spots above are a list of reasons to check.
+
+[`create-mini-lynx`](../create-mini-lynx) scaffolds a starter with both already
+wired, over one `src/app.tsx`:
 
 ```sh
 bun create @amritk/mini-lynx my-app

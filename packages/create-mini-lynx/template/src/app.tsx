@@ -53,7 +53,7 @@ export const App = (): LynxElement => {
 
       <view class="card">
         <text class="card-title">
-          <raw-text text="Recent taps" />
+          <raw-text text="RECENT TAPS" />
         </text>
         <Show when={() => taps().length > 0} fallback={() => <Empty />}>
           <For each={taps} key={(tap) => String(tap.id)}>

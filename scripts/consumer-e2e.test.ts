@@ -81,6 +81,7 @@ const PUBLISHED = [
   '@amritk/mini-lynx',
   '@amritk/mini-lynx-native',
   '@amritk/mini-lynx-preview',
+  '@amritk/mini-lynx-rsbuild-plugin',
 ] as const
 
 /**

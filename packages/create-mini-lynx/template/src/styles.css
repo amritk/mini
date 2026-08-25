@@ -51,12 +51,15 @@
   gap: 12px;
 }
 
+/* No `text-transform` here, and the label is written in caps instead: the Lynx
+   template encoder drops the property and says so at build time, while a
+   browser applies it — which is the shape of divergence the preview cannot
+   catch on its own. `bun run build:device` is where you hear about it. */
 .card-title {
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .count {

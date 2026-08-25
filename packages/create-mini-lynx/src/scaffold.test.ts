@@ -35,8 +35,10 @@ describe('scaffold', () => {
         'package.json',
         'tsconfig.json',
         'vite.config.ts',
+        'lynx.config.ts',
         join('src', 'app.tsx'),
-        join('src', 'device.ts'),
+        join('src', 'background.ts'),
+        join('src', 'main-thread.ts'),
         join('src', 'styles.css'),
         join('src', 'preview', 'main.ts'),
       ]),
@@ -91,7 +93,9 @@ describe('scaffold', () => {
     await rm(join(directory, 'index.html'))
     await rm(join(directory, 'README.md'))
     await rm(join(directory, 'tsconfig.json'))
+    await rm(join(directory, 'tsconfig.preview.json'))
     await rm(join(directory, 'vite.config.ts'))
+    await rm(join(directory, 'lynx.config.ts'))
     await rm(join(directory, '.gitignore'))
 
     await expect(scaffold({ directory })).resolves.toMatchObject({ name: 'my-app' })

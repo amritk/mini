@@ -87,12 +87,25 @@ private app's `src/`. It imports the runtime for **types only**, so the wiring �
 a second copy of the runtime. And
 [`packages/create-mini-lynx`](./packages/create-mini-lynx) —
 `@amritk/create-mini-lynx`, `bun create @amritk/mini-lynx my-app`: a template
-copied to a directory, then the user's package manager, ending at a running
-device-framed preview. It builds no Lynx bundle and says so; a physical device
-still needs a host application and a template-format bundler.
+copied to a directory, then the user's package manager, ending at a running app.
+The app it writes carries **both** loops over one `src/app.tsx` — `bun run dev`
+is the preview above, `bun run dev:device` is the rspeedy build below — because
+which one you reach for is a question about the change you are making, not about
+the project you started.
 
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
+
+One package is not a runtime at all:
+[`packages/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin) —
+`@amritk/mini-lynx-rsbuild-plugin`, the rspeedy build for a mini-lynx app. It
+runs on a laptop rather than on a phone, and it exists because a Lynx template
+is a container with two code slots rather than a bundle with an entry point:
+which code goes in which slot is the framework's to say, ReactLynx says it in
+`@lynx-js/react-rsbuild-plugin`, and there is no framework-agnostic plugin
+underneath to reuse. Its own `AGENTS.md` carries the invariants; the loop it
+serves, and what about that loop has and has not been verified, is
+[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md).
 
 Alongside them sit two private kitchen-sink playgrounds — `apps/playground-mini`
 and `apps/playground-mini-lynx` — that exercise every public entry point and
@@ -104,6 +117,12 @@ The playground previews through `@amritk/mini-lynx-preview`, the same package a
 scaffolded app boots on — so the engine under the kitchen sink and the engine
 under a five-minute-old starter are one implementation, and a defect in it
 surfaces in the app with eighteen screens rather than in the one with a counter.
+
+A third app, `apps/starter-mini-lynx`, is a **starter** rather than a
+playground: four files, built by rspeedy into a real `.lynx.bundle` and opened
+on a device through Lynx Explorer. It is the build plugin's playground in the
+sense the rule below means — the only place that package is used the way a
+consumer uses it — and the only app here that does not run in a browser.
 
 `apps/playground-mini-lynx` covers the bridge and all five native modules too,
 which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
@@ -122,13 +141,21 @@ and every composition-level defect this repo has found was found there rather
 than in a suite. A package with no screen is a package nobody has actually
 tried.
 
-The rule is about *runtime surface*, and two packages have none to demo.
-`@amritk/mini-lynx-preview` is what the playground itself boots on, which is a
-stronger statement than a screen would be — every screen is a test of it.
-`@amritk/create-mini-lynx` produces a directory of files rather than an API; its
-equivalent guard is `template.test.ts` plus the fact that the app it writes is
-the same wiring the playground uses. Neither is a precedent for a package that
-*does* have a surface.
+The rule is about *being used like a consumer uses it*, not about the screen.
+`@amritk/mini-lynx-rsbuild-plugin` has no runtime surface to render, so its
+equivalent is `apps/starter-mini-lynx`: a real app that builds through it, plus
+a test that runs one real rspeedy build and drives the artifact. A build-time
+package is finished when a change to it can break something a consumer would
+notice, in this repo, without a device.
+
+Two more packages have no surface to demo either, and each has its own
+equivalent. `@amritk/mini-lynx-preview` is what the playground itself boots on,
+which is a stronger statement than a screen would be — every screen is a test of
+it. `@amritk/create-mini-lynx` produces a directory of files rather than an API;
+its guard is `template.test.ts`, and the app it writes is the two loops this
+repo already runs — the preview the playground boots on, and the rspeedy build
+`apps/starter-mini-lynx` uses. None of the three is a precedent for a package
+that *does* have a runtime surface.
 
 ## Workflow
 
@@ -139,8 +166,8 @@ bun run check               # biome lint + format check
 bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
 bun run check:ai-docs       # every package's AI.md against what that package actually exports
 bun run check:android       # compile the notifications Kotlin (needs ANDROID_HOME; skips without)
-bun run types:check         # type-check both packages and both playgrounds
-bun run build               # build both packages and both playgrounds
+bun run types:check         # type-check every package and every app
+bun run build               # build every package and every app (the starter builds a .lynx.bundle)
 bun run test:dist           # load and drive the built dist/ artifacts (needs a prior build)
 bun run bench -- --baseline <dir>   # bundle-size delta against another checkout
 ```

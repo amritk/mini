@@ -16,7 +16,7 @@ import { templateDirectory } from './scaffold'
 describe('template', () => {
   const read = (...parts: string[]): Promise<string> => readFile(join(templateDirectory(), ...parts), 'utf-8')
 
-  it('depends on the runtime and the preview engine, and nothing else from this repo', async () => {
+  it('depends on both build paths, and on nothing from this repo that does not exist', async () => {
     const manifest = JSON.parse(await read('package.json')) as {
       dependencies: Record<string, string>
       devDependencies: Record<string, string>
@@ -24,6 +24,7 @@ describe('template', () => {
 
     expect(manifest.dependencies['@amritk/mini-lynx']).toBeDefined()
     expect(manifest.devDependencies['@amritk/mini-lynx-preview']).toBeDefined()
+    expect(manifest.devDependencies['@amritk/mini-lynx-rsbuild-plugin']).toBeDefined()
 
     const ours = [...Object.keys(manifest.dependencies), ...Object.keys(manifest.devDependencies)].filter((name) =>
       name.startsWith('@amritk/'),
@@ -34,11 +35,41 @@ describe('template', () => {
     }
   })
 
-  it('offers the dev script every instruction in the repo tells people to run', async () => {
+  // Both loops are the template's whole claim: a browser preview with no phone
+  // in it, and a real `.lynx.bundle` for one.
+  it('offers both loops as scripts, under the names the READMEs print', async () => {
     const manifest = JSON.parse(await read('package.json')) as { scripts: Record<string, string> }
 
     expect(manifest.scripts['dev']).toBe('vite')
+    expect(manifest.scripts['dev:device']).toBe('rspeedy dev')
     expect(manifest.scripts['build']).toBeDefined()
+    expect(manifest.scripts['build:device']).toBeDefined()
+  })
+
+  // The device build reads its entry from here, and a rename that missed this
+  // file fails at `rspeedy dev` rather than at any check in this repo.
+  it('points the device build at entries that exist', async () => {
+    const config = await read('lynx.config.ts')
+    const entry = /entry: \{ main: '\.\/([^']+)' \}/.exec(config)?.[1]
+    const background = /background: '\.\/([^']+)'/.exec(config)?.[1]
+
+    expect(entry).toBe('src/main-thread.ts')
+    expect(background).toBe('src/background.ts')
+    await expect(read(...(entry ?? '').split('/'))).resolves.toContain('renderPage')
+    await expect(read(...(background ?? '').split('/'))).resolves.toContain('installNativeBridge')
+  })
+
+  // Withholding the DOM from the device pass is what turns "do not name
+  // `document` in app code" from a comment into something the compiler says.
+  // Both configs carry comments, so they are read as text rather than JSON.
+  it('type-checks the device half and the browser half separately', async () => {
+    const manifest = JSON.parse(await read('package.json')) as { scripts: Record<string, string> }
+
+    expect(manifest.scripts['types:check']).toContain('-p tsconfig.json')
+    expect(manifest.scripts['types:check']).toContain('-p tsconfig.preview.json')
+    expect(await read('tsconfig.json')).toContain('"lib": ["ESNext"]')
+    expect(await read('tsconfig.json')).toContain('"exclude": ["src/preview"')
+    expect(await read('tsconfig.preview.json')).toContain('"lib": ["ESNext", "DOM", "DOM.Iterable"]')
   })
 
   it('points its HTML entry at a file that exists', async () => {
@@ -59,7 +90,7 @@ describe('template', () => {
   // The split the template exists to teach: everything outside `preview/` is
   // the app, and a device has no `document` to reach for.
   it('keeps browser globals out of the code that ships to a device', async () => {
-    for (const file of ['app.tsx', 'device.ts', 'styles.css']) {
+    for (const file of ['app.tsx', 'main-thread.ts', 'background.ts', 'styles.css']) {
       const source = await read('src', file)
       expect(source, `src/${file} names no browser global`).not.toMatch(/\b(document|window|localStorage)\b/)
     }

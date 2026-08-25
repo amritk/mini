@@ -16,8 +16,8 @@ import { installDeviceSwitcher } from './device-switcher'
  * so the app above the boundary is the code that would ship to a device, byte
  * for byte — same tags, same attributes, same event dispatch.
  *
- * On a device this file does not exist; `src/device.ts` is `renderPage(App)`
- * and the engine calls it.
+ * On a device this file does not exist: `src/main-thread.ts` is
+ * `renderPage(App)` and the engine calls it.
  *
  * The preview is emulating Lynx, not the other way round, so when the two
  * disagree the preview is what is wrong. `README.md` lists the four things it

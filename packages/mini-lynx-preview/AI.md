@@ -115,6 +115,9 @@ layer.setAttribute(LYNX_ROOT_ATTRIBUTE, '')
 
 ## Where it is used
 
-`create-mini-lynx` scaffolds an app whose `bun run dev` boots on this, and
-`apps/playground-mini-lynx` in this repo is the same wiring at kitchen-sink
-scale.
+`create-mini-lynx` scaffolds an app whose `bun run dev` boots on this — and
+whose `bun run dev:device` builds a real `.lynx.bundle` through
+`@amritk/mini-lynx-rsbuild-plugin` instead, which is the loop to reach for when
+one of the blind spots above could be what you are looking at.
+`apps/playground-mini-lynx` in this repo is the same preview wiring at
+kitchen-sink scale.
