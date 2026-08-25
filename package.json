@@ -46,6 +46,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260524.1",
     "esbuild": "^0.28.1",
     "happy-dom": "^20.0.0",
+    "playwright-core": "^1.56.1",
     "tsc-alias": "^1.8.17",
     "typescript": "^5",
     "vitest": "^4.1.5"
