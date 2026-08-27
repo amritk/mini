@@ -39,7 +39,9 @@ mini/
 │   ├── lynx-dialogs/           # @amritk/lynx-dialogs — the third: date picker, sheet, alert
 │   ├── lynx-deep-linking/      # @amritk/lynx-deep-linking — the fourth, links in and out
 │   ├── lynx-secure-storage/    # @amritk/lynx-secure-storage — the fifth, a credential on disk
-│   └── mini-lynx-rsbuild-plugin/ # @amritk/mini-lynx-rsbuild-plugin — the rspeedy build
+│   ├── mini-lynx-rsbuild-plugin/ # @amritk/mini-lynx-rsbuild-plugin — the rspeedy build
+│   ├── mini-lynx-preview/      # @amritk/mini-lynx-preview — that Element PAPI, over the DOM
+│   └── create-mini-lynx/       # @amritk/create-mini-lynx — one command to an app on both
 ├── apps/                      # Private apps: two playgrounds, one device starter
 │   ├── playground-mini/       # every @amritk/mini entry point, running
 │   ├── playground-mini-lynx/# every @amritk/mini-lynx entry point, through a DOM Element PAPI
@@ -466,6 +468,76 @@ Two things about it are unlike the rest of the repo:
 
 [`docs/mini-lynx-explorer.md`](../docs/mini-lynx-explorer.md) records the loop
 and, more usefully, which links in it have been verified and which have not.
+### `@amritk/mini-lynx-preview` (`packages/mini-lynx-preview`)
+
+Lynx's Element PAPI, implemented over the DOM, so a `@amritk/mini-lynx` app runs
+in a browser tab unmodified. It lived in `apps/playground-mini-lynx/src/lib/`
+until `create-mini-lynx` needed the same engine — a scaffolded app cannot import
+a private app's `src/`, and a second copy of a shim this exact is a second thing
+to be wrong.
+
+- **One entry.** `createDomPapi` (the engine, for `setEngine`), `installLynxReset`
+  and `LYNX_ROOT_ATTRIBUTE` (the scoped stylesheet that makes browser defaults
+  Lynx defaults, and the attribute it keys on), and
+  `createVisualViewportEmitter` (the soft keyboard, which Lynx does not report
+  on the web).
+- **Types only from `@amritk/mini-lynx`.** Every import of the runtime is
+  `import type`, so the package holds no runtime edge onto it and the three lines
+  of wiring stay in the app. A preview that called `setEngine` itself would call
+  it on whichever copy of the runtime *it* resolved, which in a consumer's app
+  can be a different copy from the one the app imported — and the symptom is a
+  blank screen with no error in it. The peer dependency keeps the types honest
+  without adding the edge.
+- **It is the engine, not a host.** The abstraction it replaced was a DOM
+  *host*: a framework interface with two implementations, either of which could
+  be the odd one out. Implementing the engine's own API instead makes the
+  relationship asymmetric on purpose — the browser emulates Lynx, so a
+  disagreement is the preview's fault. Lynx makes the same move in
+  `@lynx-js/web-platform`; this is a small honest subset of it, sized for a dev
+  loop.
+- **Four blind spots, each documented at the line that causes it:** a missing
+  `__FlushElementTree` (the DOM is eager), element creation (`__CreateElement`
+  loses the per-tag creators' meaning, and the engine's own web port has the
+  same blind spot), layout (`linear-weight` and the `relative-*` family have no
+  CSS equivalent), and the background thread (a string handler has nowhere to
+  route to, so it is reported rather than dropped).
+- **Depends on:** nothing at runtime. `@amritk/mini-lynx` is a peer, for types.
+
+### `@amritk/create-mini-lynx` (`packages/create-mini-lynx`)
+
+`bun create @amritk/mini-lynx my-app` — the one command that ends with a running
+app. A template copied into a directory, then the user's package manager.
+
+It is where the two halves above meet. The app it writes carries **both loops
+over one `src/app.tsx`**: `bun run dev` is the browser preview, `bun run
+dev:device` is `rspeedy dev` through the build plugin, and the only files that
+differ between the targets are the entries — `src/preview/main.ts` builds an
+engine because a browser is not one, `src/main-thread.ts` is `renderPage(App)`
+because a device already has one. Nobody scaffolding an app should have to
+choose between the loop with a fast edit cycle and the loop that tells the
+truth.
+
+- **Two halves of its own.** `scaffold.ts` is the filesystem (copy, undo npm's
+  dotfile renaming, write the package name) and prints nothing; `cli.ts` is
+  argument parsing, the install and the output. That split is what makes the
+  interesting half testable without a subprocess, and `scaffold` usable from
+  another generator.
+- **No dependencies.** A scaffolder that installs a tree of its own before
+  writing a file is the slowest step in the experience it exists to make fast.
+- **The template is a real app, not a fixture.** It installs, type-checks under
+  both `tsconfig` passes, and builds both ways — `vite build` and `rspeedy
+  build` — with the only edit on the way out being `package.json`'s `name`.
+- **The DOM stops at `src/preview/`.** `tsconfig.json` covers the app and the
+  device chunks with `lib: ["ESNext"]`; `tsconfig.preview.json` is that one
+  directory with the DOM libs. It is the same move `@amritk/mini-lynx` makes
+  with `src/router/browser/`, for the same reason: a `document` in app code
+  compiles and then fails on the only target that ships. `template.test.ts`
+  pins both passes, the entries `lynx.config.ts` names, and the absence of
+  browser globals outside `preview/`.
+- **Depends on:** nothing. The app it writes depends on `@amritk/mini-lynx` and
+  `@amritk/mini-lynx-native`, plus `@amritk/mini-lynx-preview`,
+  `@amritk/mini-lynx-rsbuild-plugin` and their `@lynx-js/*` peers for
+  development.
 
 ## The playgrounds (`apps/`)
 

@@ -1,0 +1,117 @@
+/*
+ * The device frame: browser chrome around the preview, and none of it ships to
+ * a device.
+ *
+ * It is kept apart from `src/styles.css` for exactly that reason — that file is
+ * the app's, this one is the stand-in for a phone. The reset that makes Lynx's
+ * layout rules apply to Lynx tags is not here either: `createDomPapi()` installs
+ * it, scoped to the page element, so this file never has to know what a `<view>`
+ * is.
+ */
+
+:root {
+  --device-width: 393px;
+  --device-height: 852px;
+  --chrome-ink: #e7ebf5;
+  --chrome-ink-soft: #8d97ad;
+  --chrome-bg: #0b0e15;
+  --chrome-line: #222838;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(120% 120% at 50% 0%, #161c2b 0%, var(--chrome-bg) 60%);
+  color: var(--chrome-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 16px 48px;
+}
+
+.preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 4%);
+  font-size: 13px;
+}
+
+.preview-name {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.preview-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--chrome-ink-soft);
+}
+
+.preview-field select {
+  padding: 4px 8px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 8px;
+  background: var(--chrome-bg);
+  color: var(--chrome-ink);
+  font: inherit;
+}
+
+.preview-note {
+  color: var(--chrome-ink-soft);
+}
+
+.device {
+  position: relative;
+  width: calc(var(--device-width) + 24px);
+  max-width: 100%;
+  padding: 12px;
+  border-radius: 44px;
+  background: linear-gradient(160deg, #2b3244, #10141d);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 8%),
+    0 30px 60px rgb(0 0 0 / 45%);
+}
+
+.device-notch {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  width: 96px;
+  height: 26px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #05070c;
+  /* Above the screen, which is where a real one sits — and non-interactive, so
+     it cannot swallow a tap meant for the app underneath it. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+.device-screen {
+  overflow: hidden;
+  width: 100%;
+  height: var(--device-height);
+  max-height: calc(100vh - 160px);
+  border-radius: 34px;
+  background: #ffffff;
+}
+
+/* The page element the Element PAPI creates lands in here and is told to fill
+   it, so the app measures against the device's height rather than the page's. */
+#app {
+  width: 100%;
+  height: 100%;
+}

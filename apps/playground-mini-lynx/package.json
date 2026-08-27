@@ -25,6 +25,7 @@
     "@tanstack/query-core": "^5.101.2"
   },
   "devDependencies": {
+    "@amritk/mini-lynx-preview": "workspace:*",
     "happy-dom": "^20.0.0",
     "typescript": "^5",
     "vite": "^8",

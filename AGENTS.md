@@ -77,6 +77,22 @@ it imports neither package, and its charter is **no reactivity, no platform**,
 enforced by `src/purity.test.ts`. Neither package's public surface changed —
 both re-export it from the subpath it already lived on.
 
+Two more are about *getting started* rather than about running an app.
+[`packages/mini-lynx-preview`](./packages/mini-lynx-preview) —
+`@amritk/mini-lynx-preview`, Lynx's Element PAPI implemented over the DOM, so an
+app runs in a browser tab unmodified. It was `apps/playground-mini-lynx/src/lib/`
+until something outside this repo needed it: a scaffolded app cannot import a
+private app's `src/`. It imports the runtime for **types only**, so the wiring —
+`setEngine`, `mount` — stays in the app and a preview can never hand an engine to
+a second copy of the runtime. And
+[`packages/create-mini-lynx`](./packages/create-mini-lynx) —
+`@amritk/create-mini-lynx`, `bun create @amritk/mini-lynx my-app`: a template
+copied to a directory, then the user's package manager, ending at a running app.
+The app it writes carries **both** loops over one `src/app.tsx` — `bun run dev`
+is the preview above, `bun run dev:device` is the rspeedy build below — because
+which one you reach for is a question about the change you are making, not about
+the project you started.
+
 Each is independently published and carries its own `AGENTS.md` with the
 invariants that package cannot break.
 
@@ -96,6 +112,11 @@ and `apps/playground-mini-lynx` — that exercise every public entry point and
 deploy to Cloudflare Workers as static SPAs. They are the only code here written
 the way a consumer writes it, which makes them the fastest way to see a change
 and the place composition-level defects surface first.
+
+The playground previews through `@amritk/mini-lynx-preview`, the same package a
+scaffolded app boots on — so the engine under the kitchen sink and the engine
+under a five-minute-old starter are one implementation, and a defect in it
+surfaces in the app with eighteen screens rather than in the one with a counter.
 
 A third app, `apps/starter-mini-lynx`, is a **starter** rather than a
 playground: four files, built by rspeedy into a real `.lynx.bundle` and opened
@@ -126,6 +147,15 @@ equivalent is `apps/starter-mini-lynx`: a real app that builds through it, plus
 a test that runs one real rspeedy build and drives the artifact. A build-time
 package is finished when a change to it can break something a consumer would
 notice, in this repo, without a device.
+
+Two more packages have no surface to demo either, and each has its own
+equivalent. `@amritk/mini-lynx-preview` is what the playground itself boots on,
+which is a stronger statement than a screen would be — every screen is a test of
+it. `@amritk/create-mini-lynx` produces a directory of files rather than an API;
+its guard is `template.test.ts`, and the app it writes is the two loops this
+repo already runs — the preview the playground boots on, and the rspeedy build
+`apps/starter-mini-lynx` uses. None of the three is a precedent for a package
+that *does* have a runtime surface.
 
 ## Workflow
 

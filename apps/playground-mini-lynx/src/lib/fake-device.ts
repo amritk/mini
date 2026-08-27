@@ -16,7 +16,7 @@ import { createFakeContexts, createFakeEmitter, type FakeEmitter } from '@amritk
 /**
  * The device, for a browser that is not one.
  *
- * `dom-papi.ts` stands in for the *engine*; this stands in for everything on
+ * `@amritk/mini-lynx-preview` stands in for the *engine*; this stands in for everything on
  * the other side of the bridge — the second JavaScript context, the
  * `GlobalEventEmitter`, and the five native modules registered on it. Together
  * they are why a screen here can call `getCurrentPosition()` and get an answer

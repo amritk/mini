@@ -21,7 +21,7 @@ import { Action, Chip, Panel, Prose, Readout, Row, TextLine } from '../component
  * everything about layout belongs to a device.
  *
  * The exception is the last panel. `recycle` is driven by callbacks rather than
- * by layout, so the shim in `dom-papi.ts` can invoke the real protocol and the
+ * by layout, so the preview engine can invoke the real protocol and the
  * element count it produces is a real answer — ten thousand rows, a dozen
  * elements. Every other panel here builds every row it has.
  */
@@ -94,8 +94,8 @@ const RecyclePanel = (): LynxElement => {
 
       <Prose>
         The preview drives the real protocol — `componentAtIndex`, `enqueueComponent`, and the `operationID` the engine
-        correlates on — from a scroll listener in `dom-papi.ts`. The windowing maths is the shim's, not Lynx's. Trust
-        the element count; do not read anything into the scrolling.
+        correlates on — from a scroll listener in the preview engine. The windowing maths is the shim's, not Lynx's.
+        Trust the element count; do not read anything into the scrolling.
       </Prose>
     </Panel>
   )

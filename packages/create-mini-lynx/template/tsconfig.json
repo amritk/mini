@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+
+    // No DOM, on purpose. Lynx's main-thread context is not a browser: a stray
+    // `document` here compiles and then fails on the only target that ships.
+    // `src/preview/` is the exemption, and it is a separate pass —
+    // `tsconfig.preview.json` — rather than a comment, so the compiler is what
+    // enforces the split instead of your memory of it.
+    "lib": ["ESNext"],
+    // `@lynx-js/types` is the tag typings, tracking the engine version rather
+    // than the runtime's releases. The rspeedy client types are what make
+    // `import './styles.css'` a module rather than an error.
+    "types": ["@lynx-js/types", "@lynx-js/rspeedy/client"],
+
+    // The compilerless JSX runtime: `<view>` compiles to a call into
+    // `@amritk/mini-lynx/jsx-runtime`, which creates a real element once and
+    // then mutates it. There is no virtual tree and no diffing pass.
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/mini-lynx"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "lynx.config.ts"],
+  "exclude": ["src/preview", "node_modules", "dist"]
+}

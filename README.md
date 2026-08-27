@@ -98,6 +98,32 @@ framework (Preact, Solid), not a new helper here.
 
 ## Quick start
 
+Targeting Lynx? One command gets you an app running in a device-framed preview:
+
+```bash
+bun create @amritk/mini-lynx my-app
+cd my-app && bun run dev
+```
+
+That is [`create-mini-lynx`](./packages/create-mini-lynx), and the app it writes
+has **two loops on one source tree**:
+
+```bash
+bun run dev          # the app in a device frame, in a browser tab
+bun run dev:device   # rspeedy, a QR code, and the app on a phone
+```
+
+`dev` runs on [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview) — a
+browser implementation of Lynx's Element PAPI — so there is something on screen
+taking taps with no phone and no host app involved. `dev:device` is
+[`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin)
+building a real `.lynx.bundle` for Lynx Explorer. Same `src/app.tsx` either way;
+what differs is the entry. Which of the two to trust when they disagree is
+[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md) and the preview's
+own list of blind spots.
+
+For the DOM runtime, or to add the Lynx one to a project you already have:
+
 ```bash
 npm install @amritk/mini
 # or: pnpm add / yarn add / bun add
@@ -133,6 +159,9 @@ package READMEs:
   both of the above share, and the bar for adding to them.
 - [`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin/README.md)
   — the rspeedy build: `rspeedy dev`, a QR code, and the app on your phone.
+- [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview/README.md) — Lynx's
+  Element PAPI over the DOM, for the loop with no phone in it, and an honest
+  list of what a browser cannot show you about a device.
 
 ## Playgrounds
 

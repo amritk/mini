@@ -62,8 +62,15 @@ const OPTIONAL_PEERS: Record<string, string> = {
  * so a consumer install that did not carry it would fail on the first `/router`
  * or `/forms` import; `@amritk/mini-lynx-native` is here for the same reason
  * relative to the four `lynx-*` native-module packages.
+ *
+ * `@amritk/create-mini-lynx` publishes no runtime at all — it is a scaffolder,
+ * and what a consumer installs is a command plus a template directory. It is
+ * still packed and probed here because its `.` entry is importable and because
+ * the template is `files`-listed: a tarball that dropped it would scaffold an
+ * empty directory, and nothing else in the pipeline opens the tarball.
  */
 const PUBLISHED = [
+  '@amritk/create-mini-lynx',
   '@amritk/lynx-deep-linking',
   '@amritk/lynx-dialogs',
   '@amritk/lynx-location',
@@ -73,6 +80,7 @@ const PUBLISHED = [
   '@amritk/mini-helpers',
   '@amritk/mini-lynx',
   '@amritk/mini-lynx-native',
+  '@amritk/mini-lynx-preview',
   '@amritk/mini-lynx-rsbuild-plugin',
 ] as const
 
@@ -389,5 +397,32 @@ describe('consumer-e2e', () => {
       console.log('ok')
     `
     expect(await runProbe(bareDir, 'native-memory', source)).toContain('ok')
+  })
+
+  it('scaffolds an app from the installed create-mini-lynx tarball', async () => {
+    // The scaffolder's product is a directory of files, so the failure this
+    // catches is a `files` list that stopped carrying `template/`: the package
+    // installs, the command runs, and it writes an app with nothing in it.
+    // Nothing else in the pipeline opens the tarball.
+    const source = `
+      import { mkdtemp, rm } from 'node:fs/promises'
+      import { tmpdir } from 'node:os'
+      import { join, sep } from 'node:path'
+
+      const { scaffold } = await import('@amritk/create-mini-lynx')
+
+      const work = await mkdtemp(join(tmpdir(), 'mini-scaffold-'))
+      const { name, files } = await scaffold({ directory: join(work, 'my-app') })
+      await rm(work, { recursive: true, force: true })
+
+      const expected = ['.gitignore', 'index.html', 'package.json', 'src/app.tsx', 'src/preview/main.ts']
+      const missing = expected.filter((file) => !files.includes(file.split('/').join(sep)))
+      if (name !== 'my-app' || missing.length > 0) {
+        console.error('name ' + name + ', missing ' + missing.join(', '))
+        process.exit(1)
+      }
+      console.log('ok')
+    `
+    expect(await runProbe(bareDir, 'scaffold', source)).toContain('ok')
   })
 })

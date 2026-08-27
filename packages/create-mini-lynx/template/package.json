@@ -1,0 +1,27 @@
+{
+  "name": "mini-lynx-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:device": "rspeedy dev",
+    "build:device": "rspeedy build",
+    "types:check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.preview.json --noEmit"
+  },
+  "dependencies": {
+    "@amritk/mini-lynx": "latest",
+    "@amritk/mini-lynx-native": "latest"
+  },
+  "devDependencies": {
+    "@amritk/mini-lynx-preview": "latest",
+    "@amritk/mini-lynx-rsbuild-plugin": "latest",
+    "@lynx-js/qrcode-rsbuild-plugin": "^0.6.0",
+    "@lynx-js/rspeedy": "^0.16.4",
+    "@lynx-js/types": "^4.0.0",
+    "@rsbuild/core": "^2.1.10",
+    "typescript": "^5",
+    "vite": "^8"
+  }
+}

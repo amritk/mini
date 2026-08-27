@@ -1,10 +1,9 @@
 import { mount, setEngine } from '@amritk/mini-lynx'
 import { trackKeyboard } from '@amritk/mini-lynx/keyboard'
+import { createDomPapi, createVisualViewportEmitter } from '@amritk/mini-lynx-preview'
 
 import { App } from './app'
-import { createDomPapi } from './lib/dom-papi'
 import { nativeRoot } from './lib/native-root'
-import { createVisualViewportEmitter } from './lib/visual-viewport-keyboard'
 import './styles.css'
 
 /**

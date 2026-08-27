@@ -1,0 +1,56 @@
+{
+  "name": "@amritk/create-mini-lynx",
+  "version": "0.0.0",
+  "description": "Scaffolds a @amritk/mini-lynx app that runs in a device-framed browser preview from the first command.",
+  "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "keywords": [
+    "lynx",
+    "create",
+    "scaffold",
+    "starter",
+    "template",
+    "typescript",
+    "mjst"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/mini.git",
+    "directory": "packages/create-mini-lynx"
+  },
+  "homepage": "https://github.com/amritk/mini/tree/main/packages/create-mini-lynx#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/mini/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "template",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "create-mini-lynx": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node ../../scripts/strip-comments.mjs",
+    "prepublishOnly": "node ../../scripts/check-publishable.mjs",
+    "types:check": "tsgo -p . --noEmit",
+    "test": "NODE_ENV=production vitest run --root ../.. packages/create-mini-lynx/"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

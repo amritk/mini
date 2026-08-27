@@ -1,0 +1,14 @@
+{
+  "extends": ["./tsconfig.json", "../../tsconfig.build.json"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // Re-asserted because the shared `../../tsconfig.build.json` is applied last
+    // in `extends` and resets both, which would take `node:fs` away from a CLI
+    // whose whole job is copying files.
+    "lib": ["ESNext"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
+}

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { clearEngine, type LynxElement, mount, setEngine } from '@amritk/mini-lynx'
+import { createDomPapi } from '@amritk/mini-lynx-preview'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { createDomPapi } from './lib/dom-papi'
 import { ComposeScreen } from './screens/compose'
 import { DataScreen } from './screens/data'
 import { DialogsScreen } from './screens/dialogs'

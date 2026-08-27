@@ -45,6 +45,7 @@
         "@tanstack/query-core": "^5.101.2",
       },
       "devDependencies": {
+        "@amritk/mini-lynx-preview": "workspace:*",
         "happy-dom": "^20.0.0",
         "typescript": "^5",
         "vite": "^8",
@@ -67,6 +68,16 @@
         "@rsbuild/core": "^2.1.10",
         "typescript": "^5",
         "vitest": "^4.1.5",
+      },
+    },
+    "packages/create-mini-lynx": {
+      "name": "@amritk/create-mini-lynx",
+      "version": "0.0.0",
+      "bin": {
+        "create-mini-lynx": "./dist/cli.js",
+      },
+      "devDependencies": {
+        "typescript": "^5",
       },
     },
     "packages/lynx-deep-linking": {
@@ -234,6 +245,17 @@
         "typescript",
       ],
     },
+    "packages/mini-lynx-preview": {
+      "name": "@amritk/mini-lynx-preview",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@amritk/mini-lynx": "workspace:*",
+        "typescript": "^5",
+      },
+      "peerDependencies": {
+        "@amritk/mini-lynx": ">=0.4.0",
+      },
+    },
     "packages/mini-lynx-rsbuild-plugin": {
       "name": "@amritk/mini-lynx-rsbuild-plugin",
       "version": "0.1.0",
@@ -264,6 +286,8 @@
     "alien-signals": "3.2.1",
   },
   "packages": {
+    "@amritk/create-mini-lynx": ["@amritk/create-mini-lynx@workspace:packages/create-mini-lynx"],
+
     "@amritk/lynx-deep-linking": ["@amritk/lynx-deep-linking@workspace:packages/lynx-deep-linking"],
 
     "@amritk/lynx-dialogs": ["@amritk/lynx-dialogs@workspace:packages/lynx-dialogs"],
@@ -281,6 +305,8 @@
     "@amritk/mini-lynx": ["@amritk/mini-lynx@workspace:packages/mini-lynx"],
 
     "@amritk/mini-lynx-native": ["@amritk/mini-lynx-native@workspace:packages/mini-lynx-native"],
+
+    "@amritk/mini-lynx-preview": ["@amritk/mini-lynx-preview@workspace:packages/mini-lynx-preview"],
 
     "@amritk/mini-lynx-rsbuild-plugin": ["@amritk/mini-lynx-rsbuild-plugin@workspace:packages/mini-lynx-rsbuild-plugin"],
 
