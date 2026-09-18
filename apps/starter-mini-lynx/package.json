@@ -1,6 +1,6 @@
 {
   "name": "@amritk/starter-mini-lynx",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "The smallest real @amritk/mini-lynx app: rspeedy dev, a QR code, and Lynx Explorer.",
   "type": "module",
