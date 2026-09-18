@@ -1,6 +1,6 @@
 {
   "name": "@amritk/mini-lynx-rsbuild-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The rspeedy build for a @amritk/mini-lynx app: two chunks, one .lynx.bundle template, and a QR code Lynx Explorer scans.",
   "type": "module",
   "license": "MIT",

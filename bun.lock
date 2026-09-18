@@ -56,7 +56,7 @@
     },
     "apps/starter-mini-lynx": {
       "name": "@amritk/starter-mini-lynx",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "dependencies": {
         "@amritk/mini-lynx": "workspace:*",
         "@amritk/mini-lynx-native": "workspace:*",
@@ -73,7 +73,7 @@
     },
     "packages/create-mini-lynx": {
       "name": "@amritk/create-mini-lynx",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
         "create-mini-lynx": "./dist/cli.js",
       },
@@ -248,7 +248,7 @@
     },
     "packages/mini-lynx-preview": {
       "name": "@amritk/mini-lynx-preview",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "devDependencies": {
         "@amritk/mini-lynx": "workspace:*",
         "typescript": "^5",
@@ -259,7 +259,7 @@
     },
     "packages/mini-lynx-rsbuild-plugin": {
       "name": "@amritk/mini-lynx-rsbuild-plugin",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@lynx-js/runtime-wrapper-webpack-plugin": "^0.2.3",
         "@lynx-js/template-webpack-plugin": "^0.15.1",
