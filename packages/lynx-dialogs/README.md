@@ -1,3 +1,7 @@
+> **⚠️ Deprecated — no longer developed.** This package is no longer maintained
+> and will receive no further releases. The documentation below describes the
+> final version and is kept for reference only.
+
 # @amritk/lynx-dialogs
 
 **The platform's own date picker, action sheet and alert, for Lynx.** An Android

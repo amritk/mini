@@ -1,3 +1,7 @@
+> **⚠️ Deprecated — no longer developed.** This package is no longer maintained
+> and will receive no further releases. The documentation below describes the
+> final version and is kept for reference only.
+
 <div align="center">
 
 # @amritk/mini-lynx-rsbuild-plugin
