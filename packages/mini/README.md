@@ -303,6 +303,8 @@ document.body.appendChild(Counter())
 
 Each module has its own colocated test file (`*.test.ts` / `*.test.tsx`) — read those for canonical examples.
 
+---
+
 ## Performance
 
 mini's own code is a small share of what a screen costs. Measured in Chromium
@@ -351,8 +353,9 @@ other removed row. Rows have to be a fixed height for this arithmetic to work.
 **Other things that help:**
 
 - **Clone repeated markup with `template()`.** One `cloneNode` per row is
-  cheaper than building each element through JSX. `data-ref` lookups are
-  resolved once at parse time, so a clone pays only for the clone.
+  cheaper than building each element through JSX. Where each `data-ref` sits is
+  worked out once at parse time, so a clone only walks a few sibling pointers
+  to reach its refs instead of searching the tree.
 - **Bind only what changes.** In the benchmark example only the label is
   reactive, so "update every 10th row" rewrites 100 text nodes and never
   touches the list.
