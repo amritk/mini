@@ -1,5 +1,13 @@
 # @amritk/mini-lynx-native
 
+## 0.2.3
+
+### Patch Changes
+
+- 3cf8b48: Final releases. The Lynx packages are no longer developed and their READMEs now
+  say so; they will be deprecated on npm after this release. `@amritk/mini` has
+  been renamed to `@amritk/niv` and its README now points there.
+
 ## 0.2.2
 
 ### Patch Changes

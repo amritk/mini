@@ -1,6 +1,6 @@
 {
   "name": "@amritk/create-mini-lynx",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Scaffolds a @amritk/mini-lynx app that runs in a device-framed browser preview from the first command.",
   "type": "module",
   "license": "MIT",
