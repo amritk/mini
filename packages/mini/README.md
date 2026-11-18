@@ -305,6 +305,75 @@ Each module has its own colocated test file (`*.test.ts` / `*.test.tsx`) — rea
 
 ---
 
+## Performance
+
+mini's own code is a small share of what a screen costs. Measured in Chromium
+on the [js-framework-benchmark example](./examples/js-framework-benchmark),
+creating 1,000 rows spends about 6 ms in script and another 35–55 ms in the
+browser's style and layout work, depending on the stylesheet. A hand-written
+version with no framework at all saves only a few milliseconds of that. So the
+biggest wins come from giving the browser less DOM to lay out, not from making
+the runtime faster.
+
+**Long lists: render only what is visible.** A list of 10,000 rows costs
+hundreds of milliseconds to lay out, almost none of it in mini. `list` takes
+any getter, so give it a `computed` slice of the rows instead of all of them.
+In the same measurement this took "create 10,000 rows" from about 630 ms to
+about 3 ms:
+
+```tsx
+import { computed, list, signal } from '@amritk/mini'
+
+type Row = { id: string; label: string }
+
+const ROW_HEIGHT = 32
+// Enough rows to fill the viewport, plus a few of overscan.
+const VISIBLE = 30
+
+const Rows = (props: { rows: () => readonly Row[] }): HTMLElement => {
+  const scrollTop = signal(0)
+  const start = computed(() => Math.floor(scrollTop() / ROW_HEIGHT))
+  const visible = computed(() => props.rows().slice(start(), start() + VISIBLE))
+
+  const body = (<div style={() => ({ transform: `translateY(${start() * ROW_HEIGHT}px)` })} />) as HTMLDivElement
+  list(body, visible, (row) => row.id, (row) => <div style={{ height: ROW_HEIGHT }}>{row.label}</div>)
+
+  return (
+    <div style={{ height: 600, overflow: 'auto' }} onScroll={(event) => scrollTop(event.currentTarget.scrollTop)}>
+      {/* A spacer as tall as the whole list keeps the scrollbar honest. */}
+      <div style={() => ({ height: props.rows().length * ROW_HEIGHT })}>{body}</div>
+    </div>
+  )
+}
+```
+
+Rows scrolled out of view leave `list`, so their scopes are disposed like any
+other removed row. Rows have to be a fixed height for this arithmetic to work.
+
+**Other things that help:**
+
+- **Clone repeated markup with `template()`.** One `cloneNode` per row is
+  cheaper than building each element through JSX. Where each `data-ref` sits is
+  worked out once at parse time, so a clone only walks a few sibling pointers
+  to reach its refs instead of searching the tree.
+- **Bind only what changes.** In the benchmark example only the label is
+  reactive, so "update every 10th row" rewrites 100 text nodes and never
+  touches the list.
+- **Select by touching two rows, not all of them.** A per-row
+  `class={() => selected() === id}` makes every row re-run when the selection
+  moves. Toggling the class on the old and new rows by hand is constant time.
+  The benchmark example shows the pattern.
+- **Wide tables: `table-layout: fixed`.** It saved about 6% of layout time on
+  10,000 rows. `content-visibility: auto` does not help on table rows, because
+  CSS containment does not apply to them.
+
+Moving data into a buffer shared with WebAssembly does not help here. The DOM
+only takes JS strings, and decoding them from bytes measured about 4.6× slower
+than writing a string that was already in JS. `SharedArrayBuffer` also needs a
+cross-origin-isolated page, which an embedded widget cannot ask its host for.
+
+---
+
 ## License
 
 [MIT](../../LICENSE)
