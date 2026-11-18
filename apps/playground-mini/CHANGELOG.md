@@ -1,5 +1,13 @@
 # @amritk/playground-mini
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [3cf8b48]
+- Updated dependencies [37e5042]
+  - @amritk/mini@0.8.0
+
 ## 0.0.3
 
 ### Patch Changes
