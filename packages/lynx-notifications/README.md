@@ -1,3 +1,7 @@
+> **⚠️ Deprecated — no longer developed.** This package is no longer maintained
+> and will receive no further releases. The documentation below describes the
+> final version and is kept for reference only.
+
 # @amritk/lynx-notifications
 
 Local and remote push notifications for Lynx — an Android module, an iOS module,
