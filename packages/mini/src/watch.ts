@@ -1,4 +1,6 @@
-import { effect, setActiveSub } from 'alien-signals'
+import { effect } from 'alien-signals'
+
+import { runDetached } from './run-detached'
 
 /** Options for {@link watch}. */
 export type WatchOptions = {
@@ -55,26 +57,12 @@ export const watch = <T>(
       previous = value
       // `previous` is genuinely absent on the immediate run; the parameter is
       // typed `T` for the common change-only case, so it arrives as `undefined`.
-      if (immediate) runUntracked(() => callback(value, undefined as T))
+      if (immediate) runDetached(() => callback(value, undefined as T))
       return
     }
     if (Object.is(value, previous)) return
     const old = previous
     previous = value
-    runUntracked(() => callback(value, old))
+    runDetached(() => callback(value, old))
   })
-}
-
-/**
- * Runs `fn` with dependency tracking suspended, so signals it reads are not
- * linked to the surrounding effect. `setActiveSub(undefined)` detaches the
- * active subscriber for the call and the previous one is restored in `finally`.
- */
-const runUntracked = (fn: () => void): void => {
-  const previous = setActiveSub(undefined)
-  try {
-    fn()
-  } finally {
-    setActiveSub(previous)
-  }
 }

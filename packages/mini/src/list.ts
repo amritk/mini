@@ -3,8 +3,12 @@ import { effect, effectScope } from 'alien-signals'
 import { onCleanup } from './on-cleanup'
 import { runDetached } from './run-detached'
 
-/** A live row: its DOM node and the dispose for the scope its bindings live in. */
-type Entry = { node: HTMLElement; dispose: () => void }
+/**
+ * A live row: its DOM node, the dispose for the scope its bindings live in, and
+ * the reconciliation pass that last claimed its key. The stamp is how a pass
+ * spots a duplicate key without allocating a `Set` of every key it has seen.
+ */
+type Entry = { node: HTMLElement; dispose: () => void; pass: number }
 
 /**
  * Keyed reactive list: keeps `container`'s children in sync with `items`,
@@ -49,30 +53,36 @@ export const list = <T>(
   // The key order rendered on the previous pass, in DOM order — the old sequence
   // the diff walks against. Rebuilt from the new order at the end of every pass.
   let prev: string[] = []
+  // Counts reconciliation passes, so each entry can record the last one that
+  // claimed it — see `Entry.pass`.
+  let pass = 0
 
   const stop = effect(() => {
     const next = items()
+    const current = ++pass
 
     // Pass 1 — materialise the new key order and make sure a node exists for
     // every key in it. A brand-new key is built here (in its own scope) but not
     // placed; the diff decides where it goes. Duplicate keys collapse onto the
     // first node and drop their row, with a warning so the collision is visible.
     const order: string[] = []
-    const seen = new Set<string>()
     let index = 0
     for (const item of next) {
-      const k = key(item, index)
-      if (seen.has(k)) {
+      // Every item takes an index, a dropped duplicate included, so `key` and
+      // `create` see each item's real position in the collection.
+      const at = index++
+      const k = key(item, at)
+      const entry = live.get(k)
+      if (entry?.pass === current) {
         console.warn('[mini] list: duplicate key drops rows:', k)
-        index++
         continue
       }
-      seen.add(k)
-      if (!live.has(k)) {
+      if (entry) {
+        entry.pass = current
+      } else {
         // effectScope runs its body synchronously; the assignment inside is
         // definite, just invisible to the compiler — hence the non-null `!`.
         let node!: HTMLElement
-        const created = index
         // Detached on purpose: alien-signals disposes a scope created inside a
         // running effect the moment that effect re-runs, so a row scope owned by
         // this effect would die the next time the collection changed. Appending
@@ -80,13 +90,12 @@ export const list = <T>(
         // bindings and an already-fired `onCleanup`. See `runDetached`.
         const dispose = runDetached(() =>
           effectScope(() => {
-            node = create(item, created)
+            node = create(item, at)
           }),
         )
-        live.set(k, { node, dispose })
+        live.set(k, { node, dispose, pass: current })
       }
       order.push(k)
-      index++
     }
 
     // Pass 2 — reconcile the DOM to `order`, moving as few nodes as possible.
@@ -155,36 +164,37 @@ const reconcile = (container: Element, a: (string | null)[], b: readonly string[
   let bEnd = b.length - 1
   // The four end keys, re-read from the arrays as the pointers step. Every read
   // happens under the `aStart <= aEnd`/`bStart <= bEnd` loop guard, so the index
-  // is in range — the `?? null` / `as string` only satisfy the checker, which
-  // can't prove it. An old-side key may be `null` (a slot vacated by a move); a
-  // new-side key never is.
-  let aStartKey: string | null = a[aStart] ?? null
-  let aEndKey: string | null = a[aEnd] ?? null
+  // is in range — the `as string` only satisfies the checker, which cannot
+  // prove it. An old-side key may be `null` (a slot vacated by a move), and the
+  // `== null` tests below also absorb the `undefined` of a read that steps one
+  // past the end as the loop exits; a new-side key is never either.
+  let aStartKey: string | null | undefined = a[aStart]
+  let aEndKey: string | null | undefined = a[aEnd]
   let bStartKey = b[bStart] as string
   let bEndKey = b[bEnd] as string
   // Built lazily the first time no end lines up — the only case that needs it.
   let oldIndex: Map<string, number> | undefined
 
   while (aStart <= aEnd && bStart <= bEnd) {
-    if (aStartKey === null) aStartKey = a[++aStart] ?? null
-    else if (aEndKey === null) aEndKey = a[--aEnd] ?? null
+    if (aStartKey == null) aStartKey = a[++aStart]
+    else if (aEndKey == null) aEndKey = a[--aEnd]
     else if (aStartKey === bStartKey) {
-      aStartKey = a[++aStart] ?? null
+      aStartKey = a[++aStart]
       bStartKey = b[++bStart] as string
     } else if (aEndKey === bEndKey) {
-      aEndKey = a[--aEnd] ?? null
+      aEndKey = a[--aEnd]
       bEndKey = b[--bEnd] as string
     } else if (aStartKey === bEndKey) {
       // Head of old is now the tail of new: it slid right. Park it after the
       // current old tail, where that new-tail slot sits.
       container.insertBefore(nodeOf(live, aStartKey), nodeOf(live, aEndKey).nextSibling)
-      aStartKey = a[++aStart] ?? null
+      aStartKey = a[++aStart]
       bEndKey = b[--bEnd] as string
     } else if (aEndKey === bStartKey) {
       // Tail of old is now the head of new: it slid left. Move it before the
       // current old head.
       container.insertBefore(nodeOf(live, aEndKey), nodeOf(live, aStartKey))
-      aEndKey = a[--aEnd] ?? null
+      aEndKey = a[--aEnd]
       bStartKey = b[++bStart] as string
     } else {
       if (oldIndex === undefined) {
