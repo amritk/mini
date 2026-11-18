@@ -133,6 +133,7 @@ type EventHandlers<E extends Element> = {
   onPointerDown?: (event: TargetedEvent<E, PointerEvent>) => void
   onError?: (event: TargetedEvent<E, Event>) => void
   onLoad?: (event: TargetedEvent<E, Event>) => void
+  onScroll?: (event: TargetedEvent<E, Event>) => void
 }
 
 /**
@@ -367,7 +368,7 @@ const setAttribute = (element: Element, name: string, value: unknown): void => {
     console.warn('[mini] refusing to write an inline event handler attribute:', name)
     return
   }
-  if (value === false || value === null || value === undefined) element.removeAttribute(name)
+  if (value === null || value === undefined || value === false) element.removeAttribute(name)
   else element.setAttribute(name, value === true ? '' : String(value))
 }
 
@@ -544,7 +545,9 @@ const appendChildren = (element: Element, children: MiniChildren): void => {
       // Booleans render as nothing, matching a static child (`typeof 'boolean'`
       // returns above) — otherwise `{() => flag}` would print the word "true"
       // where `{flag}` prints nothing, and only one of the two is ever intended.
-      text.textContent = value === null || value === undefined || typeof value === 'boolean' ? '' : String(value)
+      // `data`, not `textContent`: this is always a Text node, and the direct
+      // write skips the generic replace-all-children path `textContent` takes.
+      text.data = value === null || value === undefined || typeof value === 'boolean' ? '' : String(value)
     })
     element.appendChild(text)
     return
@@ -576,8 +579,7 @@ export const jsx = (tag: string | Component<never>, props: MiniElementProps, key
   // updating rather than as an error. There is no competing meaning to protect,
   // because mini does no keying at the JSX level at all — that lives in `list`.
   if (typeof tag === 'function') {
-    const withKey = key === undefined ? props : { ...props, key }
-    return (tag as (props: MiniElementProps) => HTMLElement)(withKey)
+    return (tag as (props: MiniElementProps) => HTMLElement)(key === undefined ? props : { ...props, key })
   }
 
   const element = createElement(tag)
@@ -662,16 +664,17 @@ export const jsxs = jsx
  * Development-runtime variant (bun and vite import it from jsx-dev-runtime
  * in dev mode). The extra debug parameters — source location, `this` — have
  * nothing to attach to in a framework with no component instances, so they
- * are accepted and dropped.
+ * are accepted and dropped. That is why this can be `jsx` itself rather than a
+ * wrapper: `jsx` never reads past its third argument.
  */
-export const jsxDEV = (
+export const jsxDEV: (
   tag: string | Component<never>,
   props: MiniElementProps,
   key?: unknown,
-  _isStatic?: boolean,
-  _source?: unknown,
-  _self?: unknown,
-): HTMLElement => jsx(tag, props, key)
+  isStatic?: boolean,
+  source?: unknown,
+  self?: unknown,
+) => HTMLElement = jsx
 
 /**
  * The JSX type surface TypeScript resolves from this module. Each intrinsic

@@ -274,6 +274,87 @@ describe('list', () => {
     }
   })
 
+  it('catches a duplicate of a key that was already on screen', () => {
+    // Duplicates are spotted by stamping each row with the pass that claimed
+    // it, so the case worth pinning is a key carried over from the previous
+    // pass: it is claimed once, and only its second occurrence is a collision.
+    const warnings: unknown[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => warnings.push(args)
+    try {
+      const items = signal<readonly Item[]>([{ id: 'a', label: 'a' }])
+      const container = document.createElement('div')
+      list(container, items, (item) => item.id, makeItem)
+      const first = container.firstElementChild
+      items([
+        { id: 'a', label: 'a' },
+        { id: 'b', label: 'b' },
+        { id: 'a', label: 'again' },
+      ])
+      expect(childIds(container)).toEqual(['a', 'b'])
+      expect(container.firstElementChild).toBe(first)
+      expect(warnings).toHaveLength(1)
+    } finally {
+      console.warn = original
+    }
+  })
+
+  it('does not mistake a key from the previous pass for a duplicate', () => {
+    const warnings: unknown[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => warnings.push(args)
+    try {
+      const items = signal<readonly Item[]>([
+        { id: 'a', label: 'a' },
+        { id: 'b', label: 'b' },
+      ])
+      const container = document.createElement('div')
+      list(container, items, (item) => item.id, makeItem)
+      items([
+        { id: 'b', label: 'b' },
+        { id: 'a', label: 'a' },
+      ])
+      items([
+        { id: 'a', label: 'a' },
+        { id: 'b', label: 'b' },
+      ])
+      expect(childIds(container)).toEqual(['a', 'b'])
+      expect(warnings).toHaveLength(0)
+    } finally {
+      console.warn = original
+    }
+  })
+
+  it('counts a dropped duplicate toward the positions after it', () => {
+    const items = signal<readonly Item[]>([
+      { id: 'a', label: 'a' },
+      { id: 'a', label: 'dup' },
+      { id: 'b', label: 'b' },
+    ])
+    const seenCreate: [string, number][] = []
+    const original = console.warn
+    console.warn = () => {}
+    try {
+      list(
+        document.createElement('div'),
+        items,
+        (item) => item.id,
+        (item, index) => {
+          seenCreate.push([item.id, index])
+          return makeItem(item)
+        },
+      )
+    } finally {
+      console.warn = original
+    }
+    // `b` is third in the collection, so it is told so, even though the row
+    // before it was dropped.
+    expect(seenCreate).toEqual([
+      ['a', 0],
+      ['b', 2],
+    ])
+  })
+
   it('passes the running position to key and create', () => {
     const items = signal<readonly Item[]>([
       { id: 'a', label: 'a' },
