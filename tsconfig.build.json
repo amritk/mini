@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
     "allowImportingTsExtensions": false,
     "noEmit": false,
     "declaration": true
   },
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test-utils.ts"]
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

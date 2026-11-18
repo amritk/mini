@@ -1,238 +1,380 @@
 <div align="center">
 
-# mini
+# @amritk/niv
 
-**A deliberately tiny signals UI runtime. Real nodes, created once, mutated forever by signals — no virtual DOM, no diffing, no re-render.**
+**A deliberately tiny signals-based UI layer: reactive DOM bindings plus a compilerless JSX runtime.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-ef4444?style=flat-square)&nbsp;
+![version](https://img.shields.io/npm/v/@amritk/niv?style=flat-square&logo=npm&logoColor=white&label=version&color=6366f1)&nbsp;
 ![license](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)&nbsp;
-![deps](https://img.shields.io/badge/deps-1%20(alien--signals)-f97316?style=flat-square)&nbsp;
+![size](https://img.shields.io/badge/deps-1%20(alien--signals)-f97316?style=flat-square)&nbsp;
 ![vibe coded](https://img.shields.io/badge/vibe-coded-a855f7?style=flat-square)
 
 </div>
 
 ---
 
-## What is mini?
+## Overview
 
-A UI runtime small enough to read in an afternoon, built on
-[alien-signals](https://github.com/stackblitz/alien-signals). It ships in two
-shapes:
+`@amritk/niv` is a minimal UI layer built on [alien-signals](https://github.com/stackblitz/alien-signals): fine-grained reactivity plus a small, capped set of DOM helpers and a compilerless JSX runtime.
 
-| Package | What it renders to |
-|---|---|
-| **[`@amritk/mini`](./packages/mini)** | The DOM. Reactive bindings, keyed lists, static-template cloning, and a compilerless JSX runtime. |
-| **[`@amritk/mini-lynx`](./packages/mini-lynx)** | **Lynx**, through its Element PAPI. The engine's own elements, attributes and events — no vocabulary in between. |
+> **Formerly `@amritk/mini`.** The API is unchanged: to migrate, replace `@amritk/mini` with `@amritk/niv` in your imports (subpaths included) and in `jsxImportSource`. Type names such as `MiniChildren` and the `// mini-static-ok` comment are unchanged.
 
-Getting a Lynx app onto a phone takes one more package —
-**[`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin)**,
-the [rspeedy](https://lynxjs.org/rspeedy) build for a mini-lynx app: two chunks,
-one `.lynx.bundle`, and a QR code Lynx Explorer scans. See
-[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md).
+**The cap is the design.** There is no virtual DOM, no diffing, and no re-render. JSX (or `template`) builds real DOM **once**; dynamic values flow through the bind helpers or function-valued props; and repetition goes through `list`. A component function runs a single time and returns the `HTMLElement` it built. If a feature seems to be missing here, the correct next step is usually a real framework (Preact or Solid), not a new helper.
 
-A third runtime package, **[`@amritk/mini-helpers`](./packages/mini-helpers)**, holds the
-handful of helpers that turned out identical in both — route matching, query
-parsing, JSON Schema compilation. Both packages depend on it and re-export it, so
-you never import it directly; it is separate only because its charter is worth
-enforcing: **no reactivity, no platform.**
+---
 
-Both are compilerless: there is no custom build step, just the standard
-`react-jsx` transform pointed at the package's own runtime.
+## Installation
 
-## The one idea
+```bash
+npm install @amritk/niv
+# or
+pnpm add @amritk/niv
+# or
+yarn add @amritk/niv
+# or
+bun add @amritk/niv
+```
 
-**JSX builds a real node once. Signals mutate it forever. Nothing diffs.**
+---
+
+## The reactivity rule
+
+There is no compiler analysing your expressions, so reactivity is decided by **value shape at runtime**:
+
+- A **function-valued** attribute, child, or `show` is reactive — the runtime wraps it in an effect and re-applies it whenever the signals it reads change.
+- Any **other value** is static — applied once at creation, never again.
+
+Signals are zero-argument functions, so passing one **without calling it** is already a live binding:
 
 ```tsx
-const Counter = () => {
-  const count = signal(0)
-  return (
-    <button onclick={() => count(count() + 1)}>
-      {() => `clicked ${count()} times`}
-    </button>
-  )
-}
+<button disabled={streaming}>      {/* reactive — tracks forever          */}
+<button disabled={streaming()}>    {/* STATIC — frozen at creation!       */}
+<span>{() => count() * 2}</span>   {/* reactive derived text              */}
 ```
 
-The component function runs a **single time**. The `<button>` is created once
-and never rebuilt; only the text node inside it is ever written to again.
+---
 
-### The reactivity rule
+## API
 
-Nothing analyses your expressions, so reactivity is decided by **value shape at
-runtime**:
+### Reactivity (`@amritk/niv`)
 
-- A **function-valued** attribute, child, or `show` is reactive.
-- Any **other value** is static — applied once, never again.
+| Export | Purpose |
+|:---|:---|
+| `signal(initial?)` | A writable signal. Call with no argument to read, with one to write. |
+| `computed(fn)` | A derived, read-only signal. |
+| `effect(fn)` | Run `fn` and re-run it whenever the signals it reads change. Returns a stop function. |
+| `effectScope(fn)` | Group effects so a single dispose tears them all down. |
+| `batch(fn)` | Coalesce several writes into one propagation pass. |
+| `watch(get, cb, opts?)` | Fire `cb(value, previous)` on change, **skipping** the initial run — niv's `watch`. Pass `{ immediate: true }` to also run once on setup (with `previous` as `undefined`). |
+| `onCleanup(fn)` | Register teardown to run when the enclosing `effectScope` is disposed. |
+| `mount(container, component)` | Run `component` in an owning `effectScope`, append its node, and return a `dispose` that removes the node and tears the scope down. The application root — use it so top-level bindings and `onCleanup` have an owner. |
+| `Signal<T>`, `ReadonlySignal<T>` | Types for the two halves of a signal. |
 
-Signals are zero-argument functions, so passing one **without calling it** is
-already a live binding:
+### DOM bindings (`@amritk/niv`)
+
+Each binding ties one node property to a signal-reading getter and returns the effect's stop function. They write through `textContent`, attributes, and `classList` — never `innerHTML` — so bound data cannot inject markup.
+
+| Export | Purpose |
+|:---|:---|
+| `bindText(node, get)` | Keep `node.textContent` in sync. |
+| `bindAttr(node, name, get)` | Keep an attribute in sync (`false`/`null` removes it, `true` sets it bare). |
+| `bindClass(node, name, get)` | Toggle a single class. |
+| `bindShow(node, get)` | Show/hide via inline `display`. |
+| `bindValue(node, model)` | Two-way bind a text input/textarea to a string signal — niv's `v-model`. Holds writes during IME composition and commits on `compositionend`. |
+| `bindChecked(node, model)` | Two-way bind a checkbox/radio to a boolean signal — the `.checked` analogue of `bindValue`. |
+| `bindSelect(node, model)` | Two-way bind a `<select>` to a string signal — sets `.value` (the property, so the option selects) and writes back on `change`. |
+| `bindHtml(node, sanitize, get)` | The **one** sanctioned `innerHTML` sink; the sanitizer is a required argument at every call site. |
+
+### Structure (`@amritk/niv`)
+
+| Export | Purpose |
+|:---|:---|
+| `template(html)` | Parse a static HTML string once; returns a clone factory that also collects `data-ref` nodes. |
+| `list(container, items, key, create)` | Keyed reactive list: one node per key, disposed when its key leaves. |
+
+### JSX runtime (`@amritk/niv/jsx-runtime`, `@amritk/niv/jsx-dev-runtime`)
+
+The automatic runtime TypeScript targets when a package sets `"jsx": "react-jsx"` and `"jsxImportSource": "@amritk/niv"`. Exposes `jsx`, `jsxs`, `jsxDEV`, and the `JSX` namespace, plus the `Component`, `MaybeReactive`, `MiniChild`, `MiniChildren`, `ClassValue`, `StyleValue`, and `TargetedEvent` types.
+
+SVG tags are created in the SVG namespace, so `<svg>`/`<path>`/… render as real SVG. `class` accepts a string, a (nestable) array with falsy entries dropped, or a `{ name: boolean }` toggle map; `style` accepts a cssText string or a property object (camelCase keys are kebab-cased) — each still static-or-reactive by the value-shape rule.
+
+In a style object a **bare number means pixels**, as it does in React, Preact, and Solid: `style={{ width: 100 }}` is `100px`. The properties CSS treats as unitless (`opacity`, `zIndex`, `flex`, `lineHeight`, …) and custom `--*` properties are passed through untouched, and a string is always taken verbatim, so reach for one whenever you want a different unit.
+
+`show` and `style` can be used on the same element without fighting over `display`: hiding wins while it is in effect, and showing the element again restores whatever its own style asked for.
+
+`value`, `checked`, and `selected` are written through the DOM **property**, not the attribute, and applied after the element's children exist. The attribute only seeds a control's default, so an attribute write stops reaching the field the moment the user types in it — and on a `<select>` it never selects anything at all. Writing the property means `<input value={draft} />` keeps tracking after the first keystroke and `<select value={picked}>…</select>` selects the matching `<option>`. Two-way binding is still `bindValue`/`bindChecked`/`bindSelect`; these props are the one-way half.
+
+---
+
+## Layered modules (subpath exports)
+
+The `.` entry above is the whole story for the bundle-size-sensitive embed widget: its only runtime dependency is `alien-signals`, and it imports **no** subpath module. The dashboards — which are not bundle-constrained — opt into more through tree-shakeable subpath exports. Each is its own module graph with its own README section below; importing one pulls in **none** of the others, and the widget that imports only `.` pays zero bytes for any of them. Two tests enforce this: a core import-boundary walk (`src/import-boundary.test.ts`) and a gzipped size budget (`src/core-size-budget.test.ts`) on the bundled `.` entry — and on `.` plus `/jsx-runtime` together, which is what a JSX app really ships once the transform's own import is counted.
+
+Composition is by **explicit import** in the consuming app — there is no runtime plugin registry and no `niv.use()`, because a registry would defeat tree-shaking. Dependencies are prop-drilled, not injected through a context.
+
+### Client router (`@amritk/niv/router`)
+
+A small client-side router for the dashboards, in history or hash mode.
+
+| Export | Purpose |
+|:---|:---|
+| `createRouter({ routes, mode?, base? })` | Matches the URL against a route table into a reactive `route` signal; returns `{ route, navigate, stop }`. Attaches its location listener immediately. The `route` state includes a parsed `query` record alongside the raw `search`. |
+| `matchRoute(pattern, path)` | Matches a `/users/:id` pattern (with an optional trailing `*` catch-all) against a pathname, returning captured params or `null`. Typed from the pattern when it is a literal: `matchRoute('/users/:id', path)` gives `{ id: string } \| null`. |
+| `buildPath(pattern, params)` | The inverse — `buildPath('/users/:id', { id })` → `/users/42`, with values encoded so they round-trip back through `matchRoute`. The params argument is typed from the pattern, so a forgotten or misspelt one does not compile. |
+| `Link` | An `<a href>` that intercepts a plain left-click and calls `navigate` — modified clicks, non-primary buttons, and `preventDefault`ed events are left to the browser. Takes `navigate` as a prop (`navigate={router.navigate}`); `to` may be reactive. Pass `active` to mark the current link — it sets `aria-current="page"`, and appends `activeClass` on top of `class` when you supply one — and `target`/`rel`/`title`/`id`/`style` pass through to the anchor. |
+| `RouterView` | Renders the matched route's view (the `view` key by default) and swaps it on navigation — the outlet that replaces a hand-written `route().route?.['view']` cast. Takes `router={router}`. |
+| `Route`, `RouterMode`, `RouterOptions`, `RouteState`, `Router`, `NavigateOptions`, `RouteParams`, `PathParams`, `LinkProps`, `RouterViewProps` | Exported types. |
 
 ```tsx
-<button disabled={streaming}>      {/* reactive — tracks forever    */}
-<button disabled={streaming()}>    {/* STATIC — frozen at creation! */}
+import { createRouter, RouterView } from '@amritk/niv/router'
+
+const router = createRouter({
+  routes: [
+    { path: '/', view: Home },
+    { path: '/users/:id', view: User },
+    { path: '*', view: NotFound },
+  ],
+})
+
+// RouterView reads the matched route's `view` and swaps it on navigation.
+const app = <RouterView router={router} fallback={NotFound} />
 ```
 
-That second line is the one real footgun, so it is guarded three ways: live in
-the editor and dev server through `@amritk/mini/vite`, in this repo's CI through
-`bun run check:reactivity`, and in your own CI through the same plugin.
+### Control flow (`@amritk/niv/flow`)
 
-## The cap is the design
+The ergonomic control-flow components the core deliberately omits — each reuses a core primitive and adds nothing to `.`. Because niv has no compiler, JSX children are built eagerly; pass a **function** child to defer construction to when a branch is shown (and rebuild on re-entry), or a **node** to reuse and preserve its state.
 
-There is no virtual DOM, no diffing, and no re-render — and that is a
-commitment, not a roadmap item. It buys two things:
+| Export | Purpose |
+|:---|:---|
+| `Show` | `<Show when={cond} fallback={…}>` — mounts one branch, tears down the other (bindings included). Truthiness drives it, so `when={user}` works. A function child receives the narrowed value as a getter — `{(user) => <b>{() => user().name}</b>}` — with `null`/`undefined` removed from its type; the getter updates reactively without rebuilding the branch. |
+| `For` | `<For each={items} key={…}>{(item, i) => …}</For>` — keyed list backed by the core `list`. `key` defaults to an object `id` / primitive value / index; supply it for reordering lists. Pass `fallback` to render an empty state while the list has no items, and `as` (with `class`/`style`/`ref`) to render into a real element instead of the default `display: contents` host — needed when the container itself is styled, e.g. a `divide-y` list whose separators only match direct children: `<For each={rows} as="ul" class="divide-y">`. |
+| `Switch` / `Match` | `<Switch fallback>…<Match when={…}>…</Match></Switch>` — renders the first truthy branch; only the winner is built. |
+| `Dynamic` | `<Dynamic component={tag} {...props}/>` — renders a tag or component chosen at runtime (`component` is a tag string or a getter/signal returning the tag/component). |
+| `ShowProps`, `ForProps`, `SwitchProps`, `MatchProps`, `DynamicProps`, `DynamicComponent`, `ChildFactory` | Exported types. |
 
-- **The `.` entry stays tiny and flat.** Every feature only some apps need lives
-  on its own subpath with its own module graph, so importing `/router` pulls in
-  none of `/forms`. A size-budget test and an import-boundary test hold that
-  line in CI, per package.
-- **Do not rebuild what the target already does.** `@amritk/mini-lynx` used to
-  own a platform-neutral vocabulary and a pluggable host so a component could run
-  anywhere. Lynx already solves that one layer down, so the package dropped the
-  abstraction and became a thin layer over the engine — about 5,000 lines lighter,
-  and with the ceiling moved from "what this package has named" to "what the
-  engine can do". See [`docs/mini-lynx-runtime.md`](./docs/mini-lynx-runtime.md).
+```tsx
+import { For, Show } from '@amritk/niv/flow'
 
-If a feature seems to be missing, the correct next step is usually a bigger
-framework (Preact, Solid), not a new helper here.
-
-## Quick start
-
-Targeting Lynx? One command gets you an app running in a device-framed preview:
-
-```bash
-bun create @amritk/mini-lynx my-app
-cd my-app && bun run dev
+const Todos = (todos: () => readonly Todo[]): HTMLElement => (
+  <ul>
+    <Show when={() => todos().length} fallback={() => <li>nothing yet</li>}>
+      {() => <For each={todos} key={(t) => t.id}>{(t) => <li>{t.title}</li>}</For>}
+    </Show>
+  </ul>
+)
 ```
 
-That is [`create-mini-lynx`](./packages/create-mini-lynx), and the app it writes
-has **two loops on one source tree**:
+### Forms (`@amritk/niv/forms`)
 
-```bash
-bun run dev          # the app in a device frame, in a browser tab
-bun run dev:device   # rspeedy, a QR code, and the app on a phone
+Field state (value / dirty / touched / errors as signals), submit handling, and validation. Inputs wire up through the core `bindValue`.
+
+| Export | Purpose |
+|:---|:---|
+| `createForm({ initialValues, validate?, onSubmit? })` | Returns `{ values, errors, isValid, isDirty, isSubmitting, submitted, submitError, field, bind, setValue, setError, reset, handleSubmit }`. Errors recompute reactively; each field withholds its message until blurred or the form is submitted. A field's type follows its initial value (`string`, `number`, or `boolean`), and `bind` wires the matching control — `.checked` for checkbox/radio, a coerced number for number/range, `<select>` on change, `.value` otherwise. `setError(name, msg)` layers a server-side error (auto-cleared on edit); a rejected `onSubmit` is captured in `submitError` instead of rejecting. |
+| `Field` | `<Field form={form} name="email" label="Email" type="email" />` — a component that renders a label, control, and live error message wired to a field in one element (`as="textarea"`/`"select"`, plus `class`/`labelClass`/`inputClass`/`errorClass`). |
+| `schemaToValidator(schema)` | Compiles a JSON Schema into a `(values) => errors` function via `@amritk/runtime-validators`. |
+| `FieldState`, `FieldProps`, `FieldControl`, `FieldValue`, `FieldValues`, `FormConfig`, `Form`, `FormValidate`, `FormErrors` | Exported types. |
+
+Validation accepts **either** a plain `(values) => errors` function **or** a JSON Schema, which is validated through [`@amritk/runtime-validators`](https://github.com/amritk/mjst/tree/main/packages/runtime-validators) (eval-free, CSP-safe) — an optional peer, so a schema-validated form costs nothing to a form that does not use one:
+
+```tsx
+import { createForm, Field } from '@amritk/niv/forms'
+
+const form = createForm({
+  initialValues: { email: '' },
+  validate: { type: 'object', properties: { email: { type: 'string', minLength: 1 } }, required: ['email'] },
+  onSubmit: (values) => save(values),
+})
+
+// <Field> renders the label, control, and live error message in one element.
+const view = () => (
+  <form onSubmit={form.handleSubmit}>
+    <Field form={form} name="email" label="Email" type="email" />
+    <button type="submit" disabled={form.isSubmitting}>Save</button>
+  </form>
+)
+
+// …or wire the pieces by hand with `form.bind` when you need full control:
+//   <input ref={form.bind('email')} />
+//   <span show={() => Boolean(form.field('email').error())}>{() => form.field('email').error()}</span>
 ```
 
-`dev` runs on [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview) — a
-browser implementation of Lynx's Element PAPI — so there is something on screen
-taking taps with no phone and no host app involved. `dev:device` is
-[`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin)
-building a real `.lynx.bundle` for Lynx Explorer. Same `src/app.tsx` either way;
-what differs is the entry. Which of the two to trust when they disagree is
-[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md) and the preview's
-own list of blind spots.
+`@amritk/runtime-validators` is an **optional peer dependency** — install it only if you validate with schemas.
 
-For the DOM runtime, or to add the Lynx one to a project you already have:
+### Data (`@amritk/niv/query`)
 
-```bash
-npm install @amritk/mini
-# or: pnpm add / yarn add / bun add
+A thin adapter that bridges [`@tanstack/query-core`](https://tanstack.com/query) observers to niv signals — so caching, deduplication, retries, and invalidation come from TanStack Query rather than a bespoke resource primitive (mirroring how `solid-query` wraps query-core).
+
+| Export | Purpose |
+|:---|:---|
+| `createQuery(client, options)` | Subscribes a `QueryObserver` and exposes `{ result, data, error, status, isPending, isLoading, isFetching, isSuccess, isError, refetch }` as signals. Call it inside a component/`effectScope` — the subscription is cleaned up with the scope. `options` may be a getter, so the query key can depend on signals (`() => ({ queryKey: ['user', id()] })`) and refetch when they change. |
+| `QueryResult` | Exported type. |
+
+`@tanstack/query-core` is an **optional peer dependency** — install it only if you use `/query`.
+
+### Hot reload (`@amritk/niv/hot`)
+
+One line at the entry point that turns the dev server's full page reload into a tree swap. Vite hot-updates a module only if something **accepts** the update; a niv app accepts nothing, so an edit walks up the import graph to the entry, finds no boundary, and reloads the page. This subpath makes the entry that boundary.
+
+| Export | Purpose |
+|:---|:---|
+| `hotMount(container, component, hot)` | `mount` plus the hot-module wiring: it hands the runtime the mount's `dispose` as the module's teardown, so an edit anywhere below the entry tears the old tree down — every effect and `onCleanup` fires — before the updated entry mounts the new one. Pass `import.meta.hot` straight through: in a production build it is `undefined` and the call is exactly `mount`, so one call site covers both modes. It also accepts at runtime **before** mounting, so a component that throws mid-render leaves an accept callback behind and its fix still arrives as a hot update. |
+| `HotContext` | Exported type — the structural `accept`/`dispose` pair the helper needs. Vite's `import.meta.hot` satisfies it, and this subpath imports no `vite` types of its own. |
+
+It takes both halves: [`acceptHotUpdates()`](#build-plugins-amritkminivite) marks the module as the boundary — only a source transform can, since Vite looks for the literal `import.meta.hot.accept(` in the module text and never sees a runtime call made through a helper.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+
+import { acceptHotUpdates } from '@amritk/niv/vite'
+
+export default defineConfig({ plugins: [acceptHotUpdates()] })
 ```
+
+```tsx
+// main.tsx — the entry module. Keep it thin: it re-runs on every edit below it.
+import { hotMount } from '@amritk/niv/hot'
+
+import { App } from './app'
+
+hotMount(document.body, App, import.meta.hot)
+```
+
+Two things to know. **Signal state resets on every reload** — niv has no compiler and no component identity, so there is nothing to map an old component's signals onto in the new one, and a clean remount is the honest behaviour; state that should survive edits belongs in a separate store module, which keeps its instance across an update because it is not the module that changed. And **do not register your own `hot.dispose()`** — the runtime keeps one disposer per module, so a second registration silently replaces niv's and leaks the old tree; extra teardown goes in an `onCleanup` inside the root component, where the mount scope already owns it.
+
+This lives in a subpath rather than in `mount` because the `.` entry is byte-budgeted for the embed widget, which ships one static bundle and has no dev server to hot-update.
+
+### Build plugins (`@amritk/niv/vite`)
+
+Two Vite plugins, both here for the same reason: in a compilerless runtime some things can only be settled by reading the source, because neither the type checker nor the runtime can see them.
+
+`catchCalledSignals` catches the one footgun of the [reactivity rule](#the-reactivity-rule): calling a signal in a binding (`disabled={streaming()}`) freezes its value at creation instead of tracking it, and the call happens before `jsx()` ever runs. `acceptHotUpdates` is the build-time half of [hot reloading](#hot-reload-amritkminihot) — Vite reads a module's text for `import.meta.hot.accept(` to decide whether it can stop an update there, so the call has to be *in* the source.
+
+| Export | Purpose |
+|:---|:---|
+| `acceptHotUpdates()` | A Vite plugin. Appends `import.meta.hot?.accept()` to any first-party module that calls `hotMount`, making it the app's hot-update boundary — without it the dev server finds nothing to accept the update and reloads the whole page. Only modules that mount are touched, the line is appended (so no existing line moves and positions stay honest), and a module that already writes its own `import.meta.hot.accept` is left alone. `apply: 'serve'`, so nothing is injected into a production build. |
+| `catchCalledSignals(options?)` | A Vite plugin. Walks the TypeScript AST of each `.tsx` module on every edit and flags a **signal called inside a binding** — `disabled={streaming()}`, a child `<span>{count()}</span>`, and also sub-expression freezes like `class={active() ? 'on' : 'off'}`, `disabled={busy() || locked}`, `style={{ width: w() }}`, and `` title={`${count()} left`} `` (anywhere in a value that is not itself a getter). It only flags names it can see are signals (`signal()`/`computed()`, or a `Signal<…>`/`ReadonlySignal<…>` type), so one-shot helpers like `id={makeId()}` are left alone, and a call inside an arrow/`.map` callback is the correct reactive form and never flagged. In dev it **warns** in the terminal and shows the findings in Vite's **error overlay** (non-blocking — the module still loads, and the overlay clears on the next clean edit); during `vite build` it **fails** the build — one plugin for both the editor loop and the CI gate. Bare getters and thunks never match; a `// mini-static-ok` comment (same line or the line above) opts out a deliberate case. Pass `{ failOnError }` to force the severity, or `{ overlay: false }` to keep dev feedback in the terminal only. |
+| `findCalledSignalBindings(source)` | The underlying scanner (returns `CalledSignalBinding[]`), for a bespoke lint command or editor integration. |
+| `CatchCalledSignalsOptions`, `CalledSignalBinding` | Exported types. |
+
+```ts
+import { defineConfig } from 'vite'
+
+import { acceptHotUpdates, catchCalledSignals } from '@amritk/niv/vite'
+
+export default defineConfig({
+  plugins: [catchCalledSignals(), acceptHotUpdates()],
+})
+```
+
+`vite` and `typescript` are **optional peer dependencies** — needed only by this subpath, so the `.` core stays dependency-free.
+
+---
+
+## Usage
+
+Point your compiler at niv's JSX runtime — either per file or in `tsconfig.json`:
 
 ```jsonc
-// tsconfig.json
 {
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "@amritk/mini"
+    "jsxImportSource": "@amritk/niv"
   }
 }
 ```
 
+Then build UI from signals:
+
 ```tsx
-import { mount, signal } from '@amritk/mini'
+import { signal, list } from '@amritk/niv'
 
-mount(document.body, Counter)
+const Counter = (): HTMLElement => {
+  const count = signal(0)
+  return (
+    <button type="button" onClick={() => count(count() + 1)}>
+      clicked {() => count()} times
+    </button>
+  )
+}
+
+document.body.appendChild(Counter())
 ```
 
-Full API, subpath modules, and the Lynx runtime's engine boundary are in the
-package READMEs:
+Each module has its own colocated test file (`*.test.ts` / `*.test.tsx`) — read those for canonical examples.
 
-- [`@amritk/mini`](./packages/mini/README.md) — DOM bindings, `list`,
-  `template`, and the `/router` `/flow` `/forms` `/query` `/hot` `/vite`
-  subpaths.
-- [`@amritk/mini-lynx`](./packages/mini-lynx/README.md) — the Lynx element
-  vocabulary, `renderPage`, the in-memory Element PAPI for tests, and the
-  `/flow` `/composition` `/router` `/forms` `/query` `/engine` `/testing`
-  subpaths.
-- [`@amritk/mini-helpers`](./packages/mini-helpers/README.md) — the pure helpers
-  both of the above share, and the bar for adding to them.
-- [`@amritk/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin/README.md)
-  — the rspeedy build: `rspeedy dev`, a QR code, and the app on your phone.
-- [`@amritk/mini-lynx-preview`](./packages/mini-lynx-preview/README.md) — Lynx's
-  Element PAPI over the DOM, for the loop with no phone in it, and an honest
-  list of what a browser cannot show you about a device.
+---
 
-## Playgrounds
+## Performance
 
-Two kitchen-sink demos live in [`apps/`](./apps), each exercising every public
-entry point of its package and deployed to Cloudflare Workers as a static SPA:
+niv's own code is a small share of what a screen costs. Measured in Chromium
+on the [js-framework-benchmark example](./examples/js-framework-benchmark),
+creating 1,000 rows spends about 6 ms in script and another 35–55 ms in the
+browser's style and layout work, depending on the stylesheet. A hand-written
+version with no framework at all saves only a few milliseconds of that. So the
+biggest wins come from giving the browser less DOM to lay out, not from making
+the runtime faster.
 
-- [`playground-mini`](./apps/playground-mini/README.md) — signals, the JSX
-  runtime, every binding, `/flow`, `/forms`, `/query`, and `/router` (which the
-  app itself runs on).
-- [`playground-mini-lynx`](./apps/playground-mini-lynx/README.md) — Lynx
-  elements, CSS, `<list>`, event propagation, `/flow`, `/composition`, `/forms`,
-  `/query` and `/router`, previewed through a **DOM implementation of Lynx's
-  Element PAPI**. Its `/engine` screen renders a second tree through the
-  in-memory PAPI and prints the call log, so the reconciler's cost is countable.
+**Long lists: render only what is visible.** A list of 10,000 rows costs
+hundreds of milliseconds to lay out, almost none of it in niv. `list` takes
+any getter, so give it a `computed` slice of the rows instead of all of them.
+In the same measurement this took "create 10,000 rows" from about 630 ms to
+about 3 ms:
 
-```sh
-bun run --filter '@amritk/playground-mini' dev
-bun run --filter '@amritk/playground-mini-lynx' dev
+```tsx
+import { computed, list, signal } from '@amritk/niv'
+
+type Row = { id: string; label: string }
+
+const ROW_HEIGHT = 32
+// Enough rows to fill the viewport, plus a few of overscan.
+const VISIBLE = 30
+
+const Rows = (props: { rows: () => readonly Row[] }): HTMLElement => {
+  const scrollTop = signal(0)
+  const start = computed(() => Math.floor(scrollTop() / ROW_HEIGHT))
+  const visible = computed(() => props.rows().slice(start(), start() + VISIBLE))
+
+  const body = (<div style={() => ({ transform: `translateY(${start() * ROW_HEIGHT}px)` })} />) as HTMLDivElement
+  list(body, visible, (row) => row.id, (row) => <div style={{ height: ROW_HEIGHT }}>{row.label}</div>)
+
+  return (
+    <div style={{ height: 600, overflow: 'auto' }} onScroll={(event) => scrollTop(event.currentTarget.scrollTop)}>
+      {/* A spacer as tall as the whole list keeps the scrollbar honest. */}
+      <div style={() => ({ height: props.rows().length * ROW_HEIGHT })}>{body}</div>
+    </div>
+  )
+}
 ```
 
-A third app is not a playground but a **starter**:
-[`starter-mini-lynx`](./apps/starter-mini-lynx/README.md) — four files, built by
-rspeedy into a real `.lynx.bundle` and opened on a phone through Lynx Explorer.
-It is the only app here that runs on a device rather than in a browser.
+Rows scrolled out of view leave `list`, so their scopes are disposed like any
+other removed row. Rows have to be a fixed height for this arithmetic to work.
 
-```sh
-bun run --filter '@amritk/starter-mini-lynx' dev    # prints a QR code
-```
+**Other things that help:**
 
-## For AI agents & LLMs
+- **Clone repeated markup with `template()`.** One `cloneNode` per row is
+  cheaper than building each element through JSX. Where each `data-ref` sits is
+  worked out once at parse time, so a clone only walks a few sibling pointers
+  to reach its refs instead of searching the tree.
+- **Bind only what changes.** In the benchmark example only the label is
+  reactive, so "update every 10th row" rewrites 100 text nodes and never
+  touches the list.
+- **Select by touching two rows, not all of them.** A per-row
+  `class={() => selected() === id}` makes every row re-run when the selection
+  moves. Toggling the class on the old and new rows by hand is constant time.
+  The benchmark example shows the pattern.
+- **Wide tables: `table-layout: fixed`.** It saved about 6% of layout time on
+  10,000 rows. `content-visibility: auto` does not help on table rows, because
+  CSS containment does not apply to them.
 
-Each package ships an **`AI.md`** next to its `README.md`: a mental model, a
-minimal runnable example, and the gotchas most likely to trip up a model. The
-repo root carries [`llms.txt`](./llms.txt) (a curated index, per
-[llmstxt.org](https://llmstxt.org)) and [`llms-full.txt`](./llms-full.txt)
-(every `AI.md` inlined, for pasting into context).
+Moving data into a buffer shared with WebAssembly does not help here. The DOM
+only takes JS strings, and decoding them from bytes measured about 4.6× slower
+than writing a string that was already in JS. `SharedArrayBuffer` also needs a
+cross-origin-isolated page, which an embedded widget cannot ask its host for.
 
-Editing the repo rather than consuming it? Start at [`AGENTS.md`](./AGENTS.md),
-then the per-package `AGENTS.md` for the invariants that package cannot break.
-
-## Requirements
-
-- **Consumers:** any ES2022 runtime. `@amritk/mini` needs a DOM;
-  `@amritk/mini-lynx` needs only a host.
-- **Development:** [Bun](https://bun.sh) ≥ 1.1.
-
-## Development
-
-```bash
-bun install
-bun run test                # every package's tests
-bun run check               # biome lint + format
-bun run check:reactivity    # the called-signal footgun guard
-bun run types:check         # both packages, both of mini-lynx's passes
-bun run build               # build both packages
-bun run test:dist           # load and drive the built artifacts (needs a build)
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow, and
-[`.claude/architecture.md`](./.claude/architecture.md) for how the two packages
-relate.
-
-> **Pre-alpha.** Breaking changes can land in any 0.x release; they ride a minor
-> bump.
-
-## Related
-
-`@amritk/mini/forms` can validate against a JSON Schema through
-[`@amritk/runtime-validators`](https://github.com/amritk/mjst), an optional
-peer published from the [mjst](https://github.com/amritk/mjst) repo, where both
-packages used to live.
+---
 
 ## License
 

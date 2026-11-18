@@ -6,6 +6,6 @@ By participating in this project — opening issues, submitting pull requests, o
 
 ## Reporting
 
-To report a concern, please open a confidential report via the [GitHub issue tracker](https://github.com/amritk/mini/issues) (mark it private if needed) or contact the maintainer through their GitHub profile at [@amritk](https://github.com/amritk).
+To report a concern, please open a confidential report via the [GitHub issue tracker](https://github.com/amritk/niv/issues) (mark it private if needed) or contact the maintainer through their GitHub profile at [@amritk](https://github.com/amritk).
 
 Reports will be reviewed and investigated promptly and fairly. All maintainers are obligated to respect the privacy and security of anyone reporting an incident.

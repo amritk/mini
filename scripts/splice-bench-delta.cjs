@@ -1,11 +1,11 @@
 'use strict'
 
-const START = '<!-- mini-bench-delta:start -->'
-const END = '<!-- mini-bench-delta:end -->'
+const START = '<!-- niv-bench-delta:start -->'
+const END = '<!-- niv-bench-delta:end -->'
 
 /**
  * Splices the bench delta `table` into a PR description `body` between the
- * mini-bench-delta markers: replace an existing well-formed block in place,
+ * niv-bench-delta markers: replace an existing well-formed block in place,
  * otherwise append. CommonJS so the bench.yml github-script step can
  * `require` it straight from the checkout, and a plain function so it is unit
  * testable.

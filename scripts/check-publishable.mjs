@@ -2,22 +2,17 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-// The last gate before a tarball leaves the machine. `@amritk/mini-lynx-native@0.2.0`
-// went to npm as src-only: it was published by hand rather than through the release
-// job, so neither `bun run build` nor copy-license ran, and the `development` condition
-// the exports maps carried at the time survived into the manifest. The manifest still
-// promised `./dist/index.js`, the tarball carried no dist at all, and that condition
-// pointed at `./src/*.ts` — which does ship — so anything honouring it resolved raw
-// TypeScript and looked healthy. That is how a broken package stayed usable enough
-// that nobody noticed for a release.
-//
-// `npm publish` runs this from the package root as `prepublishOnly`, so publishing out
-// of band fails loudly instead of shipping a manifest whose exports point at files that
-// are not there. The condition itself is gone from every exports map now, which is why
-// the check for it reads as a regression guard: reintroducing one would restore exactly
-// the failure above, and the publish is the last place to say so. The equivalent checks
-// in scripts/dist-smoke.test.ts and scripts/consumer-e2e.test.ts guard the same ground
-// for the repo; this one guards the act of publishing, which a CI step cannot reach.
+// The last gate before a tarball leaves the machine. `npm publish` runs this as
+// `prepublishOnly`, so publishing out of band — by hand, skipping the build —
+// fails loudly instead of shipping a manifest whose exports point at files that
+// are not there. An earlier package from this codebase went to npm exactly that
+// way: published by hand, src-only, with a `development` condition in its
+// exports map that resolved consumers to the raw TypeScript it also shipped, so
+// it looked healthy enough that nobody noticed for a release. The condition is
+// gone from the exports map now, which is why the check for it reads as a
+// regression guard. scripts/dist-smoke.test.ts and scripts/consumer-e2e.test.ts
+// guard the same ground in CI; this one guards the act of publishing, which a CI
+// step cannot reach.
 
 /** Every `./dist/...` target declared anywhere in an exports subtree. */
 const distTargets = (node, found = []) => {
@@ -65,7 +60,7 @@ export const checkPublishable = (dir) => {
   }
 
   if (!existsSync(join(dir, 'LICENSE'))) {
-    problems.push('no LICENSE in the package directory — run `bun run scripts/copy-license.ts`')
+    problems.push('no LICENSE in the package directory — npm only bundles one that sits beside package.json')
   }
 
   return problems
@@ -77,7 +72,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   if (problems.length > 0) {
     const name = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')).name ?? dir
     console.error(`${name} is not publishable as it stands:\n\n${problems.map((p) => `- ${p}`).join('\n')}\n`)
-    console.error('Publish through the release workflow (`bun run release:publish`), which prepares all three.')
+    console.error('Run `bun run build` first, or publish through the release workflow (`bun run release:publish`).')
     process.exit(1)
   }
 }

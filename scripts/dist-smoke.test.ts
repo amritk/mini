@@ -2,13 +2,13 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import { ROOT, runNode } from './e2e-helpers'
 
 /**
  * Smoke test for the compiled `dist/` artifacts — the exact files that ship to
- * npm. The regular test suite aliases both packages to their `src/`, so nothing
+ * npm. The regular test suite aliases the package to its `src/`, so nothing
  * there can catch a build step corrupting the output: the sources can be
  * perfect while `tsgo`, `tsc-alias`, or the comment-stripping pass emits
  * something Node cannot load. Everything here runs under plain `node` (no Bun,
@@ -17,54 +17,17 @@ import { ROOT, runNode } from './e2e-helpers'
  * Requires a prior `bun run build`; run via `bun run test:dist`.
  */
 
-type PackageJson = {
-  name?: string
-  private?: boolean
-  exports?: Record<string, unknown>
-}
+type PackageJson = { name?: string; exports?: Record<string, unknown> }
 
-const PACKAGES_DIR = join(ROOT, 'packages')
+const DIST = join(ROOT, 'dist')
 
-const readManifest = async (dir: string): Promise<PackageJson> =>
-  JSON.parse(await readFile(join(PACKAGES_DIR, dir, 'package.json'), 'utf-8')) as PackageJson
-
-/** The publishable workspace packages, each paired with its manifest. */
-const publishedPackages = async (): Promise<{ dir: string; pkg: PackageJson }[]> => {
-  const found: { dir: string; pkg: PackageJson }[] = []
-  for (const entry of await readdir(PACKAGES_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const pkg = await readManifest(entry.name)
-    if (pkg.private) continue
-    found.push({ dir: entry.name, pkg })
-  }
-  return found
-}
-
-/** Every compiled `.js` module shipped by the publishable packages. */
-const collectDistModules = async (): Promise<string[]> => {
-  const modules: string[] = []
-
-  for (const { dir, pkg } of await publishedPackages()) {
-    const distDir = join(PACKAGES_DIR, dir, 'dist')
-    if (!existsSync(distDir)) {
-      throw new Error(`${pkg.name} has no dist/ directory — run \`bun run build\` before \`bun run test:dist\`.`)
-    }
-    for (const file of await readdir(distDir, { recursive: true })) {
-      if (file.endsWith('.js')) modules.push(join(distDir, file))
-    }
-  }
-
-  return modules
-}
-
-/** Every `import`/`default` target declared by a package's `exports` map. */
-const declaredEntries = (pkg: PackageJson, dir: string): string[] => {
+/** Every `./dist/...` target declared by the exports map, as absolute paths. */
+const declaredEntries = (pkg: PackageJson): string[] => {
   const targets: string[] = []
   const walk = (node: unknown): void => {
     if (typeof node === 'string') {
-      // Only the built modules are targets to check; `package.json` and the
-      // native autolinker's `lynx.lib.json` are data, not modules to resolve.
-      if (node.startsWith('./dist/')) targets.push(join(PACKAGES_DIR, dir, node))
+      // `./package.json` is data, not a module to resolve.
+      if (node.startsWith('./dist/')) targets.push(join(ROOT, node))
       return
     }
     if (node === null || typeof node !== 'object') return
@@ -75,8 +38,17 @@ const declaredEntries = (pkg: PackageJson, dir: string): string[] => {
 }
 
 describe('dist-smoke', () => {
+  let pkg: PackageJson
+
+  beforeAll(async () => {
+    if (!existsSync(DIST)) throw new Error('no dist/ directory — run `bun run build` before `bun run test:dist`.')
+    pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf-8')) as PackageJson
+  })
+
   it('every compiled module loads under Node ESM', async () => {
-    const modules = await collectDistModules()
+    const modules = (await readdir(DIST, { recursive: true }))
+      .filter((file) => file.endsWith('.js'))
+      .map((file) => join(DIST, file))
 
     // Guard against this sweep silently going dark (say, a dist layout change
     // leaving it with nothing to check) by requiring a meaningful surface.
@@ -87,7 +59,7 @@ describe('dist-smoke', () => {
     // fails here with the offending file named.
     const loader = `
       const failures = []
-      for (const file of ${JSON.stringify(modules)}) {
+      for (const file of ${JSON.stringify(modules.map((file) => pathToFileURL(file).href))}) {
         try {
           await import(file)
         } catch (error) {
@@ -102,74 +74,12 @@ describe('dist-smoke', () => {
     await runNode(['--input-type=module', '-e', loader])
   })
 
-  it('every declared export subpath exists in dist', async () => {
-    const missing: string[] = []
-    for (const { dir, pkg } of await publishedPackages()) {
-      const entries = declaredEntries(pkg, dir)
-      // Both packages publish a broad export map; an empty list would mean the
-      // walk stopped finding targets rather than that everything is present.
-      expect(entries.length, `${pkg.name} declares dist export targets`).toBeGreaterThan(0)
-      for (const entry of entries) {
-        // `types` entries point at .d.ts files, which must ship too.
-        if (!existsSync(entry)) missing.push(entry)
-      }
-    }
-    expect(missing).toEqual([])
-  })
-
-  it('the built mini-lynx reorders a keyed list through the fake engine', async () => {
-    // A real end-to-end exercise of the compiled artifacts: mount's scope
-    // ownership, the engine indirection, the keyed reconciler, the text binding
-    // and the signals re-export all have to survive the build for this to
-    // produce the right tree. The fake engine is a complete Element PAPI with
-    // no platform behind it, so it runs under plain Node exactly as shipped —
-    // and unlike a test double it is the same API a device exposes.
-    const nativeDist = pathToFileURL(join(PACKAGES_DIR, 'mini-lynx/dist')).href
-    const script = `
-      const { bindText, createElement, createRawText, insert, list, mount, setEngine, signal } =
-        await import('${nativeDist}/index.js')
-      const { createFakeEngine, serializeTree } = await import('${nativeDist}/testing/index.js')
-
-      const engine = createFakeEngine()
-      setEngine(engine.api)
-
-      const first = signal('first')
-      const rows = signal([{ id: 'a', label: first }, { id: 'b', label: signal('second') }])
-
-      mount(engine.pageElement, () => {
-        const container = createElement('view')
-        list(container, rows, (row) => row.id, (row) => {
-          const item = createElement('text')
-          const text = createRawText('')
-          bindText(text, () => row.label())
-          insert(item, text, null)
-          return item
-        })
-        return container
-      })
-
-      const labels = () => [...serializeTree(engine.page).matchAll(/"([^"]*)"/g)].map((m) => m[1]).join(',')
-      const check = (expected) => {
-        if (labels() !== expected) {
-          console.error('expected ' + expected + ', got ' + labels() + '\\n' + serializeTree(engine.page))
-          process.exit(1)
-        }
-      }
-
-      check('first,second')
-
-      // A keyed move: the reconciler reuses both rows in the new order rather
-      // than rebuilding them.
-      rows([{ id: 'b', label: rows()[1].label }, { id: 'a', label: first }])
-      check('second,first')
-
-      // And the moved row's binding is still live. This is the half that used
-      // to break: row scopes built inside the reconciliation effect were
-      // disposed the moment the collection changed, leaving the nodes on screen
-      // looking correct while every binding had quietly stopped updating.
-      first('renamed')
-      check('second,renamed')
-    `
-    await runNode(['--input-type=module', '-e', script])
+  it('every declared export target exists in dist', () => {
+    const entries = declaredEntries(pkg)
+    // An empty list would mean the walk stopped finding targets rather than
+    // that everything is present.
+    expect(entries.length).toBeGreaterThan(10)
+    // `types` entries point at .d.ts files, which must ship too.
+    expect(entries.filter((entry) => !existsSync(entry))).toEqual([])
   })
 })

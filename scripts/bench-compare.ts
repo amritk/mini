@@ -5,12 +5,12 @@ import { gzipSync } from 'node:zlib'
 import { build, type Plugin } from 'esbuild'
 
 /**
- * bench-compare — measures the bundled, gzipped size of every `@amritk/mini`
- * and `@amritk/mini-lynx` entry in two trees (a baseline checkout and the
- * working tree) and prints the delta as a markdown table.
+ * bench-compare — measures the bundled, gzipped size of every `@amritk/niv`
+ * entry in two trees (a baseline checkout and the working tree) and prints the
+ * delta as a markdown table.
  *
- * Size is the benchmark that matters here. The charter for both packages is
- * that the `.` entry costs the bundle-size-sensitive widget zero extra bytes
+ * Size is the benchmark that matters here. The package's charter is that the
+ * `.` entry costs the bundle-size-sensitive widget zero extra bytes
  * when subpath features are added, so surfacing the `core (.)` delta right in
  * the PR description makes a regression impossible to miss. Unlike a timed
  * benchmark there is no noise to average away: esbuild's output for a given
@@ -18,7 +18,7 @@ import { build, type Plugin } from 'esbuild'
  * exact.
  *
  * Usage:
- *   bun run scripts/bench-compare.ts --baseline ../mini-main [--head .]
+ *   bun run scripts/bench-compare.ts --baseline ../niv-main [--head .]
  *     [--baseline-label main] [--output bench-delta.md]
  */
 
@@ -27,7 +27,7 @@ type Stats = { median: number }
 /** A measurement, `null` for an entry the tree genuinely does not have, `'failed'` for a broken build. */
 type Measurement = Stats | null | 'failed'
 
-type Row = { package: string; entry: string; base: Measurement; head: Measurement }
+type Row = { entry: string; base: Measurement; head: Measurement }
 
 /** Set when any measurement failed; the process exits nonzero so CI goes red. */
 let sawFailure = false
@@ -54,42 +54,12 @@ const baselineLabel = argValue('--baseline-label') ?? 'main'
  * marked external — an app that opts into `/forms` or `/query` already ships
  * them — so each number reflects the package's own code.
  */
-const BUNDLE_CASES: readonly { package: string; name: string; entry: string; external: readonly string[] }[] = [
-  { package: 'mini', name: 'core (.)', entry: 'packages/mini/src/index.ts', external: [] },
-  { package: 'mini', name: 'flow', entry: 'packages/mini/src/flow/index.ts', external: [] },
-  { package: 'mini', name: 'router', entry: 'packages/mini/src/router/index.ts', external: [] },
-  {
-    package: 'mini',
-    name: 'forms',
-    entry: 'packages/mini/src/forms/index.ts',
-    external: ['@amritk/runtime-validators'],
-  },
-  { package: 'mini', name: 'query', entry: 'packages/mini/src/query/index.ts', external: ['@tanstack/query-core'] },
-  { package: 'mini-lynx', name: 'core (.)', entry: 'packages/mini-lynx/src/index.ts', external: [] },
-  { package: 'mini-lynx', name: 'flow', entry: 'packages/mini-lynx/src/flow/index.ts', external: [] },
-  { package: 'mini-lynx', name: 'router', entry: 'packages/mini-lynx/src/router/index.ts', external: [] },
-  {
-    package: 'mini-lynx',
-    name: 'forms',
-    entry: 'packages/mini-lynx/src/forms/index.ts',
-    external: ['@amritk/runtime-validators'],
-  },
-  {
-    package: 'mini-lynx',
-    name: 'query',
-    entry: 'packages/mini-lynx/src/query/index.ts',
-    external: ['@tanstack/query-core'],
-  },
-  {
-    package: 'mini-lynx',
-    // Worth a row of its own even though no app ships it: it is a complete
-    // implementation of the Element PAPI, so it is the entry most likely to
-    // grow quietly, and the import-boundary suite's promise that it never
-    // reaches `.` is only interesting while it is big enough to matter.
-    name: 'testing',
-    entry: 'packages/mini-lynx/src/testing/index.ts',
-    external: [],
-  },
+const BUNDLE_CASES: readonly { name: string; entry: string; external: readonly string[] }[] = [
+  { name: 'core (.)', entry: 'src/index.ts', external: [] },
+  { name: 'flow', entry: 'src/flow/index.ts', external: [] },
+  { name: 'router', entry: 'src/router/index.ts', external: [] },
+  { name: 'forms', entry: 'src/forms/index.ts', external: ['@amritk/runtime-validators'] },
+  { name: 'query', entry: 'src/query/index.ts', external: ['@tanstack/query-core'] },
 ]
 
 const gitSha = (tree: string): string => {
@@ -101,23 +71,16 @@ const gitSha = (tree: string): string => {
 }
 
 /**
- * Resolves `@amritk/*` imports to the source inside the tree being measured.
- *
- * The `development` export condition used to do this, and it is gone. The bench
- * measures a source tree and never runs a build, so without a source resolver a
- * cross-package import — `@amritk/mini`'s router reaching `@amritk/mini-helpers`
- * — resolves to a `dist/` that is not there and the entry reports "measure
- * failed" instead of a number. Returning null for anything it cannot place
- * hands the specifier back to esbuild, so a genuine third-party `@amritk`
- * dependency still resolves from node_modules as it should.
+ * Resolves the package's own specifiers to the source inside the tree being
+ * measured. The JSX transform emits `@amritk/niv/jsx-runtime` imports into every
+ * `.tsx` module, and through the exports map they would point at a `dist/` the
+ * bench never builds. Anything it cannot place goes back to esbuild.
  */
-const workspaceSource = (tree: string, external: readonly string[]): Plugin => ({
-  name: 'workspace-source',
+const ownSource = (tree: string): Plugin => ({
+  name: 'own-source',
   setup(build) {
-    build.onResolve({ filter: /^@amritk\// }, ({ path }) => {
-      if (external.includes(path)) return { external: true }
-      const [, pkg, ...subpath] = path.split('/')
-      const base = join(tree, 'packages', pkg ?? '', 'src', ...subpath)
+    build.onResolve({ filter: /^@amritk\/niv(\/|$)/ }, ({ path }) => {
+      const base = join(tree, 'src', ...path.split('/').slice(2))
       // `./router` is a directory with an index; `./jsx-runtime` is a file.
       const candidate = [join(base, 'index.ts'), `${base}.ts`].find((file) => existsSync(file))
       return candidate === undefined ? null : { path: candidate }
@@ -144,7 +107,7 @@ const measureBundle = async (tree: string, entry: string, external: readonly str
       platform: 'browser',
       target: 'es2022',
       external: [...external],
-      plugins: [workspaceSource(tree, external)],
+      plugins: [ownSource(tree)],
     })
     return { median: gzipSync(result.outputFiles[0]?.contents ?? new Uint8Array()).length }
   } catch (error) {
@@ -182,34 +145,31 @@ const run = async (): Promise<void> => {
   console.error('bundle size (gzip bytes)…')
   for (const bundleCase of BUNDLE_CASES) {
     const row: Row = {
-      package: bundleCase.package,
       entry: bundleCase.name,
       base: await measureBundle(base, bundleCase.entry, bundleCase.external),
       head: await measureBundle(head, bundleCase.entry, bundleCase.external),
     }
     rows.push(row)
-    console.error(
-      `  ${row.package} · ${row.entry}: ${baselineLabel} ${cell(row.base)} → PR ${cell(row.head)}  ${delta(row)}`,
-    )
+    console.error(`  ${row.entry}: ${baselineLabel} ${cell(row.base)} → PR ${cell(row.head)}  ${delta(row)}`)
   }
 
   const lines: string[] = []
-  lines.push('<!-- mini-bench-delta:start -->')
+  lines.push('<!-- niv-bench-delta:start -->')
   lines.push(`### 📦 Bundle-size delta vs ${baselineLabel} (\`${gitSha(base)}\` → \`${gitSha(head)}\`)`)
   lines.push('')
-  lines.push(`| Package | Entry | ${baselineLabel} | PR | Δ |`)
-  lines.push('|---|---|---:|---:|---:|')
+  lines.push(`| Entry | ${baselineLabel} | PR | Δ |`)
+  lines.push('|---|---:|---:|---:|')
   for (const row of rows) {
-    lines.push(`| ${row.package} | ${row.entry} | ${cell(row.base)} | ${cell(row.head)} | ${delta(row)} |`)
+    lines.push(`| ${row.entry} | ${cell(row.base)} | ${cell(row.head)} | ${delta(row)} |`)
   }
   lines.push('')
   lines.push(
     '<sub>Gzipped bytes of each bundled entry (esbuild, minified, browser/es2022, optional peer deps external). ' +
       'Bundling is deterministic, so unlike a timed benchmark these numbers carry no noise and every Δ is exact. ' +
-      "⚪ within ±0.5% · 🟢 smaller · 🔴 larger. Each package's `core (.)` must stay flat as subpath features land — " +
+      '⚪ within ±0.5% · 🟢 smaller · 🔴 larger. `core (.)` must stay flat as subpath features land — ' +
       'that is the whole charter, and `src/core-size-budget.test.ts` holds the absolute ceiling.</sub>',
   )
-  lines.push('<!-- mini-bench-delta:end -->')
+  lines.push('<!-- niv-bench-delta:end -->')
 
   const markdown = lines.join('\n')
   if (outputPath) writeFileSync(outputPath, `${markdown}\n`, 'utf-8')

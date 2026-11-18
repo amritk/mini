@@ -2,15 +2,15 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { findCalledSignalBindings } from '../packages/mini/src/vite/find-called-signal-bindings'
+import { findCalledSignalBindings } from '../src/vite/find-called-signal-bindings'
 
 /**
- * The repo-internal gate for mini's called-signal footgun — `attr={signal()}`
+ * The repo-internal gate for the called-signal footgun — `attr={signal()}`
  * calls the getter and freezes a plain value at creation, where `attr={signal}`
  * binds it reactively. Consumers get the same check live in their editor and CI
- * through the shipped Vite plugin (`@amritk/mini/vite`); this CLI reuses that
+ * through the shipped Vite plugin (`@amritk/niv/vite`); this CLI reuses that
  * plugin's {@link findCalledSignalBindings} core to guard the tsx inside this
- * monorepo, printing `file:line:col` and exiting non-zero so it can run next to
+ * repo, printing `file:line:col` and exiting non-zero so it can run next to
  * `biome check`.
  */
 
@@ -28,17 +28,17 @@ const collectTsxFiles = async (path: string): Promise<string[]> => {
 }
 
 /**
- * Scans the given files or directories (default: `packages` and `apps`), prints
- * a `file:line:col` report for each finding, and exits non-zero when any are
- * found. Only `.tsx` files are scanned — mini's JSX transform is the only place
- * this footgun can appear.
+ * Scans the given files or directories (default: `src`, `examples` and
+ * `playground`), prints a `file:line:col` report for each finding, and exits
+ * non-zero when any are found. Only `.tsx` files are scanned — the JSX
+ * transform is the only place this footgun can appear.
  *
- * The playground apps are in the default set because they are the only code in
- * the repo written the way a consumer writes it, which makes them the most
- * likely place for the footgun to appear at all.
+ * The playground is in the default set because it is the only code in the repo
+ * written the way a consumer writes it, which makes it the most likely place
+ * for the footgun to appear at all.
  */
 const main = async (paths: readonly string[]): Promise<number> => {
-  const roots = paths.length > 0 ? paths : ['packages', 'apps']
+  const roots = paths.length > 0 ? paths : ['src', 'examples', 'playground']
   let total = 0
 
   for (const root of roots) {

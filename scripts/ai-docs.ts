@@ -1,5 +1,5 @@
 /**
- * The structural contract every package's `AI.md` keeps — the logic behind
+ * The structural contract the package's `AI.md` keeps — the logic behind
  * `scripts/check-ai-docs.ts` (a CI gate) and `scripts/ai-docs.test.ts`.
  *
  * `llms.txt` / `llms-full.txt` are regenerated and diffed in CI, which catches
@@ -13,7 +13,7 @@
  * against fixtures instead of the working tree.
  */
 
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -25,12 +25,9 @@ export type ExportTarget = string | { import?: string; default?: string }
 /**
  * The source file a `./dist/` export target was built from.
  *
- * The exports maps used to carry a `development` condition naming the source
- * outright, and this read it. That condition is gone — it pointed at `./src/*.ts`
- * inside a tarball that ships `src`, so anything honouring it got raw TypeScript
- * — and the mapping replaces it. It holds because every package builds with
- * `rootDir: "src"` and `outDir: "dist"`, which is what makes `dist/x/index.js`
- * and `src/x/index.ts` the same module by construction.
+ * It holds because the package builds with `rootDir: "src"` and
+ * `outDir: "dist"`, which is what makes `dist/x/index.js` and `src/x/index.ts`
+ * the same module by construction.
  *
  * Returns null for an entry with no dist target, so the caller can tell "not a
  * module I can audit" from "a module whose source I failed to find".
@@ -60,43 +57,12 @@ export type AiDocFinding = { package: string; problem: string }
 const TRANSFORM_SUBPATHS = ['./jsx-runtime', './jsx-dev-runtime']
 
 /**
- * Exports that exist for the runtime, the JSX transform or another package in
- * this repo rather than for a human, listed per package so a *new* export
- * cannot join them by accident. Adding one here is a claim that no consumer
- * ever writes it; anything else has to earn a line in the package's `AI.md`.
+ * Exports that exist for the runtime or the JSX transform rather than for a
+ * human, listed per specifier so a *new* export cannot join them by accident.
+ * Adding one here is a claim that no consumer ever writes it; anything else has
+ * to earn a line in `AI.md`. Empty today — every value export is public API.
  */
-export const INTERNAL_EXPORTS: Record<string, readonly string[]> = {
-  // The tree operations and prop appliers are what the compiled JSX calls. A
-  // consumer writes the tags and lets the transform reach for these.
-  '@amritk/mini-lynx': [
-    'addEvent',
-    'appendChildren',
-    'applyProp',
-    'applyStyle',
-    'applyVisible',
-    'createElement',
-    'createRawText',
-    'createWrapper',
-    'firstChild',
-    'nextSibling',
-    'renderChild',
-    'setText',
-    'toCssName',
-    'toStyleText',
-    // Installed by `renderPage`; an app that calls it directly is fighting the entry point.
-    'setGlobalProps',
-    // The default transport, already installed. Only its *alternative* is a decision.
-    'workletTransport',
-    // Reached through `setErrorHandler`; the runtime is what reports.
-    'reportError',
-  ],
-  // `clearNamedHandlers` is teardown for the fallback transport's own tests.
-  '@amritk/mini-lynx/bridge': ['clearNamedHandlers'],
-  // Gesture ids are minted by `setGestureDetector` itself.
-  '@amritk/mini-lynx/gestures': ['nextGestureId'],
-  // Written by `trackKeyboard` from the engine event; an app reads `keyboardHeight`.
-  '@amritk/mini-lynx/keyboard': ['setKeyboardHeight'],
-}
+export const INTERNAL_EXPORTS: Record<string, readonly string[]> = {}
 
 /** Splits `a, type B, c as d` into its value names — `export type { … }` never reaches here. */
 const valueNames = (clause: string): string[] =>
@@ -172,16 +138,6 @@ export const auditPackage = (
     add('does not point at AGENTS.md, leaving an agent editing the repo with no way back to the invariants')
   }
 
-  // A package shipping `android/` or `ios/` carries native halves this repo
-  // cannot fully build and has never run on a device. That is the first thing a
-  // consumer needs and the easiest to leave out, so it is the one section the
-  // audit insists on: `lynx-dialogs` shipped without it once already.
-  const shipsNative = (manifest.files ?? []).some((entry) => entry === 'android' || entry === 'ios')
-  if (shipsNative && !doc.includes('## Status')) {
-    add('ships native sources but has no "## Status" section saying what has and has not run on a device')
-  }
-
-  const internal = new Set(Object.entries(INTERNAL_EXPORTS).flatMap(([, names]) => names))
   for (const subpath of subpathsOf(manifest)) {
     const specifier = specifierFor(name, subpath)
     if (!doc.includes(specifier)) {
@@ -195,9 +151,7 @@ export const auditPackage = (
 
     const allowed = new Set(INTERNAL_EXPORTS[specifier] ?? [])
     for (const exported of publicValueExports(source)) {
-      // A name allow-listed anywhere in the repo is internal everywhere: the
-      // runtimes re-export each other's helpers under the same names.
-      if (allowed.has(exported) || internal.has(exported)) continue
+      if (allowed.has(exported)) continue
       if (!doc.includes(exported)) add(`exports "${exported}" from "${specifier}" but never documents it`)
     }
   }
@@ -205,23 +159,16 @@ export const auditPackage = (
   return findings
 }
 
-/** Audits every published package under `<root>/packages`. */
+/** Audits the package at the repo root — the only one this repo publishes. */
 export const auditAiDocs = (root: string): AiDocFinding[] => {
-  const findings: AiDocFinding[] = []
-  for (const dir of readdirSync(join(root, 'packages')).sort()) {
-    const packageRoot = join(root, 'packages', dir)
-    const read = (relativePath: string): string | null => {
-      try {
-        return readFileSync(join(packageRoot, relativePath), 'utf8')
-      } catch {
-        return null
-      }
+  const read = (relativePath: string): string | null => {
+    try {
+      return readFileSync(join(root, relativePath), 'utf8')
+    } catch {
+      return null
     }
-    const manifestSource = read('package.json')
-    if (manifestSource === null) continue
-    const manifest = JSON.parse(manifestSource) as PackageManifest
-    if (manifest.private === true) continue
-    findings.push(...auditPackage(manifest, read))
   }
-  return findings
+  const manifestSource = read('package.json')
+  if (manifestSource === null) return [{ package: root, problem: 'has no package.json' }]
+  return auditPackage(JSON.parse(manifestSource) as PackageManifest, read)
 }

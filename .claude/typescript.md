@@ -18,15 +18,16 @@ You write TypeScript code that is clear, predictable, and easy to maintain. The 
 - Always use `const` instead of `let`.
 - Use `satisfies` instead of `as`.
 - Always use arrow functions when possible.
-- Import with relative specifiers inside a package (`./bind`, `../signals`).
-  Neither package declares a package.json `imports` map, and neither may import
-  the other: `mini` and `mini-lynx` are siblings, not layers.
+- Import with relative specifiers inside `src/` (`./bind`, `../signals`). The
+  package declares no package.json `imports` map, and a self-import by package
+  name (`@amritk/niv/router`) would re-enter the package graph and defeat
+  tree-shaking.
 - The only bare specifier allowed in shipped sources is `alien-signals`, plus
   the optional peers already confined to their subpaths (`/forms`, `/query`,
-  `/vite`). `packages/mini/src/import-boundary.test.ts` enforces that for the
-  `.` entry.
+  `/vite`). `src/import-boundary.test.ts` enforces that for the `.` entry, and
+  that no feature subpath reaches another.
 - Use Bun for repo tooling only — see `.claude/bun.md`. Package sources compile
-  for browsers and native hosts, so they carry no Bun or Node API.
+  for browsers, so they carry no Bun or Node API.
 - Use one function per file.
 - Do not use classes, use functional programming paradigms.
 

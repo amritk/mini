@@ -1,7 +1,7 @@
 name: Bench
 
 # Measures every PR's bundle sizes against its base branch and writes the delta
-# table into the PR description (between the mini-bench-delta markers), so every
+# table into the PR description (between the niv-bench-delta markers), so every
 # push shows its size impact next to the code. Numbers come from
 # scripts/bench-compare.ts — esbuild + gzip over each published entry, with the
 # optional peer deps external. Bundling is deterministic, so unlike a timed

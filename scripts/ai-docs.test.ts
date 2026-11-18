@@ -81,12 +81,6 @@ describe('ai-docs', () => {
     expect(findings).toEqual([])
   })
 
-  it('insists a package shipping native sources says what has run on a device', () => {
-    const manifest = { ...MANIFEST, files: ['dist', 'android', 'ios', 'AI.md'] }
-    const findings = auditPackage(manifest, reader({ 'AI.md': DOC, './src/index.ts': '' }))
-    expect(problems(findings)).toContainEqual(expect.stringContaining('## Status'))
-  })
-
   it('reads values but not types, so an AI.md is never pushed toward being a second .d.ts', () => {
     const source = [
       "export type { Alone } from './alone'",
@@ -98,9 +92,8 @@ describe('ai-docs', () => {
     expect(publicValueExports(source).sort()).toEqual(['doThing', 'made', 'renamed'])
   })
 
-  // This mapping replaced the `development` condition, which named the source
-  // outright. It is the audit's only route from a manifest to a file now, so a
-  // silent null here would take every export check down with it.
+  // The audit's only route from a manifest to a file, so a silent null here
+  // would take every export check down with it.
   it('maps a built export target back to the source it came from', () => {
     expect(sourceForTarget({ import: './dist/index.js' })).toBe('./src/index.ts')
     expect(sourceForTarget({ import: './dist/router/browser/index.js' })).toBe('./src/router/browser/index.ts')
@@ -109,11 +102,11 @@ describe('ai-docs', () => {
 
   it('has no source to offer for an entry that names no built module', () => {
     expect(sourceForTarget('./package.json')).toBeNull()
-    expect(sourceForTarget({ import: './lynx.lib.json' })).toBeNull()
+    expect(sourceForTarget({ import: './data.json' })).toBeNull()
   })
 
-  // The gate itself: the checked-in packages have to satisfy their own contract.
-  it('finds nothing wrong with the packages in this repo', () => {
+  // The gate itself: the checked-in package has to satisfy its own contract.
+  it('finds nothing wrong with the package in this repo', () => {
     expect(auditAiDocs(join(import.meta.dirname, '..'))).toEqual([])
   })
 })

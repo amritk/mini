@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // `vite/client` is what types `import.meta.hot` and `import.meta.env`.
+    "types": ["vite/client"],
+    // Every subpath to source, mirroring the alias in `vite.config.ts`. `paths`
+    // replaces the inherited map rather than merging with it, so the bare entry
+    // is restated; the root config keeps an explicit list for the build's sake.
+    "paths": {
+      "@amritk/niv": ["../src/index.ts"],
+      "@amritk/niv/*": ["../src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

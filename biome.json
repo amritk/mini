@@ -30,21 +30,6 @@
       }
     }
   },
-  "overrides": [
-    {
-      "includes": ["packages/mini-lynx/**", "apps/playground-mini-lynx/**"],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "useSemanticElements": "off",
-            "noInteractiveElementToNoninteractiveRole": "off",
-            "useAriaPropsForRole": "off",
-            "useMediaCaption": "off"
-          }
-        }
-      }
-    }
-  ],
   "javascript": {
     "formatter": {
       "enabled": true,

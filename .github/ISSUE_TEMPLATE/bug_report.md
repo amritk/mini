@@ -25,7 +25,6 @@ labels: bug
 
 ## Environment
 
-- Package and version: <!-- @amritk/mini or @amritk/mini-lynx, e.g. 0.5.0 -->
-- Host: <!-- mini-lynx only: DOM, Lynx, memory, or custom -->
+- Package and version: <!-- e.g. @amritk/niv 0.8.0 -->
 - Bundler and version: <!-- Vite 8, esbuild, none, ... -->
 - Runtime: <!-- browser + version, Node, Bun -->

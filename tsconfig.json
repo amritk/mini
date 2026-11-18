@@ -1,17 +1,34 @@
 {
   "compilerOptions": {
-    // Environment setup & latest features
-    "lib": ["ESNext"],
-    "types": ["node"],
+    // niv is browser-only: it builds real DOM, so it needs the DOM libs and
+    // none of Node's ambient types. The few tests that walk the source tree or
+    // bundle it pull Node in with `/// <reference types="node" />`.
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@amritk/niv",
 
     // Bundler mode
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+
+    // Resolve niv's own JSX runtime to source. The JSX transform emits
+    // `import { jsx } from '@amritk/niv/jsx-runtime'`, which would otherwise
+    // resolve through the exports map to a `dist` that does not exist before
+    // the first build. The build's `tsc-alias` pass rewrites these to relative
+    // paths in `dist` — and it rewrites matching strings inside doc comments
+    // too, which is why this is an explicit list rather than `@amritk/niv/*`:
+    // a wildcard turns every `@amritk/niv/router` example into `../router`.
+    "paths": {
+      "@amritk/niv/jsx-runtime": ["./src/jsx-runtime.ts"],
+      "@amritk/niv/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"],
+      "@amritk/niv": ["./src/index.ts"]
+    },
 
     // Best practices
     "strict": true,
@@ -33,5 +50,6 @@
     "isolatedModules": true,
     "resolveJsonModule": true
   },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["dist", "node_modules"]
 }

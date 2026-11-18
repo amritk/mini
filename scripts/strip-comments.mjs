@@ -9,8 +9,8 @@ import { transformSync } from 'esbuild'
 // (no minification, no downleveling) instead of tsgo's removeComments because
 // removeComments also strips JSDoc from the declaration files and drops
 // semantic /* @__PURE__ */ annotations; esbuild keeps both the annotations
-// and the shebang line. Runs after the TypeScript build from the package
-// root: `node ../../scripts/strip-comments.mjs [dir]` (defaults to dist).
+// and the shebang line. Runs after the TypeScript build from the repo root:
+// `node scripts/strip-comments.mjs [dir]` (defaults to dist).
 const root = process.argv[2] ?? 'dist'
 
 const walk = (dir) => {

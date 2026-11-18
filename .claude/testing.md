@@ -23,37 +23,36 @@ You write tests that are clear, maintainable, and thorough. You optimize for rea
 
 ## How tests run in this repo
 
-- **Everything runs from the repo root.** Each package's `test` script is
-  `NODE_ENV=production vitest run --root ../.. packages/<name>/`, so every suite
-  picks up the `src` aliases in `vitest.config.ts` — `@amritk/mini` and
-  `@amritk/mini-lynx` (and their `jsx-runtime` subpaths) resolve to source,
-  never to `dist`. Run a single package with
-  `bun run --filter='@amritk/mini' test`.
+- **Everything runs from the repo root.** `bun run test` is
+  `NODE_ENV=production vitest run`, and `vitest.config.ts` includes
+  `src/**/*.test.{ts,tsx}` plus the tests under `examples/`. It aliases
+  `@amritk/niv` and every subpath (including `jsx-runtime`, which the JSX
+  transform emits) back to `src/`, so the suite never resolves `dist` and needs
+  no build first. Run one file with `bunx vitest run src/list.test.ts`.
 - **`@amritk/runtime-validators` is deliberately not aliased.** It is an
   optional peer published from another repo, so it resolves out of
   `node_modules` exactly as a consumer's would.
 - **DOM tests opt in per file** with a `// @vitest-environment happy-dom` pragma
-  on line 1 — there is no global environment. `mini`'s suites use it freely
-  because it renders real DOM. `mini-lynx` is the opposite: it is supposed to
-  be platform-free, so a suite that silently got a `document` would hide a real
-  platform dependency. Test that package through the memory host
-  (`createMemoryHost` + `serializeMemoryTree`); `create-dom-host.test.tsx` is
-  the one file there that legitimately needs the pragma.
+  on line 1 — there is no global environment. Anything that builds real DOM
+  uses it; pure modules (the route helpers, `schemaToValidator`, the Vite
+  plugin's source scan) and the tests that walk or bundle the source tree run
+  in plain node, which keeps them honest about not needing a `document`.
 - **`scripts/*.test.ts` are a separate suite.** They run under
   `vitest.dist.config.ts` (`bun run test:dist`) with no aliases at all, because
   their whole purpose is to exercise the compiled `dist/` and the packed
-  tarballs the way npm ships them. They need a prior `bun run build`, and they
+  tarball the way npm ships them. They need a prior `bun run build`, and they
   shell out to plain `node` rather than Bun.
-- **Some tests guard structure, not behaviour** — `core-size-budget.test.ts`
-  holds the byte ceiling on the `.` entry, `import-boundary.test.ts` holds its
-  import graph, and the invariant regression tests named in each package's
-  `AGENTS.md` pin gotchas that have bitten before. When one of these fails,
-  the change is what is wrong, not the test. Do not raise the budget or
-  loosen the boundary to make it pass.
+- **Some tests guard structure, not behaviour** — `src/core-size-budget.test.ts`
+  holds the byte ceiling on the `.` entry, `src/import-boundary.test.ts` holds
+  its import graph and keeps each subpath free of the others, and the invariant
+  regression tests named in `AGENTS.md` pin gotchas that have bitten before.
+  When one of these fails, the change is what is wrong, not the test. Do not
+  raise the budget or loosen the boundary to make it pass.
 - **`bun run check:reactivity`** is a lint-shaped gate, not a Vitest suite: it
-  scans `.tsx` for `attr={signal()}`, which freezes a value where `attr={signal}`
-  would stay reactive. A test that freezes a signal on purpose needs the
-  documented opt-out in `packages/mini/AGENTS.md`.
+  scans the `.tsx` under `src/`, `examples/` and `playground/` for
+  `attr={signal()}`, which freezes a value where `attr={signal}` would stay
+  reactive. A test that freezes a signal on purpose marks the line
+  `// mini-static-ok` (see `AGENTS.md`).
 
 ## Style & Best Practices
 

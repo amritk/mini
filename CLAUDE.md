@@ -2,24 +2,23 @@
 
 Developer guidelines live in the `.claude/` directory:
 
-- **bun.md** — Bun runtime, APIs, workspaces and the dependency catalog
+- **bun.md** — Bun runtime, APIs, and what may and may not use them
 - **typescript.md** — TypeScript style, principles, naming
 - **comments.md** — Comment guidelines and JSDoc
 - **testing.md** — Test setup, style, and examples
 - **architecture.md** — Repo structure and design
 
-Each package also carries its own `AGENTS.md` with the invariants it cannot
-break — read `packages/mini/AGENTS.md` or `packages/mini-lynx/AGENTS.md`
-before editing that package.
+The root [`AGENTS.md`](./AGENTS.md) carries the invariants the package cannot
+break — read it before editing anything under `src/`.
 
 ## Changesets
 
-Add a changeset with every PR. Run `bunx changeset`, pick the affected
-packages and an appropriate semver bump, and commit the generated file under
-`.changeset/`. For changes that don't touch any published package (docs,
-tooling, CI), create an empty changeset (`bunx changeset --empty`) so the PR
-still records intent. The release workflow turns merged changesets into a
-version PR and npm publish on merge to `main`.
+Add a changeset with every PR. Run `bunx changeset`, pick `@amritk/niv` and an
+appropriate semver bump, and commit the generated file under `.changeset/`. For
+changes that don't touch the published package (docs, tooling, CI), create an
+empty changeset (`bunx changeset --empty`) so the PR still records intent. The
+release workflow turns merged changesets into a version PR and npm publish on
+merge to `main`.
 
 ## Git & PR Guidelines
 

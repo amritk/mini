@@ -1,54 +1,144 @@
 {
-  "name": "mini",
-  "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
-  "catalog": {
-    "alien-signals": "3.2.1"
-  },
+  "name": "@amritk/niv",
+  "version": "0.8.0",
+  "description": "A deliberately tiny signals-based UI layer: reactive DOM bindings plus a compilerless JSX runtime.",
   "type": "module",
+  "license": "MIT",
+  "author": "amritk",
+  "sideEffects": false,
   "keywords": [
     "signals",
     "reactive",
     "jsx",
     "dom",
-    "lynx",
     "ui",
-    "typescript"
+    "typescript",
+    "mjst"
   ],
-  "author": "amritk",
-  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amritk/niv.git"
+  },
+  "homepage": "https://github.com/amritk/niv#readme",
+  "bugs": {
+    "url": "https://github.com/amritk/niv/issues"
+  },
+  "files": [
+    "dist",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "AI.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "bun run --workspaces build",
-    "types:check": "bun run --workspaces types:check",
+    "build": "tsgo -p tsconfig.build.json && tsc-alias -p tsconfig.build.json -f && node scripts/strip-comments.mjs",
+    "prepublishOnly": "node scripts/check-publishable.mjs",
+    "types:check": "tsgo -p . --noEmit && tsgo -p playground --noEmit",
     "lint:check": "bun run check",
     "check": "biome check .",
     "check:reactivity": "bun run scripts/catch-called-signals.ts",
     "check:ai-docs": "bun run scripts/check-ai-docs.ts",
-    "check:android": "bun run scripts/check-android.ts",
     "format": "biome check --write --formatter-enabled=true --linter-enabled=false .",
     "lint": "biome lint .",
-    "test": "bun run --filter='./packages/*' --filter='@amritk/playground-mini-lynx' --filter='@amritk/starter-mini-lynx' test",
-    "test:seq": "bun run --filter='./packages/*' --filter='@amritk/playground-mini-lynx' --filter='@amritk/starter-mini-lynx' --sequential test",
+    "test": "NODE_ENV=production vitest run",
     "test:dist": "vitest run --config vitest.dist.config.ts",
     "bench": "bun run scripts/bench-compare.ts",
-    "bench:reconciler": "bun run scripts/bench-reconciler.ts",
     "generate-llms": "bun run scripts/generate-llms.ts",
+    "playground:dev": "vite playground",
+    "playground:build": "vite build playground",
+    "playground:preview": "vite preview playground",
+    "playground:deploy": "bun run playground:build && wrangler deploy --config playground/wrangler.jsonc",
     "release:version": "changeset version && bun install --no-frozen-lockfile",
-    "release:publish": "bun run scripts/resolve-workspace-protocol.ts && bun run scripts/copy-license.ts && changeset publish"
+    "release:publish": "changeset publish"
+  },
+  "dependencies": {
+    "alien-signals": "3.2.1"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "import": "./dist/jsx-dev-runtime.js",
+      "default": "./dist/jsx-dev-runtime.js"
+    },
+    "./router": {
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js",
+      "default": "./dist/router/index.js"
+    },
+    "./flow": {
+      "types": "./dist/flow/index.d.ts",
+      "import": "./dist/flow/index.js",
+      "default": "./dist/flow/index.js"
+    },
+    "./forms": {
+      "types": "./dist/forms/index.d.ts",
+      "import": "./dist/forms/index.js",
+      "default": "./dist/forms/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js",
+      "default": "./dist/query/index.js"
+    },
+    "./hot": {
+      "types": "./dist/hot/index.d.ts",
+      "import": "./dist/hot/index.js",
+      "default": "./dist/hot/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "import": "./dist/vite/index.js",
+      "default": "./dist/vite/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@amritk/runtime-validators": ">=0.8.0",
+    "@tanstack/query-core": "^5",
+    "typescript": "^5",
+    "vite": "^5 || ^6 || ^7 || ^8"
+  },
+  "peerDependenciesMeta": {
+    "@amritk/runtime-validators": {
+      "optional": true
+    },
+    "@tanstack/query-core": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@amritk/runtime-validators": "^0.9.0",
     "@biomejs/biome": "2.4.4",
     "@changesets/cli": "^2.30.0",
+    "@tanstack/query-core": "^5.101.2",
     "@types/node": "^25.9.1",
     "@typescript/native-preview": "^7.0.0-dev.20260524.1",
     "esbuild": "^0.28.1",
     "happy-dom": "^20.0.0",
-    "playwright-core": "^1.56.1",
     "tsc-alias": "^1.8.17",
     "typescript": "^5",
-    "vitest": "^4.1.5"
+    "vite": "^8",
+    "vitest": "^4.1.5",
+    "wrangler": "^4"
   }
 }

@@ -11,14 +11,13 @@ this repository**. For Claude Code the same rules live in
 - [`.claude/testing.md`](./.claude/testing.md) — test setup, style, examples
 - [`.claude/comments.md`](./.claude/comments.md) — comment and JSDoc guidelines
 
-> Consuming a published package rather than editing the repo? Each package ships
-> an **`AI.md`** next to its `README.md` with a mental model, a minimal example,
-> and the gotchas most likely to trip up an LLM. Start there.
+> Consuming the published package rather than editing the repo? The package
+> ships an **[`AI.md`](./AI.md)** next to its `README.md` with a mental model, a
+> minimal example, and the gotchas most likely to trip up an LLM. Start there.
 
-**Adding an export means adding a line to that package's `AI.md`.**
-`bun run check:ai-docs` reads what each package publishes and fails on anything
-its `AI.md` never mentions — a new subpath, a new function, a native package
-with no *Status* section. It is not a style check: these files are the only
+**Adding an export means adding a line to `AI.md`.** `bun run check:ai-docs`
+reads what the package publishes and fails on anything `AI.md` never mentions —
+a new subpath, a new function. It is not a style check: that file is the only
 documentation a coding agent consuming the package will ever read, and a wrong
 one is worse than a missing one because nothing about it looks stale. An export
 no consumer ever writes goes in `INTERNAL_EXPORTS` in `scripts/ai-docs.ts`, with
@@ -26,207 +25,149 @@ the reason.
 
 ## What this is
 
-`mini` is a **Bun monorepo** holding a deliberately tiny signals UI runtime in
-two shapes:
+This repository **is** `@amritk/niv` — the repo root is the published package.
+niv is a deliberately tiny signals UI layer: reactive DOM bindings plus a
+compilerless JSX runtime, built on `alien-signals`. It used to be published as
+`@amritk/mini`; the migration is "replace `@amritk/mini` with `@amritk/niv` in
+your imports and nothing else", which is why the public type names keep their
+`Mini` prefix (`MiniChild`, `MiniChildren`, `MiniElementProps`) and the
+lint opt-out is still `// mini-static-ok`. Do not rename those.
 
-- [`packages/mini`](./packages/mini) — `@amritk/mini`, reactive DOM bindings
-  plus a compilerless JSX runtime.
-- [`packages/mini-lynx`](./packages/mini-lynx) — `@amritk/mini-lynx`, the
-  same model rendered through a pluggable `Host`, so it targets a native view
-  tree, the DOM, or plain objects.
+Around the package sit two things that are not published:
 
-Two more sit alongside them, for the part of a Lynx app that is not rendering:
-[`packages/mini-lynx-native`](./packages/mini-lynx-native) —
-`@amritk/mini-lynx-native`, the wire between Lynx's main-thread and background
-contexts, because `NativeModules` lives only in the latter and the runtime lives
-only in the former — and five native modules built on it, with Android and iOS
-sources of their own:
-[`packages/lynx-notifications`](./packages/lynx-notifications) —
-`@amritk/lynx-notifications`, local and remote push —
-[`packages/lynx-location`](./packages/lynx-location) —
-`@amritk/lynx-location`, device location —
-[`packages/lynx-dialogs`](./packages/lynx-dialogs) — `@amritk/lynx-dialogs`,
-the platform's own date picker, action sheet and alert —
-[`packages/lynx-deep-linking`](./packages/lynx-deep-linking) —
-`@amritk/lynx-deep-linking`, deep links in and out — and
-[`packages/lynx-secure-storage`](./packages/lynx-secure-storage) —
-`@amritk/lynx-secure-storage`, the Keychain and `EncryptedSharedPreferences`
-behind a string-to-string store, because Lynx ships no storage at all and a
-credential has to live somewhere. The Kotlin compiles in CI —
-`bun run check:android` — and a parity suite pins their method surfaces against
-the TypeScript. The Objective-C compiles nowhere automatic: `pod lib lint` on a
-macOS runner cost 81 minutes a run and is commented out in
-`.github/workflows/ci.yml`, so run it by hand on a Mac when you touch `ios/`.
-**None of it has run on a device.** See each package's `AGENTS.md` for what that
-does and does not cover.
+- [`playground/`](./playground) — a kitchen-sink Vite SPA that exercises every
+  public entry point and deploys to Cloudflare Workers as static assets. It is
+  the only code here written the way a consumer writes it, which makes it the
+  fastest way to see a change and the place composition-level defects surface
+  first. It has no `package.json` of its own; its dependencies are root
+  devDependencies, and its `vite.config.ts` and `tsconfig.json` alias
+  `@amritk/niv` and every subpath straight to `../src`, so it runs without a
+  build.
+- [`examples/js-framework-benchmark/`](./examples/js-framework-benchmark) — a
+  keyed js-framework-benchmark implementation, covered by the unit suite.
 
-The five are deliberately alike: each was built from the last one's shape, so a
-structural change to one is usually owed to the others. Where one diverges it
-says why — `lynx-dialogs` has no events, because a dialog is asked once and
-answers once, so it carries none of the `GlobalEventEmitter` fan-out the others
-need; `lynx-deep-linking` is the only one whose inbound half starts *outside*
-any LynxView, which is why it owns a `ContentProvider` and a `+load` and why its
-launch URL is a value rather than an event; `lynx-secure-storage` is the only
-one that **throws** on part of its surface, because `null` from a read has to
-keep meaning "there is no such key" and never "the store would not open".
-
-Alongside them, [`packages/mini-helpers`](./packages/mini-helpers) —
-`@amritk/mini-helpers`, the handful of helpers that turned out to be *identical*
-in both (route matching, query parsing, JSON Schema compilation). It is a leaf:
-it imports neither package, and its charter is **no reactivity, no platform**,
-enforced by `src/purity.test.ts`. Neither package's public surface changed —
-both re-export it from the subpath it already lived on.
-
-Two more are about *getting started* rather than about running an app.
-[`packages/mini-lynx-preview`](./packages/mini-lynx-preview) —
-`@amritk/mini-lynx-preview`, Lynx's Element PAPI implemented over the DOM, so an
-app runs in a browser tab unmodified. It was `apps/playground-mini-lynx/src/lib/`
-until something outside this repo needed it: a scaffolded app cannot import a
-private app's `src/`. It imports the runtime for **types only**, so the wiring —
-`setEngine`, `mount` — stays in the app and a preview can never hand an engine to
-a second copy of the runtime. And
-[`packages/create-mini-lynx`](./packages/create-mini-lynx) —
-`@amritk/create-mini-lynx`, `bun create @amritk/mini-lynx my-app`: a template
-copied to a directory, then the user's package manager, ending at a running app.
-The app it writes carries **both** loops over one `src/app.tsx` — `bun run dev`
-is the preview above, `bun run dev:device` is the rspeedy build below — because
-which one you reach for is a question about the change you are making, not about
-the project you started.
-
-Each is independently published and carries its own `AGENTS.md` with the
-invariants that package cannot break.
-
-One package is not a runtime at all:
-[`packages/mini-lynx-rsbuild-plugin`](./packages/mini-lynx-rsbuild-plugin) —
-`@amritk/mini-lynx-rsbuild-plugin`, the rspeedy build for a mini-lynx app. It
-runs on a laptop rather than on a phone, and it exists because a Lynx template
-is a container with two code slots rather than a bundle with an entry point:
-which code goes in which slot is the framework's to say, ReactLynx says it in
-`@lynx-js/react-rsbuild-plugin`, and there is no framework-agnostic plugin
-underneath to reuse. Its own `AGENTS.md` carries the invariants; the loop it
-serves, and what about that loop has and has not been verified, is
-[`docs/mini-lynx-explorer.md`](./docs/mini-lynx-explorer.md).
-
-Alongside them sit two private kitchen-sink playgrounds — `apps/playground-mini`
-and `apps/playground-mini-lynx` — that exercise every public entry point and
-deploy to Cloudflare Workers as static SPAs. They are the only code here written
-the way a consumer writes it, which makes them the fastest way to see a change
-and the place composition-level defects surface first.
-
-The playground previews through `@amritk/mini-lynx-preview`, the same package a
-scaffolded app boots on — so the engine under the kitchen sink and the engine
-under a five-minute-old starter are one implementation, and a defect in it
-surfaces in the app with eighteen screens rather than in the one with a counter.
-
-A third app, `apps/starter-mini-lynx`, is a **starter** rather than a
-playground: four files, built by rspeedy into a real `.lynx.bundle` and opened
-on a device through Lynx Explorer. It is the build plugin's playground in the
-sense the rule below means — the only place that package is used the way a
-consumer uses it — and the only app here that does not run in a browser.
-
-`apps/playground-mini-lynx` covers the bridge and all five native modules too,
-which a browser has no more of than it has an engine. Its `src/lib/fake-device.ts`
-is the answer: it installs both halves of the bridge over the fake contexts the
-package publishes, and registers each module's own published fake as the
-registry — so the screens drive the shipping facades against the same contract
-those packages' suites assert on, and nothing about a module is reimplemented
-for the preview.
-
-**A new package, or a new entry point on one, is not finished until it has a
-playground screen.** Register its published fake in `src/lib/fake-device.ts`,
-add the screen under `src/screens/`, put it in the route table and add it to
-`src/screens.test.ts`. This is not a documentation chore: the playground is the
-only place in the repository where a package is used the way a consumer uses it,
-and every composition-level defect this repo has found was found there rather
-than in a suite. A package with no screen is a package nobody has actually
-tried.
-
-The rule is about *being used like a consumer uses it*, not about the screen.
-`@amritk/mini-lynx-rsbuild-plugin` has no runtime surface to render, so its
-equivalent is `apps/starter-mini-lynx`: a real app that builds through it, plus
-a test that runs one real rspeedy build and drives the artifact. A build-time
-package is finished when a change to it can break something a consumer would
-notice, in this repo, without a device.
-
-Two more packages have no surface to demo either, and each has its own
-equivalent. `@amritk/mini-lynx-preview` is what the playground itself boots on,
-which is a stronger statement than a screen would be — every screen is a test of
-it. `@amritk/create-mini-lynx` produces a directory of files rather than an API;
-its guard is `template.test.ts`, and the app it writes is the two loops this
-repo already runs — the preview the playground boots on, and the rspeedy build
-`apps/starter-mini-lynx` uses. None of the three is a precedent for a package
-that *does* have a runtime surface.
+**A new entry point, or a new public export on one, is not finished until the
+playground uses it.** Add or extend a page under `playground/src/pages/` and put
+it in the route table. This is not a documentation chore: the playground is the
+only place in the repository where the package is used the way a consumer uses
+it, and the composition-level defects this repo has found were found there
+rather than in a suite. An export nobody has composed into an app is an export
+nobody has actually tried.
 
 ## Workflow
 
 ```bash
-bun install                 # install workspace deps
-bun run test                # run every package's tests (packages/* only)
+bun install                 # install deps
+bun run test                # the unit suite (src/ and examples/)
 bun run check               # biome lint + format check
-bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (packages + apps)
-bun run check:ai-docs       # every package's AI.md against what that package actually exports
-bun run check:android       # compile the notifications Kotlin (needs ANDROID_HOME; skips without)
-bun run types:check         # type-check every package and every app
-bun run build               # build every package and every app (the starter builds a .lynx.bundle)
-bun run test:dist           # load and drive the built dist/ artifacts (needs a prior build)
+bun run check:reactivity    # guard the compilerless-JSX called-signal footgun (src, examples, playground)
+bun run check:ai-docs       # AI.md against what the package actually exports
+bun run types:check         # type-check the package and the playground
+bun run build               # build dist/ (tsgo + tsc-alias + strip-comments)
+bun run test:dist           # load, drive and npm-install the built dist/ (needs a prior build)
 bun run bench -- --baseline <dir>   # bundle-size delta against another checkout
+bun run playground:dev      # the playground's Vite dev server (also :build, :preview, :deploy)
 ```
 
-Per package: `bun run --filter='@amritk/<name>' test` (and `build`, `types:check`).
-Per playground: `bun run --filter='@amritk/playground-mini' dev` (and `build`,
-`preview`, `deploy`).
+## Invariants — do not break these
 
-## The one rule both packages share
+- **The cap is the design.** No virtual DOM, no diffing, no re-render. JSX builds
+  real DOM once; dynamic values flow through bind helpers or function-valued
+  props; repetition goes through `list`. If a feature seems missing, the answer
+  is usually "use Preact/Solid", **not** a new helper. Adding surface area needs
+  a strong justification, and a feature only some apps need belongs on a
+  subpath, because the `.` entry is byte-budgeted and
+  `src/core-size-budget.test.ts` holds the ceiling.
+- **Reactivity is decided by value shape at runtime:** a function-valued
+  attribute/child/`show` is reactive; anything else is static. The classic bug is
+  calling a signal in JSX (`disabled={streaming()}`) — the `@amritk/niv/vite`
+  plugin guards it live in the dev server, and `check:reactivity` runs the same
+  check in CI. If you add a `.tsx` test that intentionally freezes a signal, mark
+  the line `// mini-static-ok`.
+- **`bindHtml` is the only `innerHTML` sink**, and its `sanitize` argument is
+  required at every call site — never add a default. Everything else writes
+  through `textContent` / attributes / `classList`.
+- **Subpaths (`router`/`flow`/`forms`/`query`/`hot`) must add zero bytes to the
+  `.` entry**, and must stay free of each other — `src/import-boundary.test.ts`
+  enforces both. `forms`' schema arm and `query` depend on **optional** peers
+  (`@amritk/runtime-validators`, `@tanstack/query-core`) — keep them optional.
+  `hot` is why `mount` itself has no hot-reload branch: the widget ships one
+  static bundle and must not pay for a dev-server feature.
+- **The compiler ceiling is DIAGNOSTICS.** "Compilerless" means no transform is
+  ever *required* for correctness: the package sits at the standard JSX
+  transform plus an optional plugin. `@amritk/niv/vite` may warn, guard, and wire
+  hot updates; it must never be required for correctness and must never rewrite
+  semantics. The package's consumer bundles it into somebody else's page against
+  a byte budget a test enforces, so a required build step is adoption friction
+  on the one thing the package is for. In particular: do not "fix" the
+  called-signal footgun by transforming `disabled={streaming()}` into a getter —
+  reactivity is decided by value SHAPE at runtime, and a transform that silently
+  changes shapes turns a one-sentence rule into something you need the compiler
+  to predict.
+- **`value`, `checked` and `selected` are PROPERTIES, not attributes**, and they
+  are applied after the props loop. The attribute only seeds a control's
+  default: it stops reaching the field once the user has typed, and on a
+  `<select>` it never selects at all. They are deferred because the `<select>`
+  property write only takes once the `<option>`s exist, and `children` is the
+  last key the JSX transform emits. Anything else that grows an
+  attribute/property split belongs next to them in `isProperty`
+  (`src/jsx-runtime.ts`), not inline.
+- **`show` and `style` share one inline `display` slot.** Applying a style bag
+  replaces the inline style wholesale, so a style write would otherwise un-hide
+  what `bindShow` hid — and which won came down to the order the attributes were
+  typed in. `applyDisplay` in `src/bind.ts` arbitrates; anything new that writes
+  `display` has to go through it.
+- **The route grammar is written three times** — `matchRoute`, `buildPath`, and
+  the `PathParams` type in `src/router/`. A change to what a pattern means has
+  to land in all three or they disagree, and the disagreement typechecks.
+  `path-params.test.ts` and the round-trip case in `build-path.test.ts` are what
+  make it fail instead.
+- The package **ships its `src/`** (see `files` in `package.json`), so source
+  comments reach consumers — keep them accurate.
 
-**The cap is the design.** No virtual DOM, no diffing, no re-render. JSX builds
-real host nodes once; dynamic values flow through bind helpers or
-function-valued props; repetition goes through `list`. If a feature seems
-missing, the answer is usually "reach for a bigger framework", **not** a new
-helper — and a feature only some apps need belongs on a subpath, because the
-`.` entry is byte-budgeted and `src/core-size-budget.test.ts` holds the ceiling.
+## The alien-signals scope-ownership gotcha
 
-Everything more specific lives in the per-package `AGENTS.md`. Read it before
-editing that package — the scope-ownership and reserved-`key` gotchas in
-particular have both bitten before and both have regression tests you should
-not "fix".
+A scope created inside a running `effect` is **disposed when that effect
+re-runs**, before the next run's body starts. That is usually what you want, and
+it is fatal anywhere a long-lived subtree is built from inside a tracking effect.
 
-## The other rule: no required build step, and the ceiling differs
+`list` is exactly that case. Rows are built inside the reconciliation effect,
+which re-runs on every change to the collection, so appending one row used to
+dispose the scope of every row already on screen — the nodes stayed in the
+document looking perfectly correct while all of their bindings quietly stopped
+updating, and each surviving row's `onCleanup` fired as though the row had been
+removed. `src/run-detached.ts` is the fix, and because detaching also removes
+the chain that used to dispose rows when the component unmounted, `list`
+registers its teardown with `onCleanup` to restore it. `src/list.test.ts`
+carries a regression test for each half.
 
-"Compilerless" means no transform is ever *required* for correctness. Both
-packages sit at the standard JSX transform plus an optional plugin for
-diagnostics (`@amritk/mini/vite`). Above that they diverge deliberately:
+`src/internal/render-child.ts` is the opposite case and deliberately relies on
+the engine behaviour: its branch scope is meant to be tied to the swap effect,
+and the swap effect to the component's scope, which is why `Show` can ignore the
+returned teardown without leaking a branch. Do not "fix" it to match `list`.
 
-- **`mini` stops at diagnostics.** Its consumer bundles into somebody else's
-  page against a byte budget a test enforces, so a required build step is
-  friction on the one thing the package is for.
-- **`mini-lynx` may add optional *optimisation*,** because its consumer owns a
-  whole app toolchain — under the invariant that **an app skipping the plugin
-  still renders correctly**, only slower and larger.
+## The reserved-`key` gotcha
 
-Note what this protects that is easy to miss: the two packages are the same
-design re-derived, which is why a defect found in one is worth hunting in the
-other. A transform that changes semantics on one side ends that, and the
-cross-check is how both shipped gotchas above were found.
-[`docs/mini-lynx-cross-platform.md`](./docs/mini-lynx-cross-platform.md) §18
-has the full accounting.
+`key` is reserved by JSX. The transform hoists any `key` attribute out of the
+props object into the runtime's third parameter *before the component is
+called*, so a component with a legitimate prop of that name — `For`, whose `key`
+is the row identity function — would never receive it. `jsx` forwards it back
+into props for component tags; `src/flow/for.test.tsx` pins that. It stays
+ignored for element tags, where there is no keying at the JSX level at all.
 
 ## House rules
 
-- **Add a changeset with every PR.** Run `bunx changeset`, pick the affected
-  packages and a semver bump, commit the file under `.changeset/`. For
-  docs/tooling/CI changes that touch no published package, use
-  `bunx changeset --empty`.
+- **Add a changeset with every PR.** Run `bunx changeset`, pick `@amritk/niv`
+  and a semver bump, commit the file under `.changeset/`. For docs/tooling/CI
+  changes that do not touch the published package, use `bunx changeset --empty`.
 - **Never** put Claude/session links, tracking IDs, or platform attributions in
   commits or PR text — keep them focused on the code.
 - Match the surrounding code's style, comment density, and naming. Biome
   (`biome.json`) is the formatter and linter; run `bun run check` before you're
   done.
-- Both packages **ship their `src/`**, so source comments reach consumers — keep
-  them accurate.
-- **Shared runtime dependencies go through the root `catalog`.** Both packages
-  declare `alien-signals` as `"catalog:"`; change the version once, in the root
-  `package.json`, never in a package manifest. `catalog:`/`workspace:` are
-  resolved at publish time by `scripts/resolve-workspace-protocol.ts` because
-  npm understands neither — see `.claude/bun.md`.
+- **`alien-signals` is the one runtime dependency**, pinned directly in
+  `dependencies` (`3.2.1`) — there is no workspace catalog any more. It is the
+  reactive core and it is inside the byte-budgeted `.` bundle, so a bump is a
+  reviewed change with a changeset, not a drive-by.
 - Pre-alpha: breaking changes are allowed but must ride a **minor** version bump
   via a changeset.
