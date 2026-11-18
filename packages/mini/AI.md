@@ -87,6 +87,9 @@ const dispose = mount(document.body, Counter) // owns the tree; dispose() tears 
   `container.appendChild(App())` yourself leaks effects.
 - **`list(container, items, key, create)`** — keyed collections. `items` is a
   getter (pass the signal). `container` must be owned solely by the list.
+- **Long lists: window them.** Layout, not mini, is the cost of a big list.
+  Pass `list` a `computed` slice of the visible rows rather than every row; the
+  README's Performance section has the recipe.
 - **`onCleanup(fn)`** — teardown; must be called synchronously inside a
   component (i.e. inside a `mount`/`list` scope).
 - **`bindText`/`bindValue`/`bindAttr`/`bindClass`/`bindShow`/`bindChecked`/`bindSelect`** —
