@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
  * `alien-signals`. Import a subpath into core and this test fails on both
  * counts, before the widget ever grows.
  *
- * The budget is deliberately snug against the measured size (~3.1 KB gzipped):
+ * The budget is deliberately snug against the measured size (~3.2 KB gzipped):
  * a leaked subpath adds far more than the headroom, so a real regression cannot
  * hide under it. Bump it only for an intentional, reviewed change to the core.
  * It has moved twice, both times to buy correctness or a real win:
@@ -42,6 +42,15 @@ import { describe, expect, it } from 'vitest'
  * `jsx-runtime` pulls `bind`, so the sum of the two entries measured separately
  * would double-count them). The `.` budget still stands on its own for the
  * non-JSX consumer that calls `template` + `bind*`.
+ *
+ * ## Where the two stand
+ *
+ * Neither budget moved when `template()` started resolving its `data-ref` nodes
+ * at parse time. That change cost about 70 bytes, and it was paid for inside
+ * the existing ceilings: `watch` reuses `runDetached`, `jsxDEV` became `jsx`
+ * itself, and the reconciler dropped a `?? null` on every read. It left `.` at
+ * about 3.18 KB and `.` + `/jsx-runtime` exactly at its 4200-byte ceiling, so
+ * the next runtime change that adds bytes has to find them or argue for a bump.
  */
 
 const PKG_ROOT = fileURLToPath(new URL('..', import.meta.url))

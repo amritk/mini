@@ -66,6 +66,15 @@ describe('template', () => {
     expect(ref['x']?.tagName).toBe('SPAN')
   })
 
+  it('finds refs inside SVG markup', () => {
+    // SVG elements carry `dataset` too, so refs inside an icon resolve like any
+    // other; this pins that the walk does not quietly assume HTML elements.
+    const make = template('<div><svg viewBox="0 0 8 8"><g><path data-ref="icon" d="M0 0h8"></path></g></svg></div>')
+    const { ref } = make()
+    expect(ref['icon']?.tagName.toLowerCase()).toBe('path')
+    expect(ref['icon']?.getAttribute('d')).toBe('M0 0h8')
+  })
+
   it('returns an empty ref map for a template without refs', () => {
     expect(template('<div><p></p></div>')().ref).toEqual({})
   })

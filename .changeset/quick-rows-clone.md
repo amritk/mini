@@ -1,5 +1,5 @@
 ---
-'@amritk/mini': patch
+'@amritk/mini': minor
 ---
 
 Faster row creation in `template()` and `list`, plus guidance on long lists.
