@@ -1,3 +1,10 @@
+> **⚠️ Moved — mini now lives at [amritk/niv](https://github.com/amritk/niv).**
+> The DOM runtime `@amritk/mini` continues as
+> [`@amritk/niv`](https://www.npmjs.com/package/@amritk/niv); the Lynx packages
+> are no longer developed. Nothing in this repository will receive further
+> releases. The documentation below describes the final versions and is kept
+> for reference only.
+
 <div align="center">
 
 # mini

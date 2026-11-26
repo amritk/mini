@@ -1,3 +1,8 @@
+> **⚠️ Deprecated — no longer developed.** This package is no longer maintained
+> and will receive no further releases. Its main consumer, `@amritk/mini`, now
+> continues as [`@amritk/niv`](https://github.com/amritk/niv). The documentation
+> below describes the final version and is kept for reference only.
+
 # @amritk/mini-helpers
 
 The helpers [`@amritk/mini`](../mini) and [`@amritk/mini-lynx`](../mini-lynx)

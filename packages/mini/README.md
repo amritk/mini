@@ -1,7 +1,8 @@
 > **⚠️ Renamed — `@amritk/mini` is now [`@amritk/niv`](https://www.npmjs.com/package/@amritk/niv).**
-> This package will receive no further releases. Install `@amritk/niv` instead
-> and replace `@amritk/mini` with `@amritk/niv` in your imports (including
-> subpaths and `jsxImportSource`).
+> Development continues at [amritk/niv](https://github.com/amritk/niv). This
+> package will receive no further releases. Install `@amritk/niv` instead and
+> replace `@amritk/mini` with `@amritk/niv` in your imports (including subpaths
+> and `jsxImportSource`).
 
 <div align="center">
 
